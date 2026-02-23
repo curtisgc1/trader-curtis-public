@@ -1,0 +1,39 @@
+columns substreams version: 1
+13 columns:
+1 substreams for column `date`:
+	date
+1 substreams for column `total_trades`:
+	total_trades
+2 substreams for column `winning_trades`:
+	winning_trades.sparse.idx
+	winning_trades
+1 substreams for column `losing_trades`:
+	losing_trades
+1 substreams for column `total_pnl`:
+	total_pnl
+2 substreams for column `win_rate`:
+	win_rate.sparse.idx
+	win_rate
+1 substreams for column `avg_win`:
+	avg_win
+1 substreams for column `avg_loss`:
+	avg_loss
+2 substreams for column `max_drawdown`:
+	max_drawdown.sparse.idx
+	max_drawdown
+3 substreams for column `best_ticker`:
+	best_ticker.dict_prefix
+	best_ticker.dict
+	best_ticker
+3 substreams for column `worst_ticker`:
+	worst_ticker.dict_prefix
+	worst_ticker.dict
+	worst_ticker
+3 substreams for column `best_source`:
+	best_source.dict_prefix
+	best_source.dict
+	best_source
+3 substreams for column `worst_source`:
+	worst_source.dict_prefix
+	worst_source.dict
+	worst_source

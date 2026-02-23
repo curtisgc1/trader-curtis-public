@@ -1,0 +1,313 @@
+{
+  "winners": [],
+  "losers": [
+    {
+      "symbol": "PLTR",
+      "entry": 131.0616981132075,
+      "exit": 129.996667,
+      "pnl": -6556.2799989999985,
+      "pnl_pct": -0.812618124547391,
+      "grade": "C",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [
+        "\ud83d\uded1 GOOD: Honored stop loss on PLTR at 0.8% loss"
+      ],
+      "what_wrong": [
+        "\u274c Thesis wrong on PLTR but preserved capital",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR"
+      ],
+      "lesson": "STOP LOSS SAVED ME: PLTR stopped at 0.8% instead of larger loss",
+      "shares": 53
+    },
+    {
+      "symbol": "ASTS",
+      "entry": 109.36,
+      "exit": 86.82,
+      "pnl": -788.9000000000001,
+      "pnl_pct": -20.6108266276518,
+      "grade": "D",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [],
+      "what_wrong": [
+        "\u26a0\ufe0f Stop too wide on ASTS - lost 20.6%",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "\u274c Meme stock volatility crushed ASTS"
+      ],
+      "lesson": "AVOID: Meme stocks too volatile for my strategy",
+      "shares": 35
+    },
+    {
+      "symbol": "MARA",
+      "entry": 8.251883116883116,
+      "exit": 7.5,
+      "pnl": -865.79,
+      "pnl_pct": -9.111654954791891,
+      "grade": "C",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [
+        "\ud83d\uded1 GOOD: Honored stop loss on MARA at 9.1% loss"
+      ],
+      "what_wrong": [
+        "\u274c Thesis wrong on MARA but preserved capital",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "\u274c Crypto exposure via MARA too risky"
+      ],
+      "lesson": "LIMIT: Keep crypto exposure under 5% max",
+      "shares": 154
+    },
+    {
+      "symbol": "MARA",
+      "entry": 9.2,
+      "exit": 7.5,
+      "pnl": -91.79999999999995,
+      "pnl_pct": -18.47826086956521,
+      "grade": "D",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [],
+      "what_wrong": [
+        "\u26a0\ufe0f Stop too wide on MARA - lost 18.5%",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "\u274c Crypto exposure via MARA too risky"
+      ],
+      "lesson": "LIMIT: Keep crypto exposure under 5% max",
+      "shares": 54
+    },
+    {
+      "symbol": "MARA",
+      "entry": 8.251883116883116,
+      "exit": 7.5,
+      "pnl": -865.79,
+      "pnl_pct": -9.111654954791891,
+      "grade": "C",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [
+        "\ud83d\uded1 GOOD: Honored stop loss on MARA at 9.1% loss"
+      ],
+      "what_wrong": [
+        "\u274c Thesis wrong on MARA but preserved capital",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "\u274c Crypto exposure via MARA too risky"
+      ],
+      "lesson": "LIMIT: Keep crypto exposure under 5% max",
+      "shares": 154
+    },
+    {
+      "symbol": "MARA",
+      "entry": 8.251883116883116,
+      "exit": 7.5,
+      "pnl": -865.79,
+      "pnl_pct": -9.111654954791891,
+      "grade": "C",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [
+        "\ud83d\uded1 GOOD: Honored stop loss on MARA at 9.1% loss"
+      ],
+      "what_wrong": [
+        "\u274c Thesis wrong on MARA but preserved capital",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+        "\u274c Crypto exposure via MARA too risky"
+      ],
+      "lesson": "LIMIT: Keep crypto exposure under 5% max",
+      "shares": 154
+    },
+    {
+      "symbol": "ASTS",
+      "entry": 109.36,
+      "exit": 86.82,
+      "pnl": -788.9000000000001,
+      "pnl_pct": -20.6108266276518,
+      "grade": "D",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [],
+      "what_wrong": [
+        "\u26a0\ufe0f Stop too wide on ASTS - lost 20.6%",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "\u274c Meme stock volatility crushed ASTS"
+      ],
+      "lesson": "AVOID: Meme stocks too volatile for my strategy",
+      "shares": 35
+    },
+    {
+      "symbol": "ASTS",
+      "entry": 109.36,
+      "exit": 86.82,
+      "pnl": -788.9000000000001,
+      "pnl_pct": -20.6108266276518,
+      "grade": "D",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [],
+      "what_wrong": [
+        "\u26a0\ufe0f Stop too wide on ASTS - lost 20.6%",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "\u274c Meme stock volatility crushed ASTS"
+      ],
+      "lesson": "AVOID: Meme stocks too volatile for my strategy",
+      "shares": 35
+    },
+    {
+      "symbol": "ASTS",
+      "entry": 109.36,
+      "exit": 86.82,
+      "pnl": -788.9000000000001,
+      "pnl_pct": -20.6108266276518,
+      "grade": "D",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [],
+      "what_wrong": [
+        "\u26a0\ufe0f Stop too wide on ASTS - lost 20.6%",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for ASTS",
+        "\u274c Meme stock volatility crushed ASTS"
+      ],
+      "lesson": "AVOID: Meme stocks too volatile for my strategy",
+      "shares": 35
+    },
+    {
+      "symbol": "PLTR",
+      "entry": 131.0616981132075,
+      "exit": 129.996667,
+      "pnl": -6556.2799989999985,
+      "pnl_pct": -0.812618124547391,
+      "grade": "C",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [
+        "\ud83d\uded1 GOOD: Honored stop loss on PLTR at 0.8% loss"
+      ],
+      "what_wrong": [
+        "\u274c Thesis wrong on PLTR but preserved capital",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR"
+      ],
+      "lesson": "STOP LOSS SAVED ME: PLTR stopped at 0.8% instead of larger loss",
+      "shares": 53
+    },
+    {
+      "symbol": "PLTR",
+      "entry": 162.59,
+      "exit": 129.996667,
+      "pnl": -97.77999899999998,
+      "pnl_pct": -20.046333107817212,
+      "grade": "D",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [],
+      "what_wrong": [
+        "\u26a0\ufe0f Stop too wide on PLTR - lost 20.0%",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR"
+      ],
+      "lesson": "FIX: Tighter stops needed - PLTR was too loose",
+      "shares": 3
+    },
+    {
+      "symbol": "PLTR",
+      "entry": 131.0616981132075,
+      "exit": 129.996667,
+      "pnl": -6556.2799989999985,
+      "pnl_pct": -0.812618124547391,
+      "grade": "C",
+      "stop_hit": true,
+      "sentiment": {
+        "correct": false,
+        "grade": "C",
+        "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR",
+        "predicted": "neutral",
+        "actual": "loss",
+        "score": 50
+      },
+      "what_right": [
+        "\ud83d\uded1 GOOD: Honored stop loss on PLTR at 0.8% loss"
+      ],
+      "what_wrong": [
+        "\u274c Thesis wrong on PLTR but preserved capital",
+        "\u26aa SENTIMENT NEUTRAL: No strong signal for PLTR"
+      ],
+      "lesson": "STOP LOSS SAVED ME: PLTR stopped at 0.8% instead of larger loss",
+      "shares": 53
+    }
+  ]
+}

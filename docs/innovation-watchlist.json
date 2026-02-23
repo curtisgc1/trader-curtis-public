@@ -1,0 +1,27 @@
+[
+  {
+    "asset": "NVDA",
+    "theme": "ai_infrastructure",
+    "conviction": 0.62
+  },
+  {
+    "asset": "ASML",
+    "theme": "semicap_critical_supply",
+    "conviction": 0.58
+  },
+  {
+    "asset": "TSM",
+    "theme": "advanced_foundry",
+    "conviction": 0.57
+  },
+  {
+    "asset": "ISRG",
+    "theme": "robotic_surgery",
+    "conviction": 0.56
+  },
+  {
+    "asset": "CRSP",
+    "theme": "gene_editing",
+    "conviction": 0.53
+  }
+]

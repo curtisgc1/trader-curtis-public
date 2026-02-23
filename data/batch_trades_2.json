@@ -1,0 +1,7 @@
+[
+  {"symbol": "TSLA", "shares": 3, "entry": 360.00, "sentiment": 68, "sources": ["twitter", "grok_ai", "analyst"]},
+  {"symbol": "GOOGL", "shares": 3, "entry": 185.00, "sentiment": 72, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "UBER", "shares": 6, "entry": 75.00, "sentiment": 76, "sources": ["reddit_wsb", "twitter"]},
+  {"symbol": "SNOW", "shares": 2, "entry": 190.00, "sentiment": 74, "sources": ["reddit_stocks", "twitter", "analyst"]},
+  {"symbol": "NET", "shares": 5, "entry": 95.00, "sentiment": 69, "sources": ["reddit_wsb", "stocktwits", "grok_ai"]}
+]

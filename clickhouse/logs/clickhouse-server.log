@@ -1,0 +1,1578 @@
+2026.02.20 22:00:44.275077 [ 3320576 ] {} <Information> Application: Will watch for the process with pid 48018
+2026.02.20 22:00:44.275280 [ 3320582 ] {} <Information> Application: Forked a child process to watch
+2026.02.20 22:00:44.275495 [ 3320582 ] {} <Information> Application: Starting ClickHouse 26.1.2.11 (revision: 54507, git hash: 53779390caa67a65a2368cdbb7533ed925608ba9, build id: <unknown>), PID 48018
+2026.02.20 22:00:44.275538 [ 3320582 ] {} <Information> Application: starting up
+2026.02.20 22:00:44.275577 [ 3320582 ] {} <Information> Application: OS name: Darwin, version: 25.2.0, architecture: arm64
+2026.02.20 22:00:44.276642 [ 3320582 ] {} <Information> Application: Available RAM: 512.00 GiB; logical cores: 32; used cores: 32.
+2026.02.20 22:00:44.290639 [ 3320582 ] {} <Information> Application: Query Profiler and TraceCollector are disabled because they require PHDR cache to be created (otherwise the function 'dl_iterate_phdr' is not lock free and not async-signal safe).
+2026.02.20 22:00:44.291524 [ 3320582 ] {} <Information> StatusFile: Writing pid 48018 to clickhouse/data/status
+2026.02.20 22:00:44.293197 [ 3320582 ] {} <Information> MemoryWorker: Starting background memory thread with period of 100ms, using Jemalloc as source, purging dirty pages enabled (total memory threshold ratio: 0.9, dirty pages threshold ratio: 0.2, page size: 16384)
+2026.02.20 22:00:44.293445 [ 3320582 ] {} <Information> BackgroundSchedulePool/BgSchPool: Create BackgroundSchedulePool with 512 threads
+2026.02.20 22:00:44.339690 [ 3320582 ] {} <Warning> Context: Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
+2026.02.20 22:00:44.340710 [ 3320582 ] {} <Information> DNSCacheUpdater: Update period 15 seconds
+2026.02.20 22:00:44.342085 [ 3320582 ] {} <Information> Application: Changed setting 'max_server_memory_usage' to 460.80 GiB (512.00 GiB available memory * 0.90 max_server_memory_usage_to_ram_ratio)
+2026.02.20 22:00:44.342099 [ 3320582 ] {} <Information> Application: Setting merges_mutations_memory_usage_soft_limit was set to 256.00 GiB (512.00 GiB available * 0.50 merges_mutations_memory_usage_to_ram_ratio)
+2026.02.20 22:00:44.342100 [ 3320582 ] {} <Information> Application: Merges and mutations memory limit is set to 256.00 GiB
+2026.02.20 22:00:44.342893 [ 3320582 ] {} <Information> Application: Setting max_remote_read_network_bandwidth_for_server was set to 0
+2026.02.20 22:00:44.342895 [ 3320582 ] {} <Information> Application: Setting max_remote_write_network_bandwidth_for_server was set to 0
+2026.02.20 22:00:44.342898 [ 3320582 ] {} <Information> Application: Setting max_local_read_bandwidth_for_server was set to 0
+2026.02.20 22:00:44.342898 [ 3320582 ] {} <Information> Application: Setting max_local_write_bandwidth_for_server was set to 0
+2026.02.20 22:00:44.342921 [ 3320582 ] {} <Information> Application: ConcurrencyControl limit is set to UNLIMITED CPU slots with 'fair_round_robin' scheduler
+2026.02.20 22:00:44.342930 [ 3320582 ] {} <Information> BackgroundSchedulePool/BgBufSchPool: Create BackgroundSchedulePool with 16 threads
+2026.02.20 22:00:44.343340 [ 3320582 ] {} <Information> BackgroundSchedulePool/BgMBSchPool: Create BackgroundSchedulePool with 16 threads
+2026.02.20 22:00:44.344025 [ 3320582 ] {} <Information> BackgroundSchedulePool/BgDistSchPool: Create BackgroundSchedulePool with 16 threads
+2026.02.20 22:00:44.345758 [ 3320582 ] {} <Information> WorkloadEntityDiskStorage: Loading workload entities from /Users/Shared/curtis/trader-curtis/clickhouse/data/workload/
+2026.02.20 22:00:44.345856 [ 3320582 ] {} <Information> CertificateReloader: One of paths is empty. Cannot apply new configuration for certificates. Fill all paths and try again.
+2026.02.20 22:00:44.345860 [ 3320582 ] {} <Information> CertificateReloader: One of paths is empty. Cannot apply new configuration for certificates. Fill all paths and try again.
+2026.02.20 22:00:44.349622 [ 3320582 ] {} <Information> Context: Initialized background executor for merges and mutations with num_threads=16, num_tasks=32, scheduling_policy=round_robin
+2026.02.20 22:00:44.349956 [ 3320582 ] {} <Information> Context: Initialized background executor for move operations with num_threads=8, num_tasks=8
+2026.02.20 22:00:44.350413 [ 3320582 ] {} <Information> Context: Initialized background executor for fetches with num_threads=16, num_tasks=16
+2026.02.20 22:00:44.350785 [ 3320582 ] {} <Information> Context: Initialized background executor for common operations (e.g. clearing old parts) with num_threads=8, num_tasks=8
+2026.02.20 22:00:44.351689 [ 3320582 ] {} <Information> Application: Loading metadata from clickhouse/data/
+2026.02.20 22:00:44.351747 [ 3320582 ] {} <Information> Context: Database disk name: default
+2026.02.20 22:00:44.351749 [ 3320582 ] {} <Information> Context: Database disk name: default, path: clickhouse/data/
+2026.02.20 22:00:44.353482 [ 3320582 ] {} <Information> DatabaseAtomic (system): Metadata disk default, path clickhouse/data/
+2026.02.20 22:00:44.354864 [ 3320582 ] {} <Information> DatabaseAtomic (system): Metadata processed, database system has 0 tables, 0 dictionaries and 0 materialized views in total.
+2026.02.20 22:00:44.354880 [ 3320582 ] {} <Information> TablesLoader: Parsed metadata of 0 tables in 1 databases in 0.000179208 sec
+2026.02.20 22:00:44.375688 [ 3320582 ] {} <Information> DatabaseAtomic (default): Metadata disk default, path clickhouse/data/
+2026.02.20 22:00:44.375934 [ 3320582 ] {} <Information> DatabaseAtomic (default): Metadata processed, database default has 0 tables, 0 dictionaries and 0 materialized views in total.
+2026.02.20 22:00:44.375938 [ 3320582 ] {} <Information> TablesLoader: Parsed metadata of 0 tables in 1 databases in 1.2875e-05 sec
+2026.02.20 22:00:44.375953 [ 3320582 ] {} <Information> loadMetadata: Start asynchronous loading of databases
+2026.02.20 22:00:44.376052 [ 3320582 ] {} <Information> UserDefinedSQLObjectsLoaderFromDisk: Loading user defined objects from /Users/Shared/curtis/trader-curtis/clickhouse/data/user_defined/
+2026.02.20 22:00:44.376056 [ 3320582 ] {} <Information> Application: TaskStats is not implemented for this OS. IO accounting will be disabled.
+2026.02.20 22:00:44.376287 [ 3320582 ] {} <Information> CertificateReloader: One of paths is empty. Cannot apply new configuration for certificates. Fill all paths and try again.
+2026.02.20 22:00:44.376290 [ 3320582 ] {} <Information> CertificateReloader: One of paths is empty. Cannot apply new configuration for certificates. Fill all paths and try again.
+2026.02.20 22:00:44.376789 [ 3320582 ] {} <Information> Application: Listening for http://127.0.0.1:8123
+2026.02.20 22:00:44.376803 [ 3320582 ] {} <Information> Application: Listening for native protocol (tcp): 127.0.0.1:9000
+2026.02.20 22:00:44.376804 [ 3320582 ] {} <Information> Application: Ready for connections.
+2026.02.20 22:00:44.423196 [ 3320592 ] {} <Information> MemoryTracker: Correcting the value of global memory tracker from 73.07 MiB to 398.17 MiB
+2026.02.20 22:01:11.599917 [ 3320588 ] {3fe96047-cae1-417d-bf28-92f8e8864ac8} <Information> DatabaseAtomic (trader): Metadata disk default, path clickhouse/data/
+2026.02.20 22:01:11.600191 [ 3320588 ] {3fe96047-cae1-417d-bf28-92f8e8864ac8} <Information> DatabaseAtomic (trader): Metadata processed, database trader has 0 tables, 0 dictionaries and 0 materialized views in total.
+2026.02.20 22:01:11.600195 [ 3320588 ] {3fe96047-cae1-417d-bf28-92f8e8864ac8} <Information> TablesLoader: Parsed metadata of 0 tables in 1 databases in 1.0292e-05 sec
+2026.02.20 22:02:09.318012 [ 3320588 ] {7147ad07-79a4-485b-963d-c3b92fcf39b2} <Information> InterpreterInsertQuery: INSERT SELECT deduplication is disabled because SELECT is not stable
+2026.02.21 22:01:10.710772 [ 3320588 ] {0f783427-83f8-4a24-b92f-9f6b92f2576d} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54610) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:10.711864 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:10.843643 [ 3320588 ] {d2aa8f0a-6ccc-4dd6-92f9-7cd5205d8aee} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54612) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:10.843940 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:10.971919 [ 3320588 ] {cacf8cf0-b94b-4170-a338-4f8f4c8085c5} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54614) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:10.972146 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.099201 [ 3320588 ] {06ec060f-d131-4469-9fc4-ae5cfa3609ac} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54616) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.099704 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.232320 [ 3320588 ] {994a3d99-3525-4d44-bbd9-1b75662b8e48} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54618) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.232637 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.361487 [ 3320588 ] {8cc386f6-5afa-4a09-89e4-2dd556facf49} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54620) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.361746 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.490932 [ 3320588 ] {b27de1f7-34d0-4c94-a173-84bec2a46dfc} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54622) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.491247 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.622385 [ 3320588 ] {d04f7b04-d89f-41cc-9353-180f9a3e61e2} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54624) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.622724 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.754516 [ 3320588 ] {4cad6077-7b4c-46ca-8433-59b35693ba0f} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54626) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.754813 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.882398 [ 3320588 ] {f75baa9a-79b8-4be8-b7e7-a6c0b7f887f6} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54628) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:11.882589 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.012385 [ 3320588 ] {3118a40d-e20d-478c-8806-d4ca7534a918} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54630) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.012583 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.143383 [ 3320588 ] {cca8f99f-dc85-4d23-ae1a-03e495213990} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54632) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.143722 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.276991 [ 3320588 ] {8821a3c6-f502-4a7e-b252-db7a0d76a863} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54634) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.277167 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.408377 [ 3320588 ] {b5ec0f42-247a-4860-8ae6-c29f9defbb04} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54636) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.408702 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.538814 [ 3320588 ] {7a51e47e-c189-408f-8c0a-b68ce274bc98} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54638) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.538992 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.672421 [ 3320588 ] {585146a3-ea7e-4af4-8e4c-19c5d240709e} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54640) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.672722 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.805941 [ 3320588 ] {0e7127ff-9c70-41ea-95d1-c0607948152a} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54642) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.806224 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.938616 [ 3320588 ] {645bf373-8a16-4a8a-9293-cad26077a8b1} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54644) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:12.939017 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.068176 [ 3320588 ] {8d257237-bb4d-45e0-8148-cfb5a4e18622} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54646) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.068421 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.199653 [ 3320588 ] {01838802-bc59-49c3-adff-68bba2346908} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54648) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.199932 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.329710 [ 3320588 ] {397ad90f-4f20-47e3-9426-1e57fde4f0e2} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54650) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.330016 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.459640 [ 3320588 ] {61f44ccc-60b4-4636-904c-d2ce6b40121c} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54652) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.459947 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.593802 [ 3320588 ] {3c1f5a27-8c0b-4573-b8ca-b89a1be01234} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54654) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.594110 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.725388 [ 3320588 ] {0a535042-b9e8-4fe2-8ba0-ce3eb3e79bdb} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54656) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.725710 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.855446 [ 3320588 ] {829d47d4-c6ad-4060-97eb-1c44d2fde193} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54658) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.855755 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.987029 [ 3320588 ] {1387a34c-1e0c-4234-af2f-67e261857fd6} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54660) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:13.987208 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.117948 [ 3320588 ] {fb53ec33-e315-4751-8c64-3e8e50849713} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54662) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.118203 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.247769 [ 3320588 ] {2bcd0fa1-3c72-4016-8c10-85e60d49561a} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54664) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.248004 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.378700 [ 3320588 ] {f7a13b75-7117-464c-8c87-e17a1cfe8a3a} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54666) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.379044 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.508350 [ 3320588 ] {b2c5abc6-2ca1-4725-b6d6-39baf43e1a21} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54668) (query 1, line 2) (in query: INSERT INTO trader_curtis.trades ( timestamp, trade_id, ticker, side, shares, entry_price, exit_price, position_size, pnl, pnl_percent, status, sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok, source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits, source_trump, source_bessent, decision_grade, lesson_learned, strategy_used ) VALUES ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.508620 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec577f8
+8. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+9. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+10. DB::TCPHandler::run() @ 0x000000011156a2a4
+11. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+12. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+13. Poco::PooledThread::run() @ 0x0000000115071248
+14. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+15. _pthread_start @ 0x0000000180ce1c08
+16. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.723665 [ 3320588 ] {818a0b61-25e5-4a17-8845-61ceccef4ad7} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54670) (query 1, line 1) (in query: SELECT COUNT(*) FROM trader_curtis.trades), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.723798 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.857724 [ 3320588 ] {2f28a3c5-7481-41cc-8e0e-ccd8645b957c} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54672) (query 1, line 1) (in query: SELECT COUNT(*) FROM trader_curtis.sentiment_accuracy), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.857949 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.989248 [ 3320588 ] {e850b31a-7443-4f7a-a728-9b009a66d2d9} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54674) (query 1, line 1) (in query: SELECT SUM(pnl) FROM trader_curtis.trades), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:14.989480 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:15.118317 [ 3320588 ] {e26ecf1c-f4f9-4937-a038-a1cb940f0810} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54676) (query 1, line 1) (in query: SELECT COUNTIf(pnl > 0) / COUNT() * 100 FROM trader_curtis.trades), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:15.118740 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:15.249361 [ 3320588 ] {9b26c4db-1bb4-4d1e-89f5-6194104f42b5} <Error> executeQuery: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE) (version 26.1.2.11 (official build)) (from 127.0.0.1:54678) (query 1, line 2) (in query: SELECT ticker, COUNT(*) as trades, SUM(pnl) as total_pnl FROM trader_curtis.trades GROUP BY ticker ORDER BY total_pnl DESC ), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:15.249604 [ 3320588 ] {} <Error> TCPHandler: Code: 81. DB::Exception: Database trader_curtis does not exist. (UNKNOWN_DATABASE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String const&, int) @ 0x00000001150002fc
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000109f53cac
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010436bd18
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010436b82c
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010436b4fc
+5. DB::DatabaseCatalog::getDatabase(std::basic_string_view<char, std::char_traits<char>>) const @ 0x000000010e76bed4
+6. DB::Context::resolveStorageID(DB::StorageID, DB::Context::StorageNamespace) const @ 0x000000010e6e1314
+7. DB::IdentifierResolver::tryResolveTableIdentifier(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b87c4
+8. DB::IdentifierResolver::tryResolveTableIdentifierFromDatabaseCatalog(DB::Identifier const&, std::shared_ptr<DB::Context const> const&) @ 0x000000010e1b9054
+9. DB::QueryAnalyzer::tryResolveIdentifier(DB::IdentifierLookup const&, DB::IdentifierResolveScope&, DB::IdentifierResolveContext) @ 0x000000010e1d6888
+10. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010e1e55d4
+11. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010e1c63d8
+12. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::IQueryTreeNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c5690
+13. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010e1c4ce0
+14. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010e126578
+15. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010e8f8afc
+16. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&) @ 0x000000010e8f75a8
+17. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:ne210105]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010e8fd5e8
+18. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010e8ad1d8
+19. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010ec59628
+20. DB::executeQuery(String const&, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum) @ 0x000000010ec55974
+21. DB::TCPHandler::runImpl() @ 0x000000011154f8c8
+22. DB::TCPHandler::run() @ 0x000000011156a2a4
+23. Poco::Net::TCPServerConnection::start() @ 0x00000001150d3418
+24. Poco::Net::TCPServerDispatcher::run() @ 0x00000001150d3a64
+25. Poco::PooledThread::run() @ 0x0000000115071248
+26. Poco::ThreadImpl::runnableEntry(void*) @ 0x000000011506e468
+27. _pthread_start @ 0x0000000180ce1c08
+28. thread_start @ 0x0000000180cdcba8
+
+2026.02.21 22:01:22.275125 [ 3320588 ] {9b130f83-b6d4-466e-96c8-155539b3d805} <Information> DatabaseAtomic (trader_curtis): Metadata disk default, path clickhouse/data/
+2026.02.21 22:01:22.276022 [ 3320588 ] {9b130f83-b6d4-466e-96c8-155539b3d805} <Information> DatabaseAtomic (trader_curtis): Metadata processed, database trader_curtis has 0 tables, 0 dictionaries and 0 materialized views in total.
+2026.02.21 22:01:22.276034 [ 3320588 ] {9b130f83-b6d4-466e-96c8-155539b3d805} <Information> TablesLoader: Parsed metadata of 0 tables in 1 databases in 3.5375e-05 sec
+2026.02.22 12:35:14.384832 [ 3320587 ] {} <Information> Application: Received termination signal (Terminated: 15)
+2026.02.22 12:35:14.384869 [ 3320587 ] {} <Information> Application: Received termination signal (Terminated: 15)
+2026.02.22 12:35:14.384872 [ 3320587 ] {} <Information> Application: This is the second termination signal. Immediately terminate.

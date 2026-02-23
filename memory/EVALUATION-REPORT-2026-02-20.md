@@ -1,0 +1,150 @@
+# 📊 SENTIMENT SOURCE EVALUATION REPORT
+**Date:** February 20, 2026  
+**Evaluation Period:** Feb 15-20, 2026  
+**Trades Analyzed:** 30 (all closed, 0% win rate)
+
+---
+
+## 🧪 TEST RESULTS
+
+### 1. WSB Sentiment → 3-Day Move Prediction
+**Result:** FAIL  
+**Grade:** F
+
+**Data:**
+- 30 predictions tracked, 0% accuracy
+- ALL WSB readings were NEUTRAL (50-55 score) across every trade
+- No bullish (>60) or bearish (<30) signals generated
+- All 6 sources consistently scored in neutral range (40-60)
+
+**Verdict:** WSB sentiment is NOT predictive. Neutral consensus correlated with 100% of losing trades.
+
+---
+
+### 2. StockTwits → Same-Day Move Prediction
+**Result:** FAIL  
+**Grade:** F
+
+**Data:**
+- 30 predictions tracked, 0% accuracy
+- All StockTwits readings were NEUTRAL (50 score)
+- No same-day directional signals captured
+- Scores cluster in 50-55 range without conviction
+
+**Verdict:** StockTwits sentiment provides no actionable edge. Same failure pattern as WSB.
+
+---
+
+### 3. Trump Posts → Volatility Creation
+**Result:** INCONCLUSIVE / MONITORING  
+**Grade:** C
+
+**Data:**
+- 21 political checks logged since Feb 16
+- Posts detected: Trump tariff/trade deficit claims
+- CRITICAL scores observed: Trump 84/50, Bessent 41/50
+- Sectors flagged: XLI (industrials), XLB (materials), XLK (tech), QQQ
+- **Zero trades triggered** from political alerts (no correlation data)
+
+**Verdict:** System operational, alerts firing correctly, but no executed trades to measure predictive power. Need 5+ political-alpha trades for grade revision.
+
+---
+
+### 4. Stop Losses → Large Loss Prevention
+**Result:** PASS (with caveats)  
+**Grade:** B
+
+**Data:**
+| Trade | Stop Triggered | Loss Taken | Without Stop | Saved |
+|-------|---------------|------------|--------------|-------|
+| MARA | Yes | -9.1% | -18.5% | ~9.4% |
+| PLTR | Yes | -0.8% | -20.0% | ~19.2% |
+| ASTS | Yes | -20.6% | -35%+ | ~14.4% |
+
+**Analysis:**
+- ✅ Stops prevented catastrophic losses on 2/3 trades
+- ✅ MARA saved ~9.4% additional loss
+- ✅ PLTR saved ~19.2% additional loss (stop worked perfectly)
+- ⚠️ ASTS stop exceeded -15% hard rule (hit -20.6%)
+
+**Verdict:** Stops are working but need tighter enforcement. ASTS slipped through.
+
+---
+
+### 5. Position Sizing → Risk Limits
+**Result:** PASS  
+**Grade:** A
+
+**Data:**
+| Position | Size | % Portfolio | Risk % |
+|----------|------|-------------|--------|
+| SNDK (open) | $427.50 | ~5% | <2% |
+| META (open) | $725.00 | ~8% | <2% |
+| MARA (avg) | ~$450 | <5% | <2% |
+| ASTS (avg) | ~$788 | <8% | ~1.6% |
+
+**Analysis:**
+- ✅ All positions under 2% risk per trade
+- ✅ Conservative sizing maintained
+- ✅ Portfolio exposure balanced
+- ✅ Cash reserves maintained
+
+**Verdict:** Position sizing disciplined and within limits.
+
+---
+
+## 📊 UPDATED SOURCE WEIGHTS
+
+| Source | Grade | New Weight | Status | Rationale |
+|--------|-------|------------|--------|-----------|
+| reddit_wsb | F | 0.00 | SUSPENDED | 100% neutral, no directional signal |
+| reddit_stocks | F | 0.00 | SUSPENDED | 100% neutral, no directional signal |
+| reddit_investing | F | 0.00 | SUSPENDED | 100% neutral, no directional signal |
+| twitter | F | 0.00 | SUSPENDED | 100% neutral, no directional signal |
+| stocktwits | F | 0.00 | SUSPENDED | 100% neutral, no directional signal |
+| grok_ai | F | 0.00 | SUSPENDED | Aggregates to neutral, provides no edge |
+| trump_posts | C | 0.50 | MONITORING | Alerts firing, awaiting trade correlation |
+| analyst_ratings | F | 0.00 | SUSPENDED | No directional signals recorded |
+
+**HARD RULE REINFORCED:**
+> NO ENTRY when all sources score 40-60 (neutral). 
+> REQUIRE: 2+ sources >70 (bullish) OR <30 (bearish) for entry.
+> Current setup is FAILING to generate actionable signals.
+
+---
+
+## 🎯 KEY FINDINGS
+
+1. **NEUTRAL CONSENSUS = NO TRADE** — 100% correlation with losses (30/30 trades)
+2. **Social sentiment currently NON-PREDICTIVE** — All sources returning neutral
+3. **Stop losses working** — Saved ~28.6% combined additional losses
+4. **Political alpha PROMISING but UNPROVEN** — Alerts operational, no trades yet
+5. **Position sizing EXCELLENT** — Risk limits honored, capital preserved
+
+---
+
+## 🔧 SYSTEM ADJUSTMENTS NEEDED
+
+### Immediate:
+1. **Fix sentiment scanner** — Currently returning all neutral scores (bug or reality?)
+2. **Tighten ASTS stops** — Enforce -15% hard limit, no exceptions
+3. **Add news/earnings source** — Social alone is insufficient
+
+### This Week:
+1. **Execute 3+ political-alpha trades** — Test Trump/Bessent alert correlation
+2. **Verify scanner calibration** — Why are all scores exactly 50-55?
+3. **Add technical analysis layer** — Price action + volume as secondary signals
+
+---
+
+## 📈 NEXT EVALUATION TARGETS
+
+- Need 5+ directional (non-neutral) sentiment signals to test accuracy
+- Need 3+ political-alpha sector trades to measure volatility prediction
+- Track SNDK/META exits to test HIGH sentiment (>80) hypothesis
+- Minimum sample: 10 directional calls per source before grade revision
+
+---
+
+*Generated by Trader Curtis Evaluation Engine*  
+*Next Review: March 1, 2026 or after 10 additional trades*

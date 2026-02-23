@@ -1,0 +1,76 @@
+columns substreams version: 1
+26 columns:
+2 substreams for column `trade_id`:
+	trade_id.size
+	trade_id
+2 substreams for column `ticker`:
+	ticker.size
+	ticker
+1 substreams for column `entry_date`:
+	entry_date
+2 substreams for column `exit_date`:
+	exit_date.null
+	exit_date
+1 substreams for column `entry_price`:
+	entry_price
+2 substreams for column `exit_price`:
+	exit_price.null
+	exit_price
+1 substreams for column `shares`:
+	shares
+2 substreams for column `pnl`:
+	pnl.null
+	pnl
+2 substreams for column `pnl_percent`:
+	pnl_percent.null
+	pnl_percent
+2 substreams for column `status`:
+	status.size
+	status
+2 substreams for column `sentiment_reddit`:
+	sentiment_reddit.null
+	sentiment_reddit
+2 substreams for column `sentiment_twitter`:
+	sentiment_twitter.null
+	sentiment_twitter
+2 substreams for column `sentiment_trump`:
+	sentiment_trump.null
+	sentiment_trump
+2 substreams for column `source_reddit_wsb`:
+	source_reddit_wsb.null
+	source_reddit_wsb
+2 substreams for column `source_reddit_stocks`:
+	source_reddit_stocks.null
+	source_reddit_stocks
+2 substreams for column `source_reddit_investing`:
+	source_reddit_investing.null
+	source_reddit_investing
+2 substreams for column `source_twitter_general`:
+	source_twitter_general.null
+	source_twitter_general
+2 substreams for column `source_twitter_analysts`:
+	source_twitter_analysts.null
+	source_twitter_analysts
+2 substreams for column `source_trump_posts`:
+	source_trump_posts.null
+	source_trump_posts
+2 substreams for column `source_news`:
+	source_news.null
+	source_news
+2 substreams for column `source_accuracy_score`:
+	source_accuracy_score.null
+	source_accuracy_score
+2 substreams for column `thesis`:
+	thesis.null
+	thesis
+2 substreams for column `outcome_analysis`:
+	outcome_analysis.null
+	outcome_analysis
+2 substreams for column `lesson_learned`:
+	lesson_learned.null
+	lesson_learned
+2 substreams for column `decision_grade`:
+	decision_grade.null
+	decision_grade
+1 substreams for column `created_at`:
+	created_at

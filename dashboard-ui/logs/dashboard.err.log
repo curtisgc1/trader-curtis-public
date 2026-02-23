@@ -1,0 +1,159 @@
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [22/Feb/2026 12:06:03] "GET /api/summary HTTP/1.1" 200 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /static/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /api/system-health HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /api/learning-health HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/bookmarks HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/copy-trades HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/patterns HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/external-signals HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/summary HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/candidates HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/trades HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/risk-controls HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/bookmark-theses HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /api/event-alerts HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /api/quant-validations HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /api/trade-intents HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /api/execution-learning HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/source-scores HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /api/source-learning HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/execution-orders HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/pipeline-signals HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "GET /api/signal-routes HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 19:06:20] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 20:04:16] "[33mGET /learning HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 20:05:58] "[33mGET /learning HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 20:06:00] "[33mGET /learning HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 20:06:24] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:06:24] "[33mGET /learning HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 20:06:24] "[33mGET /signals HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Feb/2026 20:06:24] "[33mGET /polymarket HTTP/1.1[0m" 404 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+Traceback (most recent call last):
+  File "/Users/Shared/curtis/trader-curtis/dashboard-ui/app.py", line 1, in <module>
+    from flask import Flask, jsonify, request, send_from_directory
+ModuleNotFoundError: No module named 'flask'
+127.0.0.1 - - [22/Feb/2026 20:06:48] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:06:48] "GET /learning HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:06:48] "GET /signals HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:06:48] "GET /polymarket HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /learning HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /static/learning.js HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /static/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /api/trade-intents HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /api/source-learning HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /api/learning-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /api/execution-learning HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /api/strategy-learning HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /api/memory-integrity HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:07:42] "GET /api/system-health HTTP/1.1" 200 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+Traceback (most recent call last):
+  File "/Users/Shared/curtis/trader-curtis/dashboard-ui/app.py", line 1, in <module>
+    from flask import Flask, jsonify, request, send_from_directory
+ModuleNotFoundError: No module named 'flask'
+127.0.0.1 - - [22/Feb/2026 20:10:25] "GET /signals HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:10:25] "GET /api/signal-readiness HTTP/1.1" 200 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+Traceback (most recent call last):
+  File "/Users/Shared/curtis/trader-curtis/dashboard-ui/app.py", line 1, in <module>
+    from flask import Flask, jsonify, request, send_from_directory
+ModuleNotFoundError: No module named 'flask'
+127.0.0.1 - - [22/Feb/2026 20:17:29] "GET /api/signal-readiness HTTP/1.1" 200 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+Traceback (most recent call last):
+  File "/Users/Shared/curtis/trader-curtis/dashboard-ui/app.py", line 1, in <module>
+    from flask import Flask, jsonify, request, send_from_directory
+ModuleNotFoundError: No module named 'flask'
+127.0.0.1 - - [22/Feb/2026 20:21:19] "GET /api/signal-readiness HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:21:27] "POST /api/actions HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:28:33] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:28:33] "GET /learning HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:28:33] "GET /signals HTTP/1.1" 200 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+ * Tip: There are .env or .flaskenv files present. Do "pip install python-dotenv" to use them.
+Address already in use
+Port 8090 is in use by another program. Either identify and stop that program, or start the server with a different port.
+127.0.0.1 - - [22/Feb/2026 20:29:22] "GET /api/system-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:29:22] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:29:22] "GET /learning HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:29:22] "GET /signals HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:29:22] "GET /polymarket HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/candidates HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/summary HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/system-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/learning-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/memory-integrity HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/trades HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/patterns HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/copy-trades HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:54] "GET /api/bookmarks HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:55] "GET /api/external-signals HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:55] "GET /api/risk-controls HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:55] "GET /api/signal-routes HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:55] "GET /api/source-scores HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:55] "GET /api/polymarket-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:42:55] "GET /api/polymarket-markets HTTP/1.1" 200 -
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8090
+[33mPress CTRL+C to quit[0m
+ * Tip: There are .env or .flaskenv files present. Do "pip install python-dotenv" to use them.
+Address already in use
+Port 8090 is in use by another program. Either identify and stop that program, or start the server with a different port.
+127.0.0.1 - - [22/Feb/2026 20:43:18] "GET /api/system-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:18] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:18] "GET /api/system-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /static/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/candidates HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/patterns HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/learning-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/bookmarks HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/copy-trades HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/memory-integrity HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/trades HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/summary HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/external-signals HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/risk-controls HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/system-health HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/source-scores HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/signal-routes HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/polymarket-markets HTTP/1.1" 200 -
+127.0.0.1 - - [22/Feb/2026 20:43:39] "GET /api/polymarket-candidates HTTP/1.1" 200 -

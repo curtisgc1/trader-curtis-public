@@ -1,0 +1,3 @@
+Processing configuration file 'clickhouse/config.xml'.
+Logging information to clickhouse/logs/clickhouse-server.log
+Logging errors to clickhouse/logs/clickhouse-server.err.log

@@ -1,0 +1,12 @@
+[
+  {"symbol": "AVGO", "shares": 20, "entry": 185.00, "sentiment": 77, "sources": ["reddit_wsb", "analyst", "grok_ai"]},
+  {"symbol": "QCOM", "shares": 25, "entry": 175.00, "sentiment": 71, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "INTC", "shares": 60, "entry": 22.00, "sentiment": 66, "sources": ["reddit_wsb", "twitter"]},
+  {"symbol": "CRM", "shares": 15, "entry": 310.00, "sentiment": 73, "sources": ["reddit_stocks", "twitter", "analyst"]},
+  {"symbol": "NFLX", "shares": 8, "entry": 880.00, "sentiment": 79, "sources": ["reddit_wsb", "twitter", "analyst"]},
+  {"symbol": "V", "shares": 20, "entry": 335.00, "sentiment": 72, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "MA", "shares": 15, "entry": 525.00, "sentiment": 74, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "DIS", "shares": 25, "entry": 115.00, "sentiment": 68, "sources": ["reddit_wsb", "twitter"]},
+  {"symbol": "PYPL", "shares": 30, "entry": 75.00, "sentiment": 69, "sources": ["reddit_wsb", "stocktwits"]},
+  {"symbol": "SQ", "shares": 20, "entry": 92.00, "sentiment": 71, "sources": ["reddit_wsb", "twitter", "grok_ai"]}
+]

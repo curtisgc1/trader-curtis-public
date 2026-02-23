@@ -1,0 +1,15 @@
+filters:
+  and:
+    - file.inFolder("tasks")
+    - status != "done"
+views:
+  - type: table
+    name: By Owner
+    groupBy:
+      property: owner
+      direction: ASC
+    order:
+      - file.name
+      - status
+      - project
+      - priority

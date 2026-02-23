@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signals - Trader Curtis</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <h1>Signals</h1>
+          <p class="sub">Routing, quant gating, execution flow, and pipeline signal quality</p>
+          <p class="sub"><a href="/">Main</a> • <a href="/learning">Learning</a> • <a href="/polymarket">Polymarket</a></p>
+        </div>
+        <div class="status" id="status-pill">loading</div>
+      </header>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Signal Readiness</h2>
+          <div id="signal-readiness" class="table"></div>
+          <div class="controls">
+            <div id="action-status" class="control-warning"></div>
+            <div class="control-actions">
+              <button id="btn-validate-signals">Run Dry-Run Validation</button>
+            </div>
+          </div>
+        </div>
+        <div class="card span-2">
+          <h2>Signal Routes</h2>
+          <div id="signal-routes" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Source Scores</h2>
+          <div id="source-scores" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Pipeline Signals (A/B/C)</h2>
+          <div id="pipeline-signals" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Bookmark Theses</h2>
+          <div id="bookmark-theses" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Execution Orders</h2>
+          <div id="execution-orders" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Event Alerts</h2>
+          <div id="event-alerts" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Quant Validations</h2>
+          <div id="quant-validations" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Chart Liquidity</h2>
+          <div id="chart-liquidity" class="table"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/signals.js"></script>
+  </body>
+</html>

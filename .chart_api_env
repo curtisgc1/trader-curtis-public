@@ -1,0 +1,12 @@
+# Chart API Configuration
+API_KEY=2pcDgvYEjviBqIPB_EuCVBFDizbt45Ds
+BASE_URL=https://api.chart-img.com
+
+# Free Tier Limits (verify with provider):
+# - Typically 100-1000 requests/month
+# - Rate limit: ~1 request/second
+# - Basic chart types only
+# - No real-time streaming
+
+# Usage tracking:
+# Track requests to stay within limits

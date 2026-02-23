@@ -1,0 +1,34 @@
+columns substreams version: 1
+14 columns:
+1 substreams for column `metric_date`:
+	metric_date
+1 substreams for column `total_trades`:
+	total_trades
+1 substreams for column `winning_trades`:
+	winning_trades
+1 substreams for column `losing_trades`:
+	losing_trades
+1 substreams for column `win_rate`:
+	win_rate
+1 substreams for column `total_pnl`:
+	total_pnl
+1 substreams for column `avg_pnl_per_trade`:
+	avg_pnl_per_trade
+1 substreams for column `avg_win`:
+	avg_win
+1 substreams for column `avg_loss`:
+	avg_loss
+1 substreams for column `profit_factor`:
+	profit_factor
+2 substreams for column `best_trade_ticker`:
+	best_trade_ticker.null
+	best_trade_ticker
+2 substreams for column `best_trade_pnl`:
+	best_trade_pnl.null
+	best_trade_pnl
+2 substreams for column `worst_trade_ticker`:
+	worst_trade_ticker.null
+	worst_trade_ticker
+2 substreams for column `worst_trade_pnl`:
+	worst_trade_pnl.null
+	worst_trade_pnl

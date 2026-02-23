@@ -1,0 +1,14 @@
+#!/bin/bash
+# ClawVault Hook: Pre-Action
+# Query memory before building new things
+
+VAULT_PATH="/Users/Shared/curtis/trader-curtis"
+cd "$VAULT_PATH"
+
+# This hook would be called before any major action
+# For now, it's a placeholder for future automation
+
+# TODO: Implement pre-build memory search
+# 1. Check if task already exists
+# 2. Check if similar decision was made
+# 3. Check lessons for relevant warnings

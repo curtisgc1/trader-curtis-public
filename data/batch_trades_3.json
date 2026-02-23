@@ -1,0 +1,12 @@
+[
+  {"symbol": "AAPL", "shares": 20, "entry": 245.00, "sentiment": 75, "sources": ["reddit_wsb", "twitter", "analyst"]},
+  {"symbol": "MSFT", "shares": 15, "entry": 440.00, "sentiment": 78, "sources": ["reddit_stocks", "analyst", "grok_ai"]},
+  {"symbol": "AMD", "shares": 25, "entry": 120.00, "sentiment": 73, "sources": ["reddit_wsb", "stocktwits", "twitter"]},
+  {"symbol": "COIN", "shares": 8, "entry": 280.00, "sentiment": 71, "sources": ["reddit_wsb", "twitter", "grok_ai"]},
+  {"symbol": "PLTR", "shares": 30, "entry": 82.00, "sentiment": 76, "sources": ["reddit_wsb", "twitter", "analyst"]},
+  {"symbol": "BA", "shares": 12, "entry": 185.00, "sentiment": 68, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "JPM", "shares": 10, "entry": 295.00, "sentiment": 72, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "XOM", "shares": 18, "entry": 115.00, "sentiment": 70, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "PFE", "shares": 35, "entry": 28.00, "sentiment": 65, "sources": ["reddit_stocks", "analyst"]},
+  {"symbol": "WMT", "shares": 14, "entry": 98.00, "sentiment": 74, "sources": ["reddit_wsb", "twitter", "analyst"]}
+]

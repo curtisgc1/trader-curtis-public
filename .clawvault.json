@@ -1,0 +1,28 @@
+{
+  "name": "trader-curtis",
+  "version": "1.0.0",
+  "created": "2026-02-16T00:51:47.835Z",
+  "lastUpdated": "2026-02-23T03:52:20.440Z",
+  "categories": [
+    "rules",
+    "preferences",
+    "decisions",
+    "patterns",
+    "people",
+    "projects",
+    "goals",
+    "transcripts",
+    "inbox",
+    "templates",
+    "lessons",
+    "agents",
+    "commitments",
+    "handoffs",
+    "research",
+    "tasks",
+    "backlog"
+  ],
+  "documentCount": 207,
+  "qmdCollection": "trader-curtis",
+  "qmdRoot": "/Users/Shared/curtis/trader-curtis"
+}

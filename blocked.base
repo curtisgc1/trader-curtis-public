@@ -1,0 +1,16 @@
+filters:
+  and:
+    - file.inFolder("tasks")
+    - status == "blocked"
+formulas:
+  days_blocked: (now() - file.ctime).days
+views:
+  - type: table
+    name: Blocked Tasks
+    order:
+      - file.name
+      - owner
+      - project
+      - blocked_by
+      - formula.days_blocked
+      - priority

@@ -1,0 +1,7 @@
+[
+  {"symbol": "NVDA", "shares": 2, "entry": 140.00, "sentiment": 82, "sources": ["reddit_wsb", "twitter", "grok_ai"]},
+  {"symbol": "CRWD", "shares": 3, "entry": 370.00, "sentiment": 78, "sources": ["reddit_wsb", "reddit_stocks", "analyst"]},
+  {"symbol": "MU", "shares": 5, "entry": 105.00, "sentiment": 75, "sources": ["reddit_wsb", "stocktwits"]},
+  {"symbol": "AMZN", "shares": 2, "entry": 230.00, "sentiment": 73, "sources": ["reddit_wsb", "twitter", "analyst"]},
+  {"symbol": "RDDT", "shares": 4, "entry": 155.00, "sentiment": 71, "sources": ["reddit_wsb", "twitter"]}
+]

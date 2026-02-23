@@ -1,0 +1,25 @@
+#!/bin/bash
+# ClawVault Hook: Heartbeat
+# Check for critical work on every heartbeat
+
+VAULT_PATH="/Users/Shared/curtis/trader-curtis"
+cd "$VAULT_PATH"
+
+# Check for critical tasks
+critical_count=$(clawvault task list --priority critical --status open 2>/dev/null | wc -l)
+high_count=$(clawvault task list --priority high --status open 2>/dev/null | wc -l)
+
+if [ "$critical_count" -gt 0 ]; then
+  echo "🚨 ALERT: $critical_count CRITICAL task(s) pending"
+  clawvault task list --priority critical --status open
+fi
+
+if [ "$high_count" -gt 0 ]; then
+  echo "⚠️  $high_count HIGH priority task(s) pending"
+fi
+
+# Check for alerts
+alert_count=$(ls -1 alerts/ 2>/dev/null | wc -l)
+if [ "$alert_count" -gt 0 ]; then
+  echo "📄 $alert_count alert(s) in alerts/"
+fi

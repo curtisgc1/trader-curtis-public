@@ -1,0 +1,32 @@
+filters:
+  and:
+    - file.inFolder("tasks")
+    - status != "done"
+formulas:
+  age: (now() - file.ctime).days
+  status_icon: if(status == "blocked", "🔴", if(status == "in-progress", "🔨", if(status == "open", "⚪", "✅")))
+views:
+  - type: table
+    name: All Active Tasks
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - formula.status_icon
+      - file.name
+      - status
+      - owner
+      - project
+      - priority
+      - blocked_by
+      - formula.age
+  - type: cards
+    name: Task Board
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - owner
+      - project
+      - priority

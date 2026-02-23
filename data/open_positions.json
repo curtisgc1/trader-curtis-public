@@ -1,0 +1,92 @@
+[
+  {
+    "symbol": "AEM",
+    "shares": 4,
+    "entry_price": 194.53,
+    "position_size": 778.12,
+    "entry_date": "2026-02-21T09:15:17.424871",
+    "sentiment_score": 75,
+    "sources": [
+      "reddit_wsb",
+      "twitter"
+    ],
+    "stop_loss": 171.19,
+    "take_profit": 223.71,
+    "current_price": 228.26,
+    "unrealized_pl": 134.92,
+    "unrealized_plpc": 0.17339,
+    "status": "OPEN"
+  },
+  {
+    "symbol": "GLD",
+    "shares": 30,
+    "entry_price": 449.679333,
+    "position_size": 13490.37999,
+    "entry_date": "2026-02-21T09:15:17.424905",
+    "sentiment_score": 58,
+    "sources": [
+      "reddit_wsb",
+      "twitter"
+    ],
+    "stop_loss": 395.72,
+    "take_profit": 517.13,
+    "current_price": 468.62,
+    "unrealized_pl": 568.22001,
+    "unrealized_plpc": 0.04212,
+    "status": "OPEN"
+  },
+  {
+    "symbol": "MARA",
+    "shares": 100,
+    "entry_price": 7.7399,
+    "position_size": 773.99,
+    "entry_date": "2026-02-21T09:15:17.424920",
+    "sentiment_score": 58,
+    "sources": [
+      "reddit_wsb",
+      "twitter"
+    ],
+    "stop_loss": 6.81,
+    "take_profit": 8.9,
+    "current_price": 7.97,
+    "unrealized_pl": 23.01,
+    "unrealized_plpc": 0.02973,
+    "status": "OPEN"
+  },
+  {
+    "symbol": "NEM",
+    "shares": 100,
+    "entry_price": 111.4999,
+    "position_size": 11149.99,
+    "entry_date": "2026-02-21T09:15:17.424931",
+    "sentiment_score": 58,
+    "sources": [
+      "reddit_wsb",
+      "twitter"
+    ],
+    "stop_loss": 98.12,
+    "take_profit": 128.22,
+    "current_price": 122.13,
+    "unrealized_pl": 1063.01,
+    "unrealized_plpc": 0.09534,
+    "status": "OPEN"
+  },
+  {
+    "symbol": "PLTR",
+    "shares": 50,
+    "entry_price": 129.17,
+    "position_size": 6458.5,
+    "entry_date": "2026-02-21T09:15:17.424942",
+    "sentiment_score": 58,
+    "sources": [
+      "reddit_wsb",
+      "twitter"
+    ],
+    "stop_loss": 113.67,
+    "take_profit": 148.55,
+    "current_price": 135.24,
+    "unrealized_pl": 303.5,
+    "unrealized_plpc": 0.04699,
+    "status": "OPEN"
+  }
+]

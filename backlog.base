@@ -1,0 +1,11 @@
+filters:
+  and:
+    - file.inFolder("backlog")
+views:
+  - type: table
+    name: Backlog
+    order:
+      - file.name
+      - source
+      - project
+      - file.ctime

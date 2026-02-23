@@ -1,0 +1,16 @@
+columns format version: 1
+14 columns:
+`metric_date` Date
+`total_trades` UInt32
+`winning_trades` UInt32
+`losing_trades` UInt32
+`win_rate` Float64
+`total_pnl` Float64
+`avg_pnl_per_trade` Float64
+`avg_win` Float64
+`avg_loss` Float64
+`profit_factor` Float64
+`best_trade_ticker` Nullable(String)
+`best_trade_pnl` Nullable(Float64)
+`worst_trade_ticker` Nullable(String)
+`worst_trade_pnl` Nullable(Float64)

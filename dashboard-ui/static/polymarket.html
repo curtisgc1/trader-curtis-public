@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Polymarket - Trader Curtis</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <h1>Polymarket</h1>
+          <p class="sub">Integrated prediction-market setups from the same signal pipeline</p>
+          <p class="sub"><a href="/">Main</a> • <a href="/signals">Signals</a> • <a href="/learning">Learning</a></p>
+        </div>
+        <div class="status" id="status-pill">loading</div>
+      </header>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Polymarket Candidates</h2>
+          <div id="polymarket-candidates" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Polymarket Markets</h2>
+          <div id="polymarket-markets" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Bookmark Alpha Ideas</h2>
+          <div id="bookmark-alpha-ideas" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>External Signals</h2>
+          <div id="external-signals" class="table"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/polymarket.js"></script>
+  </body>
+</html>

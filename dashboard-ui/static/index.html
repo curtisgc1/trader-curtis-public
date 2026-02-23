@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trader Curtis Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <h1>Trader Curtis</h1>
+          <p class="sub">Liquidity pattern engine • Macro filter • Copy-trade watch</p>
+          <p class="sub"><a href="/learning">Learning</a> • <a href="/signals">Signals</a> • <a href="/polymarket">Polymarket</a></p>
+        </div>
+        <div class="status" id="status-pill">loading</div>
+      </header>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Summary</h2>
+          <div class="stats" id="summary"></div>
+        </div>
+        <div class="card">
+          <h2>Open Trades</h2>
+          <div id="open-trades" class="empty">No open trades</div>
+        </div>
+        <div class="card">
+          <h2>System Health</h2>
+          <div id="system-health" class="health"></div>
+          <div class="controls">
+            <div id="action-status" class="control-warning"></div>
+            <div class="control-actions">
+              <button id="btn-run-scan">Run Scan Now</button>
+              <button id="btn-sync-broker">Sync Broker</button>
+              <button id="btn-refresh-learning">Refresh Learning</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Copy-Trade Watch</h2>
+          <div id="copy-trades" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Recent Trades</h2>
+          <div id="trades" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Liquidity Patterns</h2>
+          <div id="patterns" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Top Candidates</h2>
+          <div id="candidates" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Bookmarks (Trader)</h2>
+          <div id="bookmarks" class="links"></div>
+        </div>
+        <div class="card">
+          <h2>External Signals</h2>
+          <div id="external-signals" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Risk Controls</h2>
+          <div id="risk-controls" class="table"></div>
+          <div class="controls">
+            <div id="control-warning" class="control-warning"></div>
+            <div class="control-row">
+              <label for="hl-notional">HL Test $</label>
+              <input id="hl-notional" type="number" step="0.1" min="0.1" value="1" />
+            </div>
+            <div class="control-actions">
+              <button id="btn-enable-auto">Enable Auto Test</button>
+              <button id="btn-disable-auto">Disable Auto</button>
+              <button id="btn-save-hl">Save HL $</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Signals Page</h2>
+          <div class="links">
+            <a href="/signals">Open full Signals page</a>
+          </div>
+          <div id="signals-summary" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Polymarket Page</h2>
+          <div class="links">
+            <a href="/polymarket">Open full Polymarket page</a>
+          </div>
+          <div id="polymarket-summary" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Learning Page</h2>
+          <div class="links">
+            <a href="/learning">Open full Learning page</a>
+          </div>
+          <div id="learning-summary" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Learning Health (7d)</h2>
+          <div id="learning-health" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Memory Integrity (30d)</h2>
+          <div id="memory-integrity" class="table"></div>
+          <div class="controls">
+            <a class="expand-link" href="/learning">View Full Learning Details</a>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

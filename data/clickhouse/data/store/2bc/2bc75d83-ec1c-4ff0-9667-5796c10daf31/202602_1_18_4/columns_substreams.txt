@@ -1,0 +1,66 @@
+columns substreams version: 1
+24 columns:
+1 substreams for column `timestamp`:
+	timestamp
+2 substreams for column `trade_id`:
+	trade_id.size
+	trade_id
+3 substreams for column `ticker`:
+	ticker.dict_prefix
+	ticker.dict
+	ticker
+3 substreams for column `side`:
+	side.dict_prefix
+	side.dict
+	side
+1 substreams for column `shares`:
+	shares
+1 substreams for column `entry_price`:
+	entry_price
+1 substreams for column `exit_price`:
+	exit_price
+1 substreams for column `position_size`:
+	position_size
+1 substreams for column `pnl`:
+	pnl
+1 substreams for column `pnl_percent`:
+	pnl_percent
+3 substreams for column `status`:
+	status.dict_prefix
+	status.dict
+	status
+2 substreams for column `sentiment_reddit`:
+	sentiment_reddit.sparse.idx
+	sentiment_reddit
+2 substreams for column `sentiment_twitter`:
+	sentiment_twitter.sparse.idx
+	sentiment_twitter
+2 substreams for column `sentiment_stocktwits`:
+	sentiment_stocktwits.sparse.idx
+	sentiment_stocktwits
+2 substreams for column `sentiment_grok`:
+	sentiment_grok.sparse.idx
+	sentiment_grok
+1 substreams for column `source_reddit_wsb`:
+	source_reddit_wsb
+1 substreams for column `source_reddit_stocks`:
+	source_reddit_stocks
+1 substreams for column `source_twitter`:
+	source_twitter
+1 substreams for column `source_stocktwits`:
+	source_stocktwits
+1 substreams for column `source_trump`:
+	source_trump
+1 substreams for column `source_bessent`:
+	source_bessent
+3 substreams for column `decision_grade`:
+	decision_grade.dict_prefix
+	decision_grade.dict
+	decision_grade
+2 substreams for column `lesson_learned`:
+	lesson_learned.size
+	lesson_learned
+3 substreams for column `strategy_used`:
+	strategy_used.dict_prefix
+	strategy_used.dict
+	strategy_used

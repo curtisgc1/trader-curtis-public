@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Learning & Memory - Trader Curtis</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <h1>Learning & Memory</h1>
+          <p class="sub">Source quality, strategy performance, and memory integrity checks</p>
+          <p class="sub"><a href="/">Back to Main Dashboard</a></p>
+        </div>
+        <div class="status" id="status-pill">loading</div>
+      </header>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Learning Health (7d)</h2>
+          <div id="learning-health" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Memory Integrity (30d)</h2>
+          <div id="memory-integrity" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Source Learning</h2>
+          <div id="source-learning" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Strategy Learning</h2>
+          <div id="strategy-learning" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Execution Learning</h2>
+          <div id="execution-learning" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Trade Intents</h2>
+          <div id="trade-intents" class="table"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/learning.js"></script>
+  </body>
+</html>

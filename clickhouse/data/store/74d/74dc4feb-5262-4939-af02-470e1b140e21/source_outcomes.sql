@@ -1,0 +1,42 @@
+ATTACH TABLE _ UUID 'fc17e666-33f1-43f4-8539-7608a7de306e'
+(
+    `id` UInt32,
+    `trade_id` Nullable(String),
+    `ticker` String,
+    `entry_date` DateTime,
+    `exit_date` Nullable(DateTime),
+    `entry_price` Float64,
+    `exit_price` Nullable(Float64),
+    `pnl` Nullable(Float64),
+    `pnl_pct` Nullable(Float64),
+    `trade_grade` Nullable(String),
+    `reddit_wsb_score` Nullable(Int32),
+    `reddit_stocks_score` Nullable(Int32),
+    `reddit_investing_score` Nullable(Int32),
+    `twitter_score` Nullable(Int32),
+    `twitter_analysts_score` Nullable(Int32),
+    `stocktwits_score` Nullable(Int32),
+    `grok_ai_score` Nullable(Int32),
+    `grok_confidence` Nullable(Int32),
+    `trump_sentiment` Nullable(Int32),
+    `analyst_consensus` Nullable(Int32),
+    `reddit_wsb_pred` Nullable(String),
+    `reddit_stocks_pred` Nullable(String),
+    `reddit_investing_pred` Nullable(String),
+    `twitter_pred` Nullable(String),
+    `grok_ai_pred` Nullable(String),
+    `trump_pred` Nullable(String),
+    `analyst_pred` Nullable(String),
+    `bullish_sources` Nullable(String),
+    `bearish_sources` Nullable(String),
+    `neutral_sources` Nullable(String),
+    `outcome` Nullable(String),
+    `correct_predictions` Nullable(String),
+    `wrong_predictions` Nullable(String),
+    `combo_used` Nullable(String),
+    `combo_correct` Nullable(UInt8),
+    `created_at` DateTime
+)
+ENGINE = MergeTree
+ORDER BY (ticker, entry_date)
+SETTINGS index_granularity = 8192

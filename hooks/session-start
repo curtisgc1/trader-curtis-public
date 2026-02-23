@@ -1,0 +1,44 @@
+#!/bin/bash
+# ClawVault Hook: Session Start
+# Auto-inject critical context on every wake
+
+VAULT_PATH="/Users/Shared/curtis/trader-curtis"
+cd "$VAULT_PATH"
+
+echo "=== CLAWVAULT SESSION START ==="
+echo "Time: $(date '+%Y-%m-%d %H:%M:%S PST')"
+echo ""
+
+# 1. Show pending tasks
+echo "📋 PENDING TASKS:"
+clawvault task list --owner trader-curtis --status open --limit 5
+echo ""
+
+# 2. Show critical commitments (trading rules)
+echo "🔒 TRADING RULES (Commitments):"
+for file in commitments/*.md; do
+  if [ -f "$file" ]; then
+    echo "  - $(basename "$file" .md | tr '-' ' ')"
+  fi
+done
+echo ""
+
+# 3. Show recent lessons
+echo "🧠 RECENT LESSONS:"
+for file in $(ls -t lessons/*.md 2>/dev/null | head -3); do
+  if [ -f "$file" ]; then
+    echo "  - $(basename "$file" .md | tr '-' ' ')"
+  fi
+done
+echo ""
+
+# 4. Show current projects
+echo "📁 ACTIVE PROJECTS:"
+for file in projects/*.md; do
+  if [ -f "$file" ]; then
+    echo "  - $(basename "$file" .md | tr '-' ' ')"
+  fi
+done
+echo ""
+
+echo "=== END SESSION START CONTEXT ==="
