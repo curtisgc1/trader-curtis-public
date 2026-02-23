@@ -12,30 +12,127 @@
         <div>
           <h1>Polymarket</h1>
           <p class="sub">Integrated prediction-market setups from the same signal pipeline</p>
-          <p class="sub"><a href="/">Main</a> • <a href="/signals">Signals</a> • <a href="/learning">Learning</a></p>
+          <p class="sub"><a href="/">Main</a> • <a href="/consensus">Consensus</a> • <a href="/signals">Signals</a> • <a href="/learning">Learning</a></p>
         </div>
         <div class="status" id="status-pill">loading</div>
       </header>
 
       <section class="grid">
+        <div class="card">
+          <h2>Execution Snapshot</h2>
+          <div id="polymarket-overview"></div>
+        </div>
+        <div class="card">
+          <h2>MM v1 State</h2>
+          <div id="polymarket-mm-overview"></div>
+        </div>
+        <div class="card">
+          <h2>Pre-Trade Controls</h2>
+          <div class="controls">
+            <div class="control-row"><label><input type="checkbox" id="ctl-master" /> Agent Master ON</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-poly-live" /> Live Mode</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-poly-auto" /> Auto Execute</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-poly-manual" /> Manual Approval</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-consensus" checked /> Enforce N-of-M Consensus</label></div>
+            <div class="control-row">Max per trade ($) <input id="ctl-poly-max" type="number" min="1" step="1" /></div>
+            <div class="control-row">Max daily ($) <input id="ctl-poly-daily" type="number" min="1" step="1" /></div>
+            <div class="control-row">Min edge (%) <input id="ctl-poly-edge" type="number" min="0" step="0.1" /></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-poly-fee-gate" /> Fee-Aware Gate</label></div>
+            <div class="control-row">Taker fee (%) <input id="ctl-poly-fee" type="number" min="0" step="0.01" /></div>
+            <div class="control-row">Fee buffer (%) <input id="ctl-poly-fee-buf" type="number" min="0" step="0.01" /></div>
+            <div class="control-row">Min confirmations <input id="ctl-c-min" type="number" min="1" max="10" step="1" /></div>
+            <div class="control-row">Min ratio (0-1) <input id="ctl-c-ratio" type="number" min="0" max="1" step="0.05" /></div>
+            <div class="control-row">Min candidate score <input id="ctl-c-score" type="number" min="0" max="100" step="1" /></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-mm-enabled" /> MM v1 Enabled</label></div>
+            <div class="control-row">MM risk aversion <input id="ctl-mm-risk" type="number" min="0.01" max="1.5" step="0.01" /></div>
+            <div class="control-row">MM base spread (bps) <input id="ctl-mm-spread" type="number" min="5" step="1" /></div>
+            <div class="control-row">MM inventory limit <input id="ctl-mm-inv" type="number" min="10" step="1" /></div>
+            <div class="control-row">MM toxicity threshold <input id="ctl-mm-tox" type="number" min="0.1" max="1" step="0.01" /></div>
+            <div class="control-row">MM min edge (bps) <input id="ctl-mm-edge" type="number" min="1" step="1" /></div>
+            <div class="control-actions">
+              <button id="btn-poly-save">Save Pre-Trade</button>
+              <button id="btn-poly-exec">Run Poly Exec</button>
+              <button id="btn-poly-mm">Run MM Refresh</button>
+            </div>
+            <div id="poly-control-status" class="control-warning"></div>
+          </div>
+        </div>
         <div class="card span-2">
           <h2>Polymarket Candidates</h2>
+          <p class="sub">Candidates are ideas. Trades are only real when orders show `REAL` + live status.</p>
           <div id="polymarket-candidates" class="table"></div>
         </div>
+      </section>
+
+      <section class="grid">
         <div class="card">
           <h2>Polymarket Markets</h2>
           <div id="polymarket-markets" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Weather Markets (Exact Temp)</h2>
+          <p class="sub">Ensemble probability view for exact daily max outcomes</p>
+          <div id="weather-market-probs" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>MM Opportunities (Flagged + Matched)</h2>
+          <p class="sub">History-aware quotes: fair value, reservation, toxicity, and execution-ready state</p>
+          <div id="polymarket-mm-snapshots" class="table"></div>
         </div>
       </section>
 
       <section class="grid">
         <div class="card span-2">
-          <h2>Bookmark Alpha Ideas</h2>
-          <div id="bookmark-alpha-ideas" class="table"></div>
+          <h2>Polymarket Order Events</h2>
+          <div id="polymarket-orders" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Trust Panel</h2>
+          <div id="trust-panel"></div>
+        </div>
+        <div class="card">
+          <h2>Tracked X Sources</h2>
+          <div class="controls">
+            <div class="control-row">@handle <input id="src-handle" type="text" placeholder="NoLimitGains" /></div>
+            <div class="control-row"><label><input type="checkbox" id="src-copy" checked /> Copy Trade Source</label></div>
+            <div class="control-row"><label><input type="checkbox" id="src-alpha" checked /> Alpha Source</label></div>
+            <div class="control-row">Notes <input id="src-notes" type="text" placeholder="why this source is useful" /></div>
+            <div class="control-actions">
+              <button id="btn-source-save">Add / Update Source</button>
+            </div>
+            <div id="source-status" class="control-warning"></div>
+          </div>
+          <div id="tracked-sources" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Tracked Poly Wallets</h2>
+          <div class="controls">
+            <div class="control-row">@handle <input id="polyw-handle" type="text" placeholder="vague-sourdough" /></div>
+            <div class="control-row">Profile URL <input id="polyw-url" type="text" placeholder="https://polymarket.com/@..." /></div>
+            <div class="control-row"><label><input type="checkbox" id="polyw-copy" checked /> Copy Source</label></div>
+            <div class="control-row"><label><input type="checkbox" id="polyw-alpha" checked /> Alpha Source</label></div>
+            <div class="control-row">Notes <input id="polyw-notes" type="text" placeholder="strategy notes" /></div>
+            <div class="control-actions">
+              <button id="btn-polyw-save">Add / Update Wallet</button>
+            </div>
+            <div id="polyw-status" class="control-warning"></div>
+          </div>
+          <div id="tracked-poly-wallets" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Wallet Performance Scores</h2>
+          <div id="poly-wallet-scores" class="table"></div>
         </div>
         <div class="card">
           <h2>External Signals</h2>
           <div id="external-signals" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Bookmark Alpha Ideas</h2>
+          <div id="bookmark-alpha-ideas" class="table"></div>
         </div>
       </section>
     </div>

@@ -117,6 +117,51 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _operational_pnl_penalty(conn: sqlite3.Connection, route_id: int) -> float:
+    """
+    Derive a small synthetic USD penalty from proposed notional.
+    Default: 25 bps of proposed notional, clipped to [-3.0, -0.5] USD.
+    """
+    notional = 50.0
+    if table_exists(conn, "signal_routes"):
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(proposed_notional, 50.0) FROM signal_routes WHERE id=? LIMIT 1", (int(route_id),))
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            try:
+                notional = float(row[0] or 50.0)
+            except Exception:
+                notional = 50.0
+    raw = max(0.5, min(3.0, notional * 0.0025))
+    return -round(raw, 4)
+
+
+def backfill_operational_pnl(conn: sqlite3.Connection) -> int:
+    if not table_exists(conn, "route_outcomes"):
+        return 0
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT route_id
+        FROM route_outcomes
+        WHERE COALESCE(outcome_type,'realized')='operational'
+          AND ABS(COALESCE(pnl, 0.0)) < 0.000001
+        LIMIT 2000
+        """
+    )
+    rows = cur.fetchall()
+    updated = 0
+    for (route_id,) in rows:
+        penalty = _operational_pnl_penalty(conn, int(route_id))
+        cur.execute(
+            "UPDATE route_outcomes SET pnl=? WHERE route_id=?",
+            (float(penalty), int(route_id)),
+        )
+        updated += int(cur.rowcount or 0)
+    conn.commit()
+    return updated
+
+
 def backfill_route_links(conn: sqlite3.Connection, limit: int = 2000) -> int:
     if not table_exists(conn, "execution_orders") or not table_exists(conn, "route_trade_links"):
         return 0
@@ -336,6 +381,7 @@ def resolve_route_outcomes(conn: sqlite3.Connection) -> int:
             """
         )
         for route_id, ticker, source_tag, state, entry_status, notes in cur.fetchall():
+            penalty = _operational_pnl_penalty(conn, int(route_id))
             cur.execute(
                 """
                 INSERT OR REPLACE INTO route_outcomes
@@ -348,7 +394,7 @@ def resolve_route_outcomes(conn: sqlite3.Connection) -> int:
                     source_tag,
                     "operational",
                     "loss",
-                    0.0,
+                    penalty,
                     -0.25,
                     now_iso(),
                     f"route_link_{state}:{entry_status}; {notes[:140]}",
@@ -371,6 +417,7 @@ def resolve_route_outcomes(conn: sqlite3.Connection) -> int:
         )
         for route_id, ticker, source_tag, order_status, reason in cur.fetchall():
             # Operational misses get a small negative score to down-rank noisy sources over time.
+            penalty = _operational_pnl_penalty(conn, int(route_id))
             cur.execute(
                 """
                 INSERT OR REPLACE INTO route_outcomes
@@ -383,7 +430,7 @@ def resolve_route_outcomes(conn: sqlite3.Connection) -> int:
                     source_tag,
                     "operational",
                     "loss",
-                    0.0,
+                    penalty,
                     -0.25,
                     now_iso(),
                     f"operational_{order_status}: {reason[:180]}",
@@ -518,11 +565,13 @@ def main() -> int:
         cleaned = clean_legacy_placeholder_outcomes(conn)
         backfilled = backfill_route_links(conn)
         resolved = resolve_route_outcomes(conn)
+        op_backfilled = backfill_operational_pnl(conn)
         sources = refresh_source_learning(conn)
         strategies = refresh_strategy_learning(conn)
         print(
             f"Learning feedback: cleaned {cleaned} placeholders, backfilled {backfilled} route links, "
-            f"resolved {resolved} new route outcomes, refreshed {sources} source stats, {strategies} strategy stats"
+            f"resolved {resolved} new route outcomes, operational pnl backfilled {op_backfilled}, "
+            f"refreshed {sources} source stats, {strategies} strategy stats"
         )
         return 0
     finally:

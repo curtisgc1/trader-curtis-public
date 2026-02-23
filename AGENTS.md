@@ -14,6 +14,10 @@ Before doing anything else:
 3. **Wake memory context:** `clawvault wake`
 4. **Sync memory:** Check recent `memory/YYYY-MM-DD.md` files
 5. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md` index
+6. **Verify broker/exchange awareness:** `./scripts/check_agent_awareness.sh` before claiming system is ready
+7. **Verify Polymarket trigger awareness:** `./scripts/polymarket_control.sh status` before claiming Polymarket readiness
+8. **Load role context:** read `docs/AGENT-ROLE-CONTEXT.md` before delegating to subagents
+9. **Run full audit when major changes land:** `./scripts/full_pipeline_audit.sh`
 
 ## Memory System (Connected)
 
@@ -123,11 +127,24 @@ When something breaks, do this in order and keep going until verified green:
 4. **Verify**
 - `curl` pages: `/`, `/signals`, `/polymarket`, `/learning`
 - Re-check `api/system-health` + `api/signal-readiness`
+- Re-check `api/agent-awareness`
 - Confirm no unexpected execution if in validate-only mode
 
 5. **Record**
 - Append summary to `memory/YYYY-MM-DD.md`
 - Add durable lesson to `MEMORY.md` if it changes operating behavior
+
+## Hyperliquid Runtime Awareness
+
+- The execution path reads HL credentials/endpoints from `trader-curtis/.env`.
+- Testnet mode is controlled by:
+  - `HL_USE_TESTNET=1`
+  - `HL_API_URL=https://api.hyperliquid-testnet.xyz`
+  - `HL_INFO_URL=https://api.hyperliquid-testnet.xyz/info`
+- Quick setup command:
+  - `./scripts/configure_hl_testnet.sh`
+- Verification command:
+  - `./scripts/check_hl_setup.sh`
 
 ### Critical Rule
 - `validate_signals` must be **signal-only** (no execution submission). Use `scripts/run_signal_validation.sh`.

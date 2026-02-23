@@ -6,7 +6,7 @@ Builds structured chart-liquidity signals from Alpaca bar data and stores clicka
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -103,7 +103,16 @@ def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
 def fetch_bars(ticker: str, api_key: str, secret: str, timeframe: str = "1H", limit: int = 120) -> List[dict]:
     url = f"https://data.alpaca.markets/v2/stocks/{ticker}/bars"
     headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret}
-    params = {"timeframe": timeframe, "limit": int(limit), "adjustment": "raw", "feed": "iex"}
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=14)
+    params = {
+        "timeframe": timeframe,
+        "limit": int(limit),
+        "adjustment": "raw",
+        "feed": "iex",
+        "start": start.isoformat().replace("+00:00", "Z"),
+        "end": end.isoformat().replace("+00:00", "Z"),
+    }
     try:
         res = requests.get(url, headers=headers, params=params, timeout=20)
     except Exception:
@@ -123,7 +132,15 @@ def fetch_crypto_bars(ticker: str, api_key: str, secret: str, timeframe: str = "
     symbol = f"{base}/USD"
     url = "https://data.alpaca.markets/v1beta3/crypto/us/bars"
     headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret}
-    params = {"symbols": symbol, "timeframe": timeframe, "limit": int(limit)}
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=7)
+    params = {
+        "symbols": symbol,
+        "timeframe": timeframe,
+        "limit": int(limit),
+        "start": start.isoformat().replace("+00:00", "Z"),
+        "end": end.isoformat().replace("+00:00", "Z"),
+    }
     try:
         res = requests.get(url, headers=headers, params=params, timeout=20)
     except Exception:
@@ -140,10 +157,23 @@ def fetch_crypto_bars(ticker: str, api_key: str, secret: str, timeframe: str = "
 
 
 def fetch_yahoo_bars(ticker: str) -> List[dict]:
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    symbol_map = {
+        "BTC": "BTC-USD",
+        "ETH": "ETH-USD",
+        "SOL": "SOL-USD",
+        "XRP": "XRP-USD",
+        "DOGE": "DOGE-USD",
+        "AVAX": "AVAX-USD",
+        "LTC": "LTC-USD",
+        "BNB": "BNB-USD",
+        "SUI": "SUI20947-USD",
+    }
+    sym = symbol_map.get(str(ticker).upper(), str(ticker).upper())
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}"
     params = {"range": "3mo", "interval": "1h", "includePrePost": "false"}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        res = requests.get(url, params=params, timeout=20)
+        res = requests.get(url, params=params, headers=headers, timeout=20)
     except Exception:
         return []
     if res.status_code >= 400:
@@ -244,15 +274,20 @@ def main() -> int:
         ensure_table(conn)
         tickers = get_universe(conn, limit=20)
         created = 0
+        crypto_set = {"BTC", "ETH", "SOL", "XRP", "DOGE", "AVAX", "LTC", "BNB", "SUI"}
         for t in tickers:
-            bars = fetch_bars(t, api_key=api_key, secret=secret, timeframe="1H", limit=120)
-            if not bars and t in {"BTC", "ETH", "SOL", "XRP", "DOGE", "AVAX", "LTC", "BNB", "SUI"}:
+            if t in crypto_set:
                 bars = fetch_crypto_bars(t, api_key=api_key, secret=secret, timeframe="1H", limit=120)
+            else:
+                bars = fetch_bars(t, api_key=api_key, secret=secret, timeframe="1H", limit=120)
             if not bars:
                 bars = fetch_yahoo_bars(t)
             if not bars:
                 continue
             direction, pattern, conf, entry, stop, target, liq_high, liq_low = analyze_liquidity(bars)
+            if pattern == "insufficient_data":
+                # Do not flood dashboard with low-information rows.
+                continue
             score = round(conf * 100.0, 2)
             notes = f"pattern={pattern}; liq_high={liq_high}; liq_low={liq_low}; entry={entry}; stop={stop}; target={target}"
 

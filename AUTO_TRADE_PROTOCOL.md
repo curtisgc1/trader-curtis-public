@@ -1,109 +1,67 @@
-# AUTONOMOUS TRADING PROTOCOL
-## Activated: 2026-02-01
+# Auto Trade Protocol (Autonomous Test Mode)
 
----
+Updated: 2026-02-23
 
-## ✅ USER AUTHORIZATION
+## Goal
+Run autonomous high-throughput testing of the trading pipeline with minimal human interaction.
+Primary objective is system validation, data collection, and learning feedback quality.
 
-**Curtis has granted Trader Curtis authority to:**
-- Execute trades without prior approval
-- Use up to $500 per trade maximum
-- Act on "good trade" opportunities
+## Execution Model
+- Routing: automatic via `signal_router.py`
+- Execution: automatic via `execution_worker.py`
+- Learning refresh: automatic via `update_learning_feedback.py` + `source_ranker.py`
+- Dashboard control surface: `http://127.0.0.1:8090/`
 
----
+## Current Constraints
+- Hyperliquid minimum order applies (BTC perps require roughly >= $10 order value)
+- Polymarket live posting requires `POLY_PRIVATE_KEY` (if missing, worker falls back to paper mode)
+- Use `./scripts/check_agent_awareness.sh` before claiming full venue readiness
 
-## 🛡️ HARD CONSTRAINTS (Non-Negotiable)
+## Operator Controls (DB: `execution_controls`)
+Core:
+- `allow_live_trading`
+- `enable_alpaca_paper_auto`
+- `enable_hyperliquid_test_auto`
+- `allow_hyperliquid_live`
+- `enable_polymarket_auto`
+- `allow_polymarket_live`
 
-| Rule | Limit |
-|------|-------|
-| **Max Trade Size** | $500 |
-| **Max Risk per Trade** | 10% ($50 max loss) |
-| **Stop Loss** | Required on every trade |
-| **Position Limit** | Max 5 open positions |
-| **Daily Loss Limit** | $200 (kill switch) |
-| **Cash Reserve** | Keep 50% minimum |
+Throughput:
+- `auto_route_limit` (routes per cycle)
+- `auto_route_notional` (default per-route sizing)
+- `max_open_positions`
+- `max_daily_new_notional_usd`
+- `max_signal_notional_usd`
+- `min_candidate_score`
 
----
+Risk/strictness:
+- `quant_gate_enforce` (`1` block on quant fail, `0` warn-only)
 
-## 🎯 "GOOD TRADE" CRITERIA
+Leverage display/control:
+- `hyperliquid_test_leverage`
+- dashboard shows leverage-capability for HL/Alpaca
 
-A trade is "good" only if ALL conditions met:
+## Autonomous Behavior Rules
+- If controls allow execution, trader executes without confirmation.
+- If `quant_gate_enforce=0`, quant failures are logged as warnings and routing continues.
+- Every cycle must update tables used by learning (`route_trade_links`, `route_outcomes`, `source_learning_stats`, `strategy_learning_stats`).
 
-1. **Sentiment Alignment**
-   - At least 2 high-accuracy sources aligned
-   - Trump/Bessent mentions (if relevant) support direction
+## Non-Interactive Commands
+- Full cycle:
+  - `./run-all-scans.sh`
+- Signal-only validation (no execution calls):
+  - `./scripts/run_signal_validation.sh`
+- Dashboard restart:
+  - `./scripts/restart_dashboard.sh`
 
-2. **Technical Setup**
-   - Clear entry level with risk defined
-   - Stop loss within 10%
-   - Target at least 2:1 reward/risk
+## Ingest Commands (Agent -> DB)
+- External signal:
+  - `python3 agent_signal_ingest.py --text "external signal source ZenomTrader ticker NVDA short conf 0.74 url https://x.com/... notes gap fade"`
+- Copy trade call:
+  - `python3 agent_signal_ingest.py --text "copy trade @NoLimitGains long TSLA entry 210 stop 199 target 240 notes momentum"`
 
-3. **Risk Management**
-   - Position size ≤ $500
-   - Total account risk < 5%
-   - No correlated positions
-
-4. **Market Conditions**
-   - Not first/last 30 min of session
-   - No major news pending
-   - Volatility acceptable
-
----
-
-## 📱 EXECUTION PROTOCOL
-
-**When I identify a good trade:**
-
-1. Place order immediately
-2. Set stop loss (OCO bracket)
-3. Telegram notification: "TRADE EXECUTED"
-4. Log to all databases
-5. Monitor and report
-
-**Notification includes:**
-- Ticker & shares
-- Entry price
-- Stop loss
-- Target
-- Thesis in 1 sentence
-
----
-
-## 🚫 AUTO-DECLINE CONDITIONS
-
-I will NOT trade if:
-- Already at 5 open positions
-- Daily loss limit hit ($200)
-- Cash below 50%
-- Trump/Bessent making major announcement (wait)
-- Earnings within 48 hours
-- No clear stop loss level
-
----
-
-## 📊 TRACKING
-
-Every auto-trade logged with:
-- Why I took it (sources, setup)
-- Outcome (win/loss)
-- Lesson learned
-- Source accuracy update
-
----
-
-## ⚠️ CURRENT STATUS
-
-**Account:** Alpaca Paper Trading  
-**Cash Available:** $100,000  
-**Open Orders:** NEM ($11,150), ASTS ($3,868)  
-**Remaining for Auto-Trades:** ~$85,000  
-
-**Next Steps:**
-1. Validate these 2 pending orders
-2. Watch for "good trade" setups
-3. Execute within $500 limit
-4. Report all activity
-
----
-
-*Authority granted. Constraints locked. Trading begins Monday.*
+## Acceptance Checks
+- `/api/system-health` responds and stays fresh
+- `/api/signal-readiness` shows active candidate/routing flow
+- dashboard `Execution Orders` shows leverage columns
+- no schema drift errors in run logs

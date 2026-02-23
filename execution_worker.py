@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from execution_adapters import (
+    alpaca_margin_capability,
     alpaca_latest_price,
     alpaca_submit_qty,
     alpaca_submit_notional,
@@ -30,6 +31,12 @@ def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     return cur.fetchone() is not None
 
 
+def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA table_info({table})")
+    return any((row[1] == column) for row in cur.fetchall())
+
+
 def ensure_tables(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
@@ -41,6 +48,8 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
           direction TEXT NOT NULL,
           mode TEXT NOT NULL,
           notional REAL NOT NULL,
+          leverage_used REAL NOT NULL DEFAULT 1.0,
+          leverage_capable INTEGER NOT NULL DEFAULT 0,
           order_status TEXT NOT NULL,
           broker_order_id TEXT NOT NULL DEFAULT '',
           notes TEXT NOT NULL DEFAULT ''
@@ -86,6 +95,10 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    if table_exists(conn, "execution_orders") and not column_exists(conn, "execution_orders", "leverage_used"):
+        conn.execute("ALTER TABLE execution_orders ADD COLUMN leverage_used REAL NOT NULL DEFAULT 1.0")
+    if table_exists(conn, "execution_orders") and not column_exists(conn, "execution_orders", "leverage_capable"):
+        conn.execute("ALTER TABLE execution_orders ADD COLUMN leverage_capable INTEGER NOT NULL DEFAULT 0")
     conn.commit()
 
 
@@ -188,7 +201,8 @@ def _upsert_route_link(
 
 
 def process_queue(limit: int = 20) -> int:
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=20)
+    conn.execute("PRAGMA busy_timeout=10000")
     try:
         ensure_tables(conn)
         if not table_exists(conn, "signal_routes"):
@@ -197,11 +211,20 @@ def process_queue(limit: int = 20) -> int:
 
         live_enabled = is_live_enabled(conn)
         controls = load_controls(conn)
+        master_enabled = controls.get("agent_master_enabled", "0") == "1"
+        if not master_enabled:
+            print("Execution worker: agent_master_enabled=0, execution paused")
+            return 0
         enable_alpaca_paper_auto = controls.get("enable_alpaca_paper_auto", "1") == "1"
         allow_equity_shorts = controls.get("allow_equity_shorts", "1") == "1"
         enable_hl_test_auto = controls.get("enable_hyperliquid_test_auto", "1") == "1"
         allow_hl_live = controls.get("allow_hyperliquid_live", "0") == "1"
         hl_test_notional = float(controls.get("hyperliquid_test_notional_usd", "1") or 1.0)
+        hl_leverage = float(controls.get("hyperliquid_test_leverage", "1") or 1.0)
+        alp_ok, alp_margin_capable, alp_margin_mult, _alp_reason = alpaca_margin_capability()
+        if not alp_ok:
+            alp_margin_capable = False
+            alp_margin_mult = 1.0
         cur = conn.cursor()
         cur.execute(
             """
@@ -249,10 +272,10 @@ def process_queue(limit: int = 20) -> int:
                 cur.execute(
                     """
                     INSERT INTO execution_orders
-                    (created_at, route_id, ticker, direction, mode, notional, order_status, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, 'blocked', ?)
+                    (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'blocked', ?)
                     """,
-                    (now_iso(), route_id, ticker, direction, mode, float(notional), "live mode disabled by control"),
+                    (now_iso(), route_id, ticker, direction, mode, float(notional), 1.0, 0, "live mode disabled by control"),
                 )
                 cur.execute("UPDATE signal_routes SET status='blocked', reason='live mode disabled by control' WHERE id=?", (route_id,))
                 _upsert_route_link(
@@ -284,6 +307,8 @@ def process_queue(limit: int = 20) -> int:
 
             ticker_u = (ticker or "").upper().strip()
             side = "sell" if str(direction).lower() in {"short", "bearish", "sell"} else "buy"
+            # Release any pending write transaction before adapter calls that may open their own DB writer.
+            conn.commit()
 
             # Crypto path: $1 Hyperliquid test intent when enabled and symbol looks HL-eligible.
             if enable_hl_test_auto and is_hl_eligible(ticker_u):
@@ -300,10 +325,22 @@ def process_queue(limit: int = 20) -> int:
                 cur.execute(
                     """
                     INSERT INTO execution_orders
-                    (created_at, route_id, ticker, direction, mode, notional, order_status, broker_order_id, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, broker_order_id, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (now_iso(), route_id, ticker_u, direction, mode, hl_test_notional, status, str(intent_id), f"{note}: {reason}"),
+                    (
+                        now_iso(),
+                        route_id,
+                        ticker_u,
+                        direction,
+                        mode,
+                        hl_test_notional,
+                        float(hl_leverage),
+                        1,
+                        status,
+                        str(intent_id),
+                        f"{note}: {reason}",
+                    ),
                 )
                 route_status = "executed" if ok else "blocked"
                 cur.execute("UPDATE signal_routes SET status=?, reason=? WHERE id=?", (route_status, reason[:200], route_id))
@@ -353,10 +390,22 @@ def process_queue(limit: int = 20) -> int:
                 cur.execute(
                     """
                     INSERT INTO execution_orders
-                    (created_at, route_id, ticker, direction, mode, notional, order_status, broker_order_id, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, broker_order_id, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (now_iso(), route_id, ticker_u, direction, mode, float(notional), status, str(broker_id), f"alpaca paper: {reason}"),
+                    (
+                        now_iso(),
+                        route_id,
+                        ticker_u,
+                        direction,
+                        mode,
+                        float(notional),
+                        float(alp_margin_mult if alp_margin_capable else 1.0),
+                        int(1 if alp_margin_capable else 0),
+                        status,
+                        str(broker_id),
+                        f"alpaca paper: {reason}",
+                    ),
                 )
                 route_status = "executed" if ok else "blocked"
                 cur.execute("UPDATE signal_routes SET status=?, reason=? WHERE id=?", (route_status, reason[:200], route_id))
@@ -392,10 +441,10 @@ def process_queue(limit: int = 20) -> int:
             cur.execute(
                 """
                 INSERT INTO execution_orders
-                (created_at, route_id, ticker, direction, mode, notional, order_status, broker_order_id, notes)
-                VALUES (?, ?, ?, ?, ?, ?, 'submitted', ?, 'paper simulated order')
+                (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, broker_order_id, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, 'paper simulated order')
                 """,
-                (now_iso(), route_id, ticker_u, direction, mode, float(notional), synthetic_id),
+                (now_iso(), route_id, ticker_u, direction, mode, float(notional), 1.0, 0, synthetic_id),
             )
             cur.execute("UPDATE signal_routes SET status='executed' WHERE id=?", (route_id,))
             _upsert_route_link(

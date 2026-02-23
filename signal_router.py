@@ -11,8 +11,18 @@ from typing import Dict, List
 
 from execution_guard import evaluate_candidate, init_controls, log_risk_event
 from quant_gate import evaluate_quant_candidate, ensure_tables as ensure_quant_tables
+from allocator_causal import (
+    ensure_tables as ensure_allocator_tables,
+    allocate_candidate,
+    log_allocator_decision,
+)
 
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
+HIGH_BETA_TICKERS = {
+    "TSLA", "NVDA", "PLTR", "MSTR", "COIN", "MARA", "RIOT", "ASTS", "SMCI",
+    "SOFI", "AFRM", "UPST", "HOOD", "RIVN", "NIO", "TQQQ", "SQQQ",
+    "BTC", "ETH", "SOL", "XRP", "DOGE", "AVAX",
+}
 
 
 def now_iso() -> str:
@@ -56,16 +66,31 @@ def ensure_route_table(conn: sqlite3.Connection) -> None:
     )
     if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "validation_id"):
         conn.execute("ALTER TABLE signal_routes ADD COLUMN validation_id INTEGER NOT NULL DEFAULT 0")
+    if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "allocator_factor"):
+        conn.execute("ALTER TABLE signal_routes ADD COLUMN allocator_factor REAL NOT NULL DEFAULT 1.0")
+    if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "allocator_regime"):
+        conn.execute("ALTER TABLE signal_routes ADD COLUMN allocator_regime TEXT NOT NULL DEFAULT 'neutral'")
+    if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "allocator_reason"):
+        conn.execute("ALTER TABLE signal_routes ADD COLUMN allocator_reason TEXT NOT NULL DEFAULT ''")
+    if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "allocator_blocked"):
+        conn.execute("ALTER TABLE signal_routes ADD COLUMN allocator_blocked INTEGER NOT NULL DEFAULT 0")
     conn.commit()
 
 
 def fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict]:
     cur = conn.cursor()
     if _table_exists(conn, "trade_candidates"):
+        enforce_consensus = False
+        if _table_exists(conn, "execution_controls"):
+            cur.execute("SELECT value FROM execution_controls WHERE key='consensus_enforce' LIMIT 1")
+            row = cur.fetchone()
+            enforce_consensus = bool(row and str(row[0]) == "1")
+        where = "WHERE consensus_flag=1" if enforce_consensus else ""
         cur.execute(
             """
-            SELECT ticker, direction, score, source_tag
+            SELECT ticker, direction, score, source_tag, COALESCE(consensus_flag,0)
             FROM trade_candidates
+            """ + where + """
             ORDER BY score DESC
             LIMIT ?
             """,
@@ -78,6 +103,7 @@ def fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict]:
                 "direction": row[1] or "unknown",
                 "score": float(row[2] or 0.0),
                 "source": row[3] or "internal",
+                "consensus_flag": int(row[4] or 0),
             }
             for row in rows
         ]
@@ -89,12 +115,50 @@ def clear_old_queue(conn: sqlite3.Connection, mode: str) -> None:
     conn.commit()
 
 
+def _is_high_beta_ticker(conn: sqlite3.Connection, ticker: str, min_beta: float) -> bool:
+    t = str(ticker or "").upper().strip()
+    if not t:
+        return False
+    if t in HIGH_BETA_TICKERS:
+        return True
+    # Optional dynamic table support if user backfills with measured betas.
+    if _table_exists(conn, "ticker_beta_snapshot"):
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COALESCE(beta_1y, 0), COALESCE(beta_6m, 0)
+            FROM ticker_beta_snapshot
+            WHERE UPPER(ticker)=?
+            ORDER BY snapshot_at DESC
+            LIMIT 1
+            """,
+            (t,),
+        )
+        row = cur.fetchone()
+        if row:
+            b1 = float(row[0] or 0.0)
+            b6 = float(row[1] or 0.0)
+            return max(b1, b6) >= float(min_beta)
+    return False
+
+
 def route_signals(limit: int, mode: str, default_notional: float) -> int:
     conn = _connect()
     try:
         init_controls(conn)
         ensure_route_table(conn)
         ensure_quant_tables(conn)
+        ensure_allocator_tables(conn)
+        ctl = conn.cursor()
+        ctl.execute("SELECT value FROM execution_controls WHERE key='quant_gate_enforce' LIMIT 1")
+        row = ctl.fetchone()
+        quant_gate_enforce = False if (row and str(row[0]) == "0") else True
+        ctl.execute("SELECT value FROM execution_controls WHERE key='high_beta_only' LIMIT 1")
+        row_beta = ctl.fetchone()
+        high_beta_only = False if (row_beta and str(row_beta[0]) == "0") else True
+        ctl.execute("SELECT value FROM execution_controls WHERE key='high_beta_min_beta' LIMIT 1")
+        row_minb = ctl.fetchone()
+        min_beta = float((row_minb[0] if row_minb else 1.5) or 1.5)
         candidates = fetch_candidates(conn, limit=limit)
         clear_old_queue(conn, mode=mode)
 
@@ -108,24 +172,93 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
             source = c.get("source") or "internal"
             notional = float(default_notional)
 
-            q_ok, q_reason, q_metrics = evaluate_quant_candidate(
+            if high_beta_only and (not _is_high_beta_ticker(conn, ticker, min_beta)):
+                reason = f"high_beta_only_filter: {ticker} below required beta profile"
+                cur.execute(
+                    """
+                    INSERT INTO signal_routes
+                    (routed_at, ticker, direction, score, source_tag, proposed_notional, mode, validation_id, decision, reason, status,
+                     allocator_factor, allocator_regime, allocator_reason, allocator_blocked)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        now_iso(),
+                        ticker,
+                        direction,
+                        score,
+                        source,
+                        notional,
+                        mode,
+                        0,
+                        "rejected",
+                        reason[:260],
+                        "blocked",
+                        1.0,
+                        "high_beta",
+                        "pre-allocator high-beta gate",
+                        1,
+                    ),
+                )
+                log_risk_event(
+                    conn=conn,
+                    ticker=ticker,
+                    direction=direction,
+                    candidate_score=score,
+                    proposed_notional=notional,
+                    approved=False,
+                    reason=reason,
+                )
+                routed += 1
+                continue
+
+            alloc = allocate_candidate(
                 conn=conn,
                 ticker=ticker,
                 direction=direction,
                 source_tag=source,
                 candidate_score=score,
+                proposed_notional=notional,
+            )
+            log_allocator_decision(
+                conn=conn,
+                ticker=ticker,
+                direction=direction,
+                source_tag=source,
+                result=alloc,
+                base_score=score,
+                base_notional=notional,
+            )
+
+            score_adj = float(alloc.adjusted_score)
+            notional_adj = float(alloc.adjusted_notional)
+
+            q_ok, q_reason, q_metrics = evaluate_quant_candidate(
+                conn=conn,
+                ticker=ticker,
+                direction=direction,
+                source_tag=source,
+                candidate_score=score_adj,
             )
             ok, reason = evaluate_candidate(
                 conn=conn,
                 ticker=ticker,
                 direction=direction,
-                candidate_score=score,
-                proposed_notional=notional,
+                candidate_score=score_adj,
+                proposed_notional=notional_adj,
                 mode=mode,
             )
-            if ok and not q_ok:
+            allocator_blocked = 0
+            if not alloc.allowed:
                 ok = False
-                reason = f"quant_gate_failed: {q_reason}"
+                allocator_blocked = 1
+                reason = alloc.reason
+            if ok and not q_ok:
+                if quant_gate_enforce:
+                    ok = False
+                    reason = f"quant_gate_failed: {q_reason}"
+                else:
+                    reason = f"quant_gate_warn_only: {q_reason}"
+            reason_full = f"{reason} | allocator={alloc.reason}"
             decision = "approved" if ok else "rejected"
             status = "queued" if ok else "blocked"
             if ok:
@@ -135,31 +268,36 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
             cur.execute(
                 """
                 INSERT INTO signal_routes
-                (routed_at, ticker, direction, score, source_tag, proposed_notional, mode, validation_id, decision, reason, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (routed_at, ticker, direction, score, source_tag, proposed_notional, mode, validation_id, decision, reason, status,
+                 allocator_factor, allocator_regime, allocator_reason, allocator_blocked)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     now_iso(),
                     ticker,
                     direction,
-                    score,
+                    score_adj,
                     source,
-                    notional,
+                    notional_adj,
                     mode,
                     int(q_metrics.get("validation_id") or 0),
                     decision,
-                    reason,
+                    reason_full[:260],
                     status,
+                    float(alloc.factor),
+                    alloc.regime,
+                    alloc.reason[:260],
+                    int(allocator_blocked),
                 ),
             )
             log_risk_event(
                 conn=conn,
                 ticker=ticker,
                 direction=direction,
-                candidate_score=score,
-                proposed_notional=notional,
+                candidate_score=score_adj,
+                proposed_notional=notional_adj,
                 approved=ok,
-                reason=reason,
+                reason=reason_full,
             )
 
         conn.commit()

@@ -1,6 +1,10 @@
 import json
+import os
+import re
 import sqlite3
 import subprocess
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -9,6 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "data" / "trades.db"
 BOOKMARKS_PATH = BASE_DIR / "docs" / "x-bookmarks.json"
 LOG_DIR = BASE_DIR / "dashboard-ui" / "logs"
+ENV_PATH = BASE_DIR / ".env"
 
 PATTERN_RELIABILITY = {
     "qml": 0.75,
@@ -32,9 +37,40 @@ def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
     return cur.fetchone() is not None
 
 
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA table_info({table})")
+    return any((row[1] == column) for row in cur.fetchall())
+
+
 def _rows_to_dicts(cur: sqlite3.Cursor, rows: List[tuple]) -> List[Dict[str, Any]]:
     cols = [c[0] for c in cur.description]
     return [dict(zip(cols, row)) for row in rows]
+
+
+def _load_env() -> Dict[str, str]:
+    env: Dict[str, str] = {}
+    if not ENV_PATH.exists():
+        return {k: v for k, v in os.environ.items()}
+    for line in ENV_PATH.read_text().splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            continue
+        k, v = s.split("=", 1)
+        env[k.strip()] = v.strip()
+    for k, v in os.environ.items():
+        if v is not None:
+            env[k] = v
+    return env
+
+
+def _hl_runtime_network() -> str:
+    env = _load_env()
+    api = str(env.get("HL_API_URL", "")).strip().lower()
+    use_testnet = str(env.get("HL_USE_TESTNET", "0")).strip().lower() in {"1", "true", "yes", "on"}
+    if "testnet" in api or use_testnet:
+        return "testnet"
+    return "mainnet"
 
 
 def _parse_ts(value: Optional[str]) -> Optional[datetime]:
@@ -217,15 +253,36 @@ def get_patterns(limit: int = 200) -> List[Dict[str, Any]]:
         return []
     conn = _connect()
     try:
-        if not _table_exists(conn, "institutional_patterns"):
-            return []
         cur = conn.cursor()
-        cur.execute(
-            "SELECT * FROM institutional_patterns ORDER BY timestamp DESC LIMIT ?",
-            (limit,),
-        )
-        rows = cur.fetchall()
-        return _rows_to_dicts(cur, rows)
+        if _table_exists(conn, "institutional_patterns"):
+            cur.execute(
+                "SELECT * FROM institutional_patterns ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+            )
+            rows = cur.fetchall()
+            if rows:
+                return _rows_to_dicts(cur, rows)
+
+        # Fallback: use chart liquidity signals when institutional_patterns has no rows.
+        if _table_exists(conn, "chart_liquidity_signals"):
+            cur.execute(
+                """
+                SELECT
+                  created_at AS timestamp,
+                  ticker,
+                  pattern AS pattern_name,
+                  direction,
+                  confidence,
+                  score,
+                  'chart_liquidity' AS source
+                FROM chart_liquidity_signals
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return _rows_to_dicts(cur, cur.fetchall())
+        return []
     finally:
         conn.close()
 
@@ -262,12 +319,75 @@ def get_summary() -> Dict[str, Any]:
     open_trades = [t for t in trades if (t.get("status") or "").lower() in ("open", "live")]
     last_trade = trades[0] if trades else None
 
+    total_pnl = round(sum([(t.get("pnl", 0) or 0) for t in trades]), 4) if total else 0.0
+    summary_source = "trades"
+    realized_total = 0
+    realized_wins = 0
+    realized_losses = 0
+    operational_losses = 0
+
+    # Fallback: when closed-trade PnL isn't populated yet, derive health metrics from route outcomes.
+    if (wins + losses == 0) and DB_PATH.exists():
+        conn = _connect()
+        try:
+            if _table_exists(conn, "route_outcomes"):
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT
+                      SUM(CASE WHEN COALESCE(outcome_type,'realized')='realized' THEN 1 ELSE 0 END) AS realized_n,
+                      SUM(CASE WHEN COALESCE(outcome_type,'realized')='realized' AND resolution='win' THEN 1 ELSE 0 END) AS realized_wins,
+                      SUM(CASE WHEN COALESCE(outcome_type,'realized')='realized' AND resolution='loss' THEN 1 ELSE 0 END) AS realized_losses,
+                      SUM(CASE WHEN COALESCE(outcome_type,'realized')='realized' THEN COALESCE(pnl,0) ELSE 0 END) AS realized_pnl,
+                      SUM(CASE WHEN COALESCE(outcome_type,'realized')='operational' AND resolution='loss' THEN 1 ELSE 0 END) AS operational_losses
+                    FROM route_outcomes
+                    """
+                )
+                row = cur.fetchone() or (0, 0, 0, 0.0, 0)
+                realized_total = int(row[0] or 0)
+                realized_wins = int(row[1] or 0)
+                realized_losses = int(row[2] or 0)
+                realized_pnl = float(row[3] or 0.0)
+                operational_losses = int(row[4] or 0)
+
+                if realized_total > 0:
+                    wins = realized_wins
+                    losses = realized_losses
+                    total = realized_total
+                    win_rate = round((wins / total) * 100.0, 2) if total else 0.0
+                    total_pnl = round(realized_pnl, 4)
+                    avg_pnl = round((realized_pnl / total), 4) if total else 0.0
+                    summary_source = "route_outcomes_realized"
+                elif operational_losses > 0:
+                    cur.execute(
+                        """
+                        SELECT COALESCE(SUM(COALESCE(pnl,0)),0)
+                        FROM route_outcomes
+                        WHERE COALESCE(outcome_type,'realized')='operational'
+                        """
+                    )
+                    op_pnl_row = cur.fetchone()
+                    op_total_pnl = float(op_pnl_row[0] or 0.0) if op_pnl_row else 0.0
+                    wins = 0
+                    losses = operational_losses
+                    total = operational_losses
+                    win_rate = 0.0
+                    total_pnl = round(op_total_pnl, 4)
+                    avg_pnl = round((op_total_pnl / total), 4) if total else 0.0
+                    summary_source = "route_outcomes_operational"
+        finally:
+            conn.close()
+
     return {
         "total_trades": total,
         "wins": wins,
         "losses": losses,
         "win_rate": win_rate,
         "avg_pnl": avg_pnl,
+        "total_pnl": total_pnl,
+        "summary_source": summary_source,
+        "realized_routes": realized_total,
+        "operational_losses": operational_losses,
         "open_trades": len(open_trades),
         "last_trade": last_trade,
     }
@@ -333,10 +453,18 @@ def get_system_health() -> Dict[str, Any]:
         hl_auto = controls.get("enable_hyperliquid_test_auto", "0") == "1"
         hl_live = controls.get("allow_hyperliquid_live", "0") == "1"
         hl_notional = float(controls.get("hyperliquid_test_notional_usd", "0") or 0)
+        hl_network = _hl_runtime_network()
 
         checks.append({"name": "Alpaca Auto", "state": "good" if alpaca_auto else "warn", "detail": "enabled" if alpaca_auto else "disabled"})
         checks.append({"name": "HL Auto", "state": "good" if hl_auto else "warn", "detail": f"enabled (${hl_notional:g})" if hl_auto else "disabled"})
         checks.append({"name": "HL Live", "state": "good" if hl_live else "warn", "detail": "enabled" if hl_live else "disabled"})
+        checks.append(
+            {
+                "name": "HL Network",
+                "state": "good" if hl_network == "testnet" else "warn",
+                "detail": hl_network,
+            }
+        )
 
         if hl_live and hl_notional < 10:
             checks.append({"name": "HL Min Notional", "state": "bad", "detail": "below ~$10 BTC minimum"})
@@ -379,11 +507,11 @@ def get_signal_readiness() -> Dict[str, Any]:
         poly = recent_count("polymarket_candidates", "created_at", 6)
         pipes = recent_count("pipeline_signals", "generated_at", 6)
 
-        checks.append({"name": "Candidates (6h)", "state": "good" if cands > 0 else "bad", "detail": str(cands)})
-        checks.append({"name": "Routes (6h)", "state": "good" if routes > 0 else "bad", "detail": str(routes)})
-        checks.append({"name": "Quant Validations (6h)", "state": "good" if quant > 0 else "warn", "detail": str(quant)})
-        checks.append({"name": "Pipeline Signals (6h)", "state": "good" if pipes > 0 else "warn", "detail": str(pipes)})
-        checks.append({"name": "Polymarket Candidates (6h)", "state": "good" if poly > 0 else "warn", "detail": str(poly)})
+        checks.append({"name": "Candidates (6h)", "state": "good" if cands > 0 else "bad", "detail": str(cands), "critical": True})
+        checks.append({"name": "Routes (6h)", "state": "good" if routes > 0 else "bad", "detail": str(routes), "critical": True})
+        checks.append({"name": "Quant Validations (6h)", "state": "good" if quant > 0 else "warn", "detail": str(quant), "critical": False})
+        checks.append({"name": "Pipeline Signals (6h)", "state": "good" if pipes > 0 else "warn", "detail": str(pipes), "critical": False})
+        checks.append({"name": "Polymarket Candidates (6h)", "state": "good" if poly > 0 else "warn", "detail": str(poly), "critical": False})
 
         learning = get_learning_health(lookback_days=7)
         tracked_pct = float(learning.get("tracked_coverage_pct") or 0.0)
@@ -424,13 +552,15 @@ def get_signal_readiness() -> Dict[str, Any]:
                 "name": "Learning Tracking (7d)",
                 "state": "good" if tracked_pct >= 90 else ("warn" if tracked_pct >= 70 else "bad"),
                 "detail": f"{tracked_pct}%",
+                "critical": False,
             }
         )
         checks.append(
             {
                 "name": "Learning Resolved (7d)",
-                "state": "good" if resolved_pct >= 60 else ("warn" if resolved_pct >= 30 else "bad"),
+                "state": "good" if resolved_pct >= 60 else ("warn" if resolved_pct >= 15 else "bad"),
                 "detail": f"{resolved_pct}%",
+                "critical": False,
             }
         )
         checks.append(
@@ -446,6 +576,7 @@ def get_signal_readiness() -> Dict[str, Any]:
                     if matured_total == 0
                     else f"{realized_matured_pct}% ({matured_realized}/{matured_total})"
                 ),
+                "critical": False,
             }
         )
 
@@ -455,19 +586,271 @@ def get_signal_readiness() -> Dict[str, Any]:
         hl_off = controls.get("enable_hyperliquid_test_auto", "0") == "0"
         poly_off = controls.get("enable_polymarket_auto", "0") == "0"
         safe_mode = live_off and paper_off and hl_off and poly_off
-        checks.append({"name": "Safe Mode", "state": "good" if safe_mode else "warn", "detail": "on" if safe_mode else "off"})
+        checks.append({"name": "Safe Mode", "state": "good" if safe_mode else "warn", "detail": "on" if safe_mode else "off", "critical": False})
 
         if cands == 0:
             blockers.append("no fresh trade candidates in last 6h")
         if routes == 0:
             blockers.append("no fresh routed signals in last 6h")
 
-        bad = len([c for c in checks if c["state"] == "bad"])
+        bad_critical = len([c for c in checks if c["state"] == "bad" and c.get("critical", False)])
+        bad_noncritical = len([c for c in checks if c["state"] == "bad" and not c.get("critical", False)])
         warn = len([c for c in checks if c["state"] == "warn"])
-        score = max(0, 100 - bad * 25 - warn * 10)
-        state = "good" if bad == 0 and warn <= 1 else ("warn" if bad == 0 else "bad")
+        score = max(0, 100 - bad_critical * 25 - bad_noncritical * 12 - warn * 8)
+        if blockers or bad_critical > 0:
+            state = "bad"
+        elif bad_noncritical > 0 or warn > 0:
+            state = "warn"
+        else:
+            state = "good"
 
         return {"state": state, "score": score, "checks": checks, "blockers": blockers}
+    finally:
+        conn.close()
+
+
+def _keychain_secret_present(service: str, account: str = "curtiscorum") -> bool:
+    try:
+        proc = subprocess.run(
+            ["security", "find-generic-password", "-a", account, "-s", service, "-w"],
+            capture_output=True,
+            text=True,
+            timeout=4,
+            check=False,
+        )
+    except Exception:
+        return False
+    return proc.returncode == 0 and bool((proc.stdout or "").strip())
+
+
+def get_agent_awareness() -> Dict[str, Any]:
+    checks: List[Dict[str, Any]] = []
+    blockers: List[str] = []
+    warnings: List[str] = []
+    if not DB_PATH.exists():
+        return {"overall": "bad", "summary": "database missing", "checks": [], "blockers": ["trades.db missing"], "warnings": []}
+
+    env = _load_env()
+    conn = _connect()
+    try:
+        controls = {x["key"]: x["value"] for x in get_risk_controls()}
+        poly_auto = controls.get("enable_polymarket_auto", "0") == "1"
+        poly_live = controls.get("allow_polymarket_live", "0") == "1"
+
+        api_env_ok = all(bool(str(env.get(k, "")).strip()) for k in ("POLY_API_KEY", "POLY_API_SECRET", "POLY_API_PASSPHRASE"))
+        api_keychain_ok = all(
+            _keychain_secret_present(k)
+            for k in (
+                "trader-curtis-POLY_API_KEY",
+                "trader-curtis-POLY_API_SECRET",
+                "trader-curtis-POLY_API_PASSPHRASE",
+            )
+        )
+        api_ok = api_env_ok or api_keychain_ok
+
+        signing_env_ok = bool(str(env.get("POLY_PRIVATE_KEY", "")).strip())
+        signing_keychain_ok = _keychain_secret_present("trader-curtis-POLY_PRIVATE_KEY")
+        signing_ok = signing_env_ok or signing_keychain_ok
+
+        poly_wallet = ""
+        if _table_exists(conn, "wallet_config"):
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM wallet_config WHERE key='poly_wallet_address' LIMIT 1")
+            row = cur.fetchone()
+            poly_wallet = str(row[0]) if row and row[0] else ""
+
+        checks.append({"name": "Polymarket Auto", "state": "good" if poly_auto else "warn", "detail": "enabled" if poly_auto else "disabled"})
+        checks.append({"name": "Polymarket Live", "state": "good", "detail": "enabled" if poly_live else "disabled"})
+        checks.append({"name": "Polymarket Wallet", "state": "good" if poly_wallet else "warn", "detail": poly_wallet or "not configured"})
+        checks.append({"name": "Polymarket API Credentials", "state": "good" if api_ok else "bad", "detail": "available" if api_ok else "missing (env/keychain)"})
+        checks.append(
+            {
+                "name": "Polymarket Signing Key",
+                "state": "good" if signing_ok else ("bad" if poly_live else "warn"),
+                "detail": "available" if signing_ok else "missing (required for live)",
+            }
+        )
+
+        m_age = _age_minutes(_latest_value(conn, "polymarket_markets", "fetched_at"))
+        c_age = _age_minutes(_latest_value(conn, "polymarket_candidates", "created_at"))
+        o_age = _age_minutes(_latest_value(conn, "polymarket_orders", "created_at"))
+        checks.append({"name": "Polymarket Market Freshness", "state": "good" if (m_age is not None and m_age <= 1440) else "warn", "detail": f"{m_age} min ago" if m_age is not None else "no data"})
+        checks.append({"name": "Polymarket Candidate Freshness", "state": "good" if (c_age is not None and c_age <= 360) else "warn", "detail": f"{c_age} min ago" if c_age is not None else "no data"})
+        checks.append({"name": "Polymarket Order Activity", "state": "good" if (o_age is not None and o_age <= 1440) else "warn", "detail": f"{o_age} min ago" if o_age is not None else "no orders yet"})
+
+        if not api_ok:
+            blockers.append("Polymarket API credentials are not available from env/keychain")
+        if poly_live and not signing_ok:
+            blockers.append("Polymarket live enabled but no POLY_PRIVATE_KEY; worker will fall back to paper")
+        if poly_auto and not poly_wallet:
+            warnings.append("Polymarket auto is enabled but wallet address is not visible in wallet_config")
+
+        bad = len([c for c in checks if c["state"] == "bad"])
+        warn = len([c for c in checks if c["state"] == "warn"])
+        if blockers or bad > 0:
+            overall = "bad"
+        elif warnings or warn > 0:
+            overall = "warn"
+        else:
+            overall = "good"
+
+        effective_mode = "live" if (poly_live and signing_ok and api_ok) else "paper"
+        summary = f"polymarket {effective_mode} mode"
+        return {
+            "overall": overall,
+            "summary": summary,
+            "effective_mode": effective_mode,
+            "checks": checks,
+            "blockers": blockers,
+            "warnings": warnings,
+        }
+    finally:
+        conn.close()
+
+
+def get_performance_curve(limit: int = 500) -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {
+            "source": "none",
+            "count": 0,
+            "wins": 0,
+            "losses": 0,
+            "total_pnl": 0.0,
+            "max_drawdown": 0.0,
+            "unit": "usd",
+            "by_time": [],
+            "by_trade": [],
+        }
+
+    conn = _connect()
+    try:
+        rows: List[Dict[str, Any]] = []
+        source = "none"
+        cur = conn.cursor()
+
+        if _table_exists(conn, "route_outcomes"):
+            cur.execute(
+                """
+                SELECT
+                  CAST(route_id AS TEXT) AS rid,
+                  resolved_at AS ts,
+                  pnl,
+                  pnl_percent
+                FROM route_outcomes
+                WHERE pnl IS NOT NULL OR pnl_percent IS NOT NULL
+                ORDER BY datetime(COALESCE(resolved_at, '1970-01-01')) ASC
+                LIMIT ?
+                """,
+                (int(limit),),
+            )
+            rows = _rows_to_dicts(cur, cur.fetchall())
+            if rows:
+                source = "route_outcomes"
+
+        if not rows and _table_exists(conn, "trades"):
+            cur.execute(
+                """
+                SELECT
+                  COALESCE(trade_id, '') AS rid,
+                  created_at AS ts,
+                  pnl
+                FROM trades
+                WHERE pnl IS NOT NULL
+                ORDER BY datetime(COALESCE(created_at, '1970-01-01')) ASC
+                LIMIT ?
+                """,
+                (int(limit),),
+            )
+            rows = _rows_to_dicts(cur, cur.fetchall())
+            if rows:
+                source = "trades"
+
+        if not rows:
+            return {
+                "source": source,
+                "count": 0,
+                "wins": 0,
+                "losses": 0,
+                "total_pnl": 0.0,
+                "max_drawdown": 0.0,
+                "unit": "usd",
+                "by_time": [],
+                "by_trade": [],
+            }
+
+        # Use PnL percent as fallback when USD pnl is unavailable/flat.
+        use_pct = False
+        if source == "route_outcomes":
+            non_zero_usd = 0
+            non_zero_pct = 0
+            for r in rows:
+                usd = float(r.get("pnl") or 0.0)
+                pct = float(r.get("pnl_percent") or 0.0)
+                if abs(usd) > 1e-9:
+                    non_zero_usd += 1
+                if abs(pct) > 1e-9:
+                    non_zero_pct += 1
+            use_pct = non_zero_usd == 0 and non_zero_pct > 0
+
+        cumulative = 0.0
+        peak = 0.0
+        max_drawdown = 0.0
+        wins = 0
+        losses = 0
+        by_time: List[Dict[str, Any]] = []
+        by_trade: List[Dict[str, Any]] = []
+
+        for i, r in enumerate(rows, 1):
+            pnl = float((r.get("pnl_percent") if use_pct else r.get("pnl")) or 0.0)
+            ts = str(r.get("ts") or "")
+            rid = str(r.get("rid") or "")
+            cumulative += pnl
+            if pnl > 0:
+                wins += 1
+            elif pnl < 0:
+                losses += 1
+            peak = max(peak, cumulative)
+            drawdown = peak - cumulative
+            max_drawdown = max(max_drawdown, drawdown)
+
+            point = {
+                "trade": i,
+                "timestamp": ts,
+                "id": rid,
+                "pnl": round(pnl, 4),
+                "cum_pnl": round(cumulative, 4),
+                "drawdown": round(drawdown, 4),
+            }
+            by_time.append(
+                {
+                    "x": ts,
+                    "y": point["cum_pnl"],
+                    "pnl": point["pnl"],
+                    "trade": i,
+                    "drawdown": point["drawdown"],
+                }
+            )
+            by_trade.append(
+                {
+                    "x": i,
+                    "y": point["cum_pnl"],
+                    "pnl": point["pnl"],
+                    "timestamp": ts,
+                    "drawdown": point["drawdown"],
+                }
+            )
+
+        return {
+            "source": source,
+            "count": len(rows),
+            "wins": wins,
+            "losses": losses,
+            "total_pnl": round(cumulative, 4),
+            "max_drawdown": round(max_drawdown, 4),
+            "unit": "pct" if use_pct else "usd",
+            "by_time": by_time,
+            "by_trade": by_trade,
+        }
     finally:
         conn.close()
 
@@ -477,9 +860,15 @@ def run_system_action(action: str) -> Dict[str, Any]:
     log_file = LOG_DIR / "actions.log"
     commands = {
         "run_scan": "cd /Users/Shared/curtis/trader-curtis && ./run-all-scans.sh",
+        "run_poly_align": "cd /Users/Shared/curtis/trader-curtis && python3.11 ./align_high_signal_polymarket.py",
+        "run_cycle": "cd /Users/Shared/curtis/trader-curtis && ./scripts/trader_cycle_locked.sh dashboard_manual",
+        "run_polymarket_exec": "cd /Users/Shared/curtis/trader-curtis && ./scripts/with_polymarket_keychain.sh python3.11 ./execution_polymarket.py",
+        "run_polymarket_mm": "cd /Users/Shared/curtis/trader-curtis && python3.11 ./polymarket_mm_engine.py",
+        "run_poly_wallet_ingest": "cd /Users/Shared/curtis/trader-curtis && python3.11 ./ingest_polymarket_wallet_activity.py && python3.11 ./score_polymarket_wallets.py",
         "sync_broker": "cd /Users/Shared/curtis/trader-curtis && ./sync_alpaca_order_status.py",
         "refresh_learning": "cd /Users/Shared/curtis/trader-curtis && ./update_learning_feedback.py && ./source_ranker.py",
         "validate_signals": "cd /Users/Shared/curtis/trader-curtis && ./scripts/run_signal_validation.sh",
+        "check_awareness": "cd /Users/Shared/curtis/trader-curtis && ./scripts/check_agent_awareness.sh",
     }
     cmd = commands.get(action)
     if not cmd:
@@ -537,22 +926,271 @@ def get_risk_controls() -> List[Dict[str, Any]]:
         conn.close()
 
 
+def get_wallet_config() -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "wallet_config"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT key, value, source, updated_at
+            FROM wallet_config
+            ORDER BY key ASC
+            """
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_portfolio_snapshot() -> Dict[str, Any]:
+    env = _load_env()
+    snapshot: Dict[str, Any] = {
+        "alpaca": {
+            "ok": False,
+            "equity": 0.0,
+            "cash": 0.0,
+            "buying_power": 0.0,
+            "positions": [],
+            "error": "",
+        },
+        "hyperliquid": {
+            "ok": False,
+            "network": _hl_runtime_network(),
+            "wallet": env.get("HL_WALLET_ADDRESS", ""),
+            "account_value": 0.0,
+            "withdrawable": 0.0,
+            "positions": [],
+            "error": "",
+        },
+    }
+
+    # Alpaca account + open positions.
+    api_key = env.get("ALPACA_API_KEY", "")
+    secret = env.get("ALPACA_SECRET_KEY", "")
+    base_url = env.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+    if api_key and secret:
+        headers = {
+            "APCA-API-KEY-ID": api_key,
+            "APCA-API-SECRET-KEY": secret,
+            "Content-Type": "application/json",
+        }
+        try:
+            req_acc = urllib.request.Request(f"{base_url}/v2/account", headers=headers, method="GET")
+            with urllib.request.urlopen(req_acc, timeout=12) as resp:
+                acc = json.loads(resp.read().decode("utf-8"))
+            snapshot["alpaca"]["equity"] = float(acc.get("equity") or 0.0)
+            snapshot["alpaca"]["cash"] = float(acc.get("cash") or 0.0)
+            snapshot["alpaca"]["buying_power"] = float(acc.get("buying_power") or 0.0)
+
+            req_pos = urllib.request.Request(f"{base_url}/v2/positions", headers=headers, method="GET")
+            with urllib.request.urlopen(req_pos, timeout=12) as resp:
+                pos = json.loads(resp.read().decode("utf-8"))
+            rows = []
+            if isinstance(pos, list):
+                for p in pos:
+                    rows.append(
+                        {
+                            "symbol": p.get("symbol", ""),
+                            "qty": p.get("qty", ""),
+                            "side": p.get("side", ""),
+                            "market_value": float(p.get("market_value") or 0.0),
+                            "unrealized_pl": float(p.get("unrealized_pl") or 0.0),
+                            "unrealized_plpc": float(p.get("unrealized_plpc") or 0.0),
+                        }
+                    )
+            snapshot["alpaca"]["positions"] = rows
+            snapshot["alpaca"]["ok"] = True
+        except Exception as exc:
+            snapshot["alpaca"]["error"] = str(exc)
+    else:
+        snapshot["alpaca"]["error"] = "missing credentials"
+
+    # Hyperliquid account state (if wallet configured).
+    hl_wallet = str(env.get("HL_WALLET_ADDRESS", "") or "").strip()
+    hl_api = str(env.get("HL_API_URL", "") or "").strip().rstrip("/")
+    if not hl_api:
+        hl_api = "https://api.hyperliquid-testnet.xyz" if snapshot["hyperliquid"]["network"] == "testnet" else "https://api.hyperliquid.xyz"
+    hl_info = str(env.get("HL_INFO_URL", "") or "").strip()
+    if not hl_info:
+        hl_info = f"{hl_api}/info"
+
+    if hl_wallet:
+        try:
+            payload = {"type": "clearinghouseState", "user": hl_wallet}
+            req = urllib.request.Request(
+                hl_info,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                state = json.loads(resp.read().decode("utf-8"))
+            ms = state.get("marginSummary", {}) if isinstance(state, dict) else {}
+            snapshot["hyperliquid"]["account_value"] = float(ms.get("accountValue") or 0.0)
+            snapshot["hyperliquid"]["withdrawable"] = float(state.get("withdrawable") or 0.0)
+            positions = []
+            for item in (state.get("assetPositions") or []):
+                if not isinstance(item, dict):
+                    continue
+                pos = item.get("position", {}) if isinstance(item.get("position"), dict) else {}
+                positions.append(
+                    {
+                        "coin": pos.get("coin", ""),
+                        "szi": pos.get("szi", ""),
+                        "position_value": float(pos.get("positionValue") or 0.0),
+                        "unrealized_pnl": float(pos.get("unrealizedPnl") or 0.0),
+                    }
+                )
+            snapshot["hyperliquid"]["positions"] = positions
+            snapshot["hyperliquid"]["ok"] = True
+        except Exception as exc:
+            snapshot["hyperliquid"]["error"] = str(exc)
+    else:
+        snapshot["hyperliquid"]["error"] = "wallet not configured"
+
+    return snapshot
+
+
+def get_recent_trade_decisions(limit: int = 20) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "execution_orders"):
+            return []
+        cur = conn.cursor()
+        has_routes = _table_exists(conn, "signal_routes")
+        has_learning = _table_exists(conn, "execution_learning")
+        if has_routes and has_learning:
+            cur.execute(
+                """
+                SELECT
+                  eo.created_at,
+                  eo.route_id,
+                  eo.ticker,
+                  eo.direction,
+                  eo.mode,
+                  eo.notional,
+                  eo.order_status,
+                  eo.notes,
+                  COALESCE(sr.source_tag,'') AS source_tag,
+                  COALESCE(sr.score,0) AS score,
+                  COALESCE(sr.reason,'') AS route_reason,
+                  COALESCE(el.reason,'') AS learning_reason
+                FROM execution_orders eo
+                LEFT JOIN signal_routes sr ON sr.id = eo.route_id
+                LEFT JOIN execution_learning el ON el.route_id = eo.route_id
+                ORDER BY eo.created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        elif has_routes:
+            cur.execute(
+                """
+                SELECT
+                  eo.created_at,
+                  eo.route_id,
+                  eo.ticker,
+                  eo.direction,
+                  eo.mode,
+                  eo.notional,
+                  eo.order_status,
+                  eo.notes,
+                  COALESCE(sr.source_tag,'') AS source_tag,
+                  COALESCE(sr.score,0) AS score,
+                  COALESCE(sr.reason,'') AS route_reason,
+                  '' AS learning_reason
+                FROM execution_orders eo
+                LEFT JOIN signal_routes sr ON sr.id = eo.route_id
+                ORDER BY eo.created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT
+                  created_at,
+                  route_id,
+                  ticker,
+                  direction,
+                  mode,
+                  notional,
+                  order_status,
+                  notes,
+                  '' AS source_tag,
+                  0 AS score,
+                  '' AS route_reason,
+                  '' AS learning_reason
+                FROM execution_orders
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
 def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
     allowed = {
+        "agent_master_enabled",
         "allow_live_trading",
         "allow_hyperliquid_live",
         "allow_equity_shorts",
         "enable_alpaca_paper_auto",
         "enable_hyperliquid_test_auto",
         "hyperliquid_test_notional_usd",
+        "hyperliquid_test_leverage",
         "enable_polymarket_auto",
         "allow_polymarket_live",
         "polymarket_max_notional_usd",
+        "polymarket_max_daily_exposure",
         "polymarket_min_edge_pct",
+        "polymarket_fee_gate_enabled",
+        "polymarket_taker_fee_pct",
+        "polymarket_fee_buffer_pct",
+        "polymarket_manual_approval",
+        "polymarket_approval_threshold",
+        "polymarket_copy_enabled",
+        "polymarket_arb_enabled",
+        "polymarket_alpha_enabled",
+        "polymarket_copy_max_notional_usd",
+        "polymarket_arb_max_notional_usd",
+        "polymarket_alpha_max_notional_usd",
+        "consensus_enforce",
+        "consensus_min_confirmations",
+        "consensus_min_ratio",
+        "consensus_min_score",
+        "high_beta_only",
+        "high_beta_min_beta",
+        "weather_strict_station_required",
+        "mm_enabled",
+        "mm_risk_aversion",
+        "mm_base_spread_bps",
+        "mm_inventory_limit",
+        "mm_toxicity_threshold",
+        "mm_min_edge_bps",
+        "quant_gate_enforce",
+        "enable_allocator_causal",
+        "allocator_regime_override",
+        "allocator_min_source_samples",
+        "allocator_block_posterior_floor",
+        "allocator_max_scale_up",
+        "allocator_max_scale_down",
         "min_candidate_score",
         "max_open_positions",
         "max_daily_new_notional_usd",
         "max_signal_notional_usd",
+        "auto_route_limit",
+        "auto_route_notional",
     }
     if not DB_PATH.exists():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -585,6 +1223,91 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         return {"updated": changed, "controls": get_risk_controls()}
     finally:
         conn.close()
+
+
+def get_master_overview() -> Dict[str, Any]:
+    summary = get_summary()
+    controls_list = get_risk_controls()
+    controls = {x.get("key"): x.get("value") for x in controls_list}
+
+    alp_margin_capable = False
+    alp_margin_multiplier = 1.0
+    alp_margin_reason = "unavailable"
+    try:
+        env = _load_env()
+        api_key = env.get("ALPACA_API_KEY", "")
+        secret = env.get("ALPACA_SECRET_KEY", "")
+        base_url = env.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+        if api_key and secret:
+            req = urllib.request.Request(
+                f"{base_url}/v2/account",
+                headers={
+                    "APCA-API-KEY-ID": api_key,
+                    "APCA-API-SECRET-KEY": secret,
+                    "Content-Type": "application/json",
+                },
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            mm = float(data.get("multiplier") or 1.0)
+            alp_margin_capable = mm > 1.0
+            alp_margin_multiplier = mm
+            alp_margin_reason = "ok"
+        else:
+            alp_margin_reason = "missing Alpaca credentials"
+    except urllib.error.HTTPError as exc:
+        alp_margin_reason = f"alpaca account http {exc.code}"
+    except Exception as exc:
+        alp_margin_reason = f"alpaca check error: {exc}"
+
+    recent_exec = {"submitted": 0, "blocked": 0, "accepted": 0, "filled": 0}
+    if DB_PATH.exists():
+        conn = _connect()
+        try:
+            if _table_exists(conn, "execution_orders"):
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT lower(COALESCE(order_status,'')) AS s, COUNT(*)
+                    FROM execution_orders
+                    WHERE datetime(COALESCE(created_at, '1970-01-01')) >= datetime('now', '-24 hour')
+                    GROUP BY s
+                    """
+                )
+                for s, n in cur.fetchall():
+                    if s in recent_exec:
+                        recent_exec[s] = int(n or 0)
+        finally:
+            conn.close()
+
+    wins = int(summary.get("wins") or 0)
+    losses = int(summary.get("losses") or 0)
+    total_closed = wins + losses
+    win_rate = float(summary.get("win_rate") or 0.0)
+    win_loss_ratio = round((wins / losses), 2) if losses > 0 else (float(wins) if wins > 0 else 0.0)
+
+    return {
+        "summary": {
+            "total_trades": int(summary.get("total_trades") or 0),
+            "open_trades": int(summary.get("open_trades") or 0),
+            "wins": wins,
+            "losses": losses,
+            "total_closed": total_closed,
+            "win_rate": win_rate,
+            "win_loss_ratio": win_loss_ratio,
+            "avg_pnl": float(summary.get("avg_pnl") or 0.0),
+        },
+        "controls": controls,
+        "leverage": {
+            "hl_test_leverage": float(controls.get("hyperliquid_test_leverage") or 1.0),
+            "hl_live_enabled": controls.get("allow_hyperliquid_live", "0") == "1",
+            "alpaca_margin_capable": alp_margin_capable,
+            "alpaca_margin_multiplier": alp_margin_multiplier,
+            "alpaca_margin_reason": alp_margin_reason,
+        },
+        "execution_24h": recent_exec,
+    }
 
 
 def get_signal_routes(limit: int = 200) -> List[Dict[str, Any]]:
@@ -662,9 +1385,16 @@ def get_execution_orders(limit: int = 200) -> List[Dict[str, Any]]:
         if not _table_exists(conn, "execution_orders"):
             return []
         cur = conn.cursor()
+        has_lev_used = _column_exists(conn, "execution_orders", "leverage_used")
+        has_lev_cap = _column_exists(conn, "execution_orders", "leverage_capable")
+        lev_used_expr = "COALESCE(leverage_used, 1.0)" if has_lev_used else "1.0"
+        lev_cap_expr = "COALESCE(leverage_capable, 0)" if has_lev_cap else "0"
         cur.execute(
-            """
-            SELECT created_at, route_id, ticker, direction, mode, notional, order_status, broker_order_id, notes
+            f"""
+            SELECT created_at, route_id, ticker, direction, mode, notional,
+                   {lev_used_expr} AS leverage_used,
+                   {lev_cap_expr} AS leverage_capable,
+                   order_status, broker_order_id, notes
             FROM execution_orders
             ORDER BY created_at DESC
             LIMIT ?
@@ -730,7 +1460,12 @@ def get_trade_candidates(limit: int = 50) -> List[Dict[str, Any]]:
             cur.execute(
                 """
                 SELECT generated_at AS updated_at, ticker, direction, score,
-                       sentiment_score AS sentiment, pattern_type AS pattern, source_tag AS source
+                       sentiment_score AS sentiment, pattern_type AS pattern, source_tag AS source,
+                       COALESCE(confirmations,0) AS confirmations,
+                       COALESCE(sources_total,0) AS sources_total,
+                       COALESCE(consensus_ratio,0) AS consensus_ratio,
+                       COALESCE(consensus_flag,0) AS consensus_flag,
+                       COALESCE(evidence_json,'[]') AS evidence_json
                 FROM trade_candidates
                 ORDER BY score DESC
                 LIMIT ?
@@ -1050,8 +1785,14 @@ def get_chart_liquidity_signals(limit: int = 200) -> List[Dict[str, Any]]:
             SELECT created_at, ticker, timeframe, direction, pattern, confidence, score,
                    entry_hint, stop_hint, target_hint, liquidity_high, liquidity_low,
                    chart_url, source_ref, notes, status
-            FROM chart_liquidity_signals
-            ORDER BY id DESC
+            FROM (
+              SELECT *,
+                     ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY id DESC) AS rn
+              FROM chart_liquidity_signals
+              WHERE COALESCE(pattern,'') <> 'insufficient_data'
+            ) q
+            WHERE q.rn = 1
+            ORDER BY datetime(COALESCE(created_at, '1970-01-01')) DESC
             LIMIT ?
             """,
             (limit,),
@@ -1073,6 +1814,61 @@ def get_bookmark_alpha_ideas(limit: int = 200) -> List[Dict[str, Any]]:
             """
             SELECT created_at, source_handle, source_url, strategy_tag, thesis_type, horizon, confidence, promoted_to_signal
             FROM bookmark_alpha_ideas
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_breakthrough_events(limit: int = 200) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "breakthrough_events"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT created_at, source, modality, score, confidence, title, source_url, published_at, mapped_tickers_json
+            FROM breakthrough_events
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        for r in rows:
+            try:
+                mapped = json.loads(r.get("mapped_tickers_json") or "[]")
+                if isinstance(mapped, list):
+                    r["mapped_tickers"] = ",".join([str(x) for x in mapped[:8]])
+                else:
+                    r["mapped_tickers"] = ""
+            except Exception:
+                r["mapped_tickers"] = ""
+        return rows
+    finally:
+        conn.close()
+
+
+def get_allocator_decisions(limit: int = 200) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "allocator_decisions"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT created_at, ticker, direction, source_tag, strategy_tag, regime,
+                   base_score, adjusted_score, base_notional, adjusted_notional, factor, allowed, reason
+            FROM allocator_decisions
             ORDER BY id DESC
             LIMIT ?
             """,
@@ -1115,7 +1911,7 @@ def get_polymarket_candidates(limit: int = 200) -> List[Dict[str, Any]]:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT created_at, strategy_id, market_id, slug, question, outcome, implied_prob, model_prob, edge, confidence, source_tag, rationale, market_url, status
+            SELECT id, created_at, strategy_id, market_id, slug, question, outcome, implied_prob, model_prob, edge, confidence, source_tag, rationale, market_url, status
             FROM polymarket_candidates
             ORDER BY ABS(edge) DESC, created_at DESC
             LIMIT ?
@@ -1123,5 +1919,935 @@ def get_polymarket_candidates(limit: int = 200) -> List[Dict[str, Any]]:
             (limit,),
         )
         return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_polymarket_aligned_setups(limit: int = 200, mode: str = "all") -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "polymarket_aligned_setups"):
+            return []
+        cur = conn.cursor()
+        mode_norm = str(mode or "all").strip().lower()
+        where = ""
+        if mode_norm == "high_signal_low_interest":
+            where = "WHERE class_tag='high_signal_low_interest'"
+        elif mode_norm == "high_signal_direct":
+            where = "WHERE class_tag='high_signal_direct'"
+        elif mode_norm == "watchlist":
+            where = "WHERE class_tag='watchlist'"
+        cur.execute(
+            f"""
+            SELECT id, generated_at, ticker, direction, candidate_score, confirmations, sources_total, consensus_ratio,
+                   source_tag, market_id, market_slug, question, market_url, liquidity, volume_24h,
+                   implied_prob, match_score, alignment_confidence, signal_strength, source_quality,
+                   resolution_clarity, crowding_penalty, fee_drag, alpha_score, class_tag, rationale, status
+            FROM polymarket_aligned_setups
+            {where}
+            ORDER BY alpha_score DESC, alignment_confidence DESC, match_score DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_polymarket_orders(limit: int = 200) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "polymarket_orders"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT created_at, strategy_id, candidate_id, market_id, outcome, side, token_id, mode,
+                   notional, price, size, order_id, status, notes, response_json
+            FROM polymarket_orders
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        for row in rows:
+            status = str(row.get("status") or "").lower()
+            mode = str(row.get("mode") or "paper").lower()
+            if status.startswith("submitted_live") or status.endswith("_live") or status in {"open_live", "partially_filled_live"}:
+                row["money_type"] = "real"
+            elif mode == "live":
+                row["money_type"] = "real"
+            else:
+                row["money_type"] = "paper"
+
+            if status.startswith("awaiting_approval"):
+                row["stage"] = "approval"
+            elif "block" in status:
+                row["stage"] = "blocked"
+            elif "fail" in status or "rejected" in status:
+                row["stage"] = "failed"
+            elif "fill" in status:
+                row["stage"] = "filled"
+            elif "submit" in status or "open" in status or "accept" in status:
+                row["stage"] = "submitted"
+            else:
+                row["stage"] = "candidate"
+        return rows
+    finally:
+        conn.close()
+
+
+def get_polymarket_overview() -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {
+            "mode": "paper",
+            "live_enabled": False,
+            "auto_enabled": False,
+            "manual_approval": True,
+            "approval_threshold": 10,
+            "approval_count": 0,
+            "daily_cap_usd": 20.0,
+            "daily_used_usd": 0.0,
+            "pending_approval": 0,
+            "submitted_live": 0,
+            "filled_live": 0,
+            "submitted_paper": 0,
+            "failed": 0,
+            "blocked": 0,
+        }
+
+    conn = _connect()
+    try:
+        controls = {x["key"]: x["value"] for x in get_risk_controls()}
+        auto_enabled = controls.get("enable_polymarket_auto", "0") == "1"
+        live_enabled = str(controls.get("allow_polymarket_live", "0")).strip().lower() in {"1", "true", "yes", "on", "enabled", "live"}
+        manual_approval = controls.get("polymarket_manual_approval", "1") == "1"
+        approval_threshold = int(float(controls.get("polymarket_approval_threshold", "10") or 10))
+        approval_count = int(float(controls.get("polymarket_approval_count", "0") or 0))
+        daily_cap = float(controls.get("polymarket_max_daily_exposure", "20") or 20)
+
+        cur = conn.cursor()
+        paper_used = 0.0
+        live_used = 0.0
+        if _table_exists(conn, "polymarket_orders"):
+            for mode_name in ("paper", "live"):
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM(notional), 0)
+                    FROM polymarket_orders
+                    WHERE date(created_at)=date('now')
+                      AND lower(COALESCE(mode,''))=?
+                      AND status IN (
+                        'submitted_paper','filled_paper',
+                        'submitted_live','accepted_live','open_live','partially_filled_live','filled_live',
+                        'submitted'
+                      )
+                    """,
+                    (mode_name,),
+                )
+                val = float((cur.fetchone() or [0.0])[0] or 0.0)
+                if mode_name == "paper":
+                    paper_used = val
+                else:
+                    live_used = val
+        daily_used = live_used if live_enabled else paper_used
+
+        def count_orders(where_clause: str) -> int:
+            if not _table_exists(conn, "polymarket_orders"):
+                return 0
+            cur.execute(f"SELECT COUNT(*) FROM polymarket_orders WHERE {where_clause}")
+            return int((cur.fetchone() or [0])[0] or 0)
+
+        pending_approval = 0
+        if _table_exists(conn, "polymarket_candidates"):
+            cur.execute("SELECT COUNT(*) FROM polymarket_candidates WHERE status='awaiting_approval'")
+            pending_approval = int((cur.fetchone() or [0])[0] or 0)
+
+        return {
+            "mode": "live" if live_enabled else "paper",
+            "live_enabled": live_enabled,
+            "auto_enabled": auto_enabled,
+            "manual_approval": manual_approval,
+            "approval_threshold": approval_threshold,
+            "approval_count": approval_count,
+            "daily_cap_usd": daily_cap,
+            "daily_used_usd": round(daily_used, 4),
+            "live_used_usd": round(live_used, 4),
+            "paper_used_usd": round(paper_used, 4),
+            "pending_approval": pending_approval,
+            "submitted_live": count_orders("status IN ('submitted_live','accepted_live','open_live','partially_filled_live')"),
+            "filled_live": count_orders("status='filled_live'"),
+            "submitted_paper": count_orders("status='submitted_paper'"),
+            "failed": count_orders("status IN ('submission_failed','rejected_live')"),
+            "blocked": count_orders("status LIKE 'blocked%'"),
+        }
+    finally:
+        conn.close()
+
+
+def get_weather_market_probs(limit: int = 80) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "weather_market_probs"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT created_at, market_id, question, city, target_date, station_hint, source_hint, rounding_hint, model_count,
+                   outcome_probs_json, best_outcome, best_prob, uncertainty, spread_c, market_url, status, notes
+            FROM weather_market_probs
+            ORDER BY best_prob DESC, model_count DESC, created_at DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        for r in rows:
+            try:
+                probs = json.loads(r.get("outcome_probs_json") or "{}")
+                if isinstance(probs, dict):
+                    top = sorted(probs.items(), key=lambda x: float(x[1]), reverse=True)[:4]
+                    r["top_probs"] = " | ".join([f"{k}:{round(float(v)*100,1)}%" for k, v in top])
+                else:
+                    r["top_probs"] = ""
+            except Exception:
+                r["top_probs"] = ""
+        return rows
+    finally:
+        conn.close()
+
+
+def get_polymarket_mm_snapshots(limit: int = 60, ready_only: bool = False) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "polymarket_mm_snapshots"):
+            return []
+        where = "WHERE COALESCE(execution_ready,0)=1" if ready_only else ""
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT created_at, ticker, direction, candidate_score, confirmations, sources_total, consensus_ratio,
+                   market_id, market_question, market_url, match_score,
+                   implied_prob, fair_prob, reservation_price, bid_price, ask_price,
+                   spread_bps, edge_bps, inventory_qty, inventory_util_pct, toxicity,
+                   source_accuracy, poly_exec_accuracy, state, execution_ready, rationale
+            FROM polymarket_mm_snapshots
+            {where}
+            ORDER BY execution_ready DESC, edge_bps DESC, candidate_score DESC, created_at DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_polymarket_mm_overview() -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {
+            "state": "offline",
+            "mm_enabled": False,
+            "ready_count": 0,
+            "snapshot_count": 0,
+            "avg_toxicity": 0.0,
+            "avg_source_accuracy": 0.0,
+            "poly_exec_accuracy_30d": 0.0,
+            "poly_signal_accuracy_30d": 0.0,
+            "avg_edge_bps": 0.0,
+            "last_refresh": None,
+        }
+    conn = _connect()
+    try:
+        controls = {x["key"]: x["value"] for x in get_risk_controls()}
+        mm_enabled = str(controls.get("mm_enabled", "0")).strip().lower() in {"1", "true", "yes", "on"}
+        tox_cut = float(controls.get("mm_toxicity_threshold", "0.72") or 0.72)
+        if not _table_exists(conn, "polymarket_mm_snapshots"):
+            return {
+                "state": "offline",
+                "mm_enabled": mm_enabled,
+                "ready_count": 0,
+                "snapshot_count": 0,
+                "avg_toxicity": 0.0,
+                "avg_source_accuracy": 0.0,
+                "poly_exec_accuracy_30d": 0.0,
+                "poly_signal_accuracy_30d": 0.0,
+                "avg_edge_bps": 0.0,
+                "last_refresh": None,
+            }
+
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+              COUNT(*) AS n,
+              SUM(COALESCE(execution_ready,0)) AS ready_n,
+              AVG(COALESCE(toxicity,0)) AS avg_tox,
+              AVG(COALESCE(source_accuracy,0)) AS avg_source_acc,
+              AVG(COALESCE(poly_exec_accuracy,0)) AS avg_poly_exec_acc,
+              AVG(COALESCE(edge_bps,0)) AS avg_edge_bps,
+              MAX(created_at) AS last_refresh
+            FROM polymarket_mm_snapshots
+            """
+        )
+        row = cur.fetchone() or (0, 0, 0.0, 0.0, 0.0, 0.0, None)
+        snapshot_n = int(row[0] or 0)
+        ready_n = int(row[1] or 0)
+        avg_tox = float(row[2] or 0.0)
+        avg_source_acc = float(row[3] or 0.0)
+        avg_poly_exec_acc = float(row[4] or 0.0)
+        avg_edge = float(row[5] or 0.0)
+        last_refresh = row[6]
+
+        poly_signal_acc = 50.0
+        if _table_exists(conn, "signal_routes") and _table_exists(conn, "route_outcomes"):
+            cur.execute(
+                """
+                SELECT
+                  SUM(CASE WHEN COALESCE(o.outcome_type,'realized')='realized' AND o.resolution='win' THEN 1 ELSE 0 END) AS wins,
+                  SUM(CASE WHEN COALESCE(o.outcome_type,'realized')='realized' AND o.resolution IN ('win','loss') THEN 1 ELSE 0 END) AS total_n
+                FROM route_outcomes o
+                JOIN signal_routes r ON r.id=o.route_id
+                WHERE datetime(COALESCE(r.routed_at,'1970-01-01')) >= datetime('now', '-30 day')
+                  AND (UPPER(COALESCE(r.source_tag,'')) LIKE 'POLY%' OR UPPER(COALESCE(r.source_tag,'')) LIKE '%POLY%')
+                """
+            )
+            wr = cur.fetchone() or (0, 0)
+            wins = int(wr[0] or 0)
+            total = int(wr[1] or 0)
+            if total > 0:
+                poly_signal_acc = (wins / total) * 100.0
+
+        state = "good"
+        if avg_tox >= tox_cut:
+            state = "killswitch"
+        elif avg_tox >= (tox_cut * 0.8):
+            state = "caution"
+        if not mm_enabled:
+            state = "standby" if snapshot_n > 0 else "offline"
+
+        return {
+            "state": state,
+            "mm_enabled": mm_enabled,
+            "ready_count": ready_n,
+            "snapshot_count": snapshot_n,
+            "avg_toxicity": round(avg_tox, 4),
+            "avg_source_accuracy": round(avg_source_acc, 2),
+            "poly_exec_accuracy_30d": round(avg_poly_exec_acc, 2),
+            "poly_signal_accuracy_30d": round(poly_signal_acc, 2),
+            "avg_edge_bps": round(avg_edge, 2),
+            "last_refresh": last_refresh,
+        }
+    finally:
+        conn.close()
+
+
+def approve_polymarket_candidates(ids: List[int]) -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {"ok": False, "error": "database missing", "approved": 0}
+    if not ids:
+        return {"ok": False, "error": "no ids provided", "approved": 0}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "polymarket_candidates"):
+            return {"ok": False, "error": "polymarket_candidates missing", "approved": 0}
+        cur = conn.cursor()
+        approved = 0
+        for cid in ids:
+            try:
+                cid_i = int(cid)
+            except Exception:
+                continue
+            cur.execute("UPDATE polymarket_candidates SET status='approved' WHERE id=?", (cid_i,))
+            approved += int(cur.rowcount or 0)
+        conn.commit()
+        return {"ok": True, "approved": approved}
+    finally:
+        conn.close()
+
+
+def get_tracked_sources(limit: int = 200) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tracked_x_sources (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              handle TEXT NOT NULL UNIQUE,
+              role_copy INTEGER NOT NULL DEFAULT 1,
+              role_alpha INTEGER NOT NULL DEFAULT 1,
+              active INTEGER NOT NULL DEFAULT 1,
+              notes TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, created_at, updated_at, handle, role_copy, role_alpha, active, notes
+            FROM tracked_x_sources
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
+    handle = str((payload or {}).get("handle") or "").strip().lstrip("@")
+    if not handle:
+        return {"ok": False, "error": "handle required"}
+    role_copy = 1 if bool((payload or {}).get("role_copy", True)) else 0
+    role_alpha = 1 if bool((payload or {}).get("role_alpha", True)) else 0
+    active = 1 if bool((payload or {}).get("active", True)) else 0
+    notes = str((payload or {}).get("notes") or "").strip()
+
+    if not DB_PATH.exists():
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tracked_x_sources (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              handle TEXT NOT NULL UNIQUE,
+              role_copy INTEGER NOT NULL DEFAULT 1,
+              role_alpha INTEGER NOT NULL DEFAULT 1,
+              active INTEGER NOT NULL DEFAULT 1,
+              notes TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO tracked_x_sources (created_at, updated_at, handle, role_copy, role_alpha, active, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?)
+            ON CONFLICT(handle) DO UPDATE SET
+              updated_at=datetime('now'),
+              role_copy=excluded.role_copy,
+              role_alpha=excluded.role_alpha,
+              active=excluded.active,
+              notes=excluded.notes
+            """,
+            (handle, role_copy, role_alpha, active, notes),
+        )
+        conn.commit()
+        return {"ok": True, "handle": handle, "sources": get_tracked_sources()}
+    finally:
+        conn.close()
+
+
+def get_tracked_polymarket_wallets(limit: int = 200) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tracked_polymarket_wallets (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              handle TEXT NOT NULL UNIQUE,
+              profile_url TEXT NOT NULL DEFAULT '',
+              role_copy INTEGER NOT NULL DEFAULT 1,
+              role_alpha INTEGER NOT NULL DEFAULT 1,
+              active INTEGER NOT NULL DEFAULT 1,
+              notes TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, created_at, updated_at, handle, profile_url, role_copy, role_alpha, active, notes
+            FROM tracked_polymarket_wallets
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def upsert_tracked_polymarket_wallet(payload: Dict[str, Any]) -> Dict[str, Any]:
+    handle = str((payload or {}).get("handle") or "").strip().lstrip("@")
+    if not handle:
+        return {"ok": False, "error": "handle required"}
+    profile_url = str((payload or {}).get("profile_url") or "").strip()
+    role_copy = 1 if bool((payload or {}).get("role_copy", True)) else 0
+    role_alpha = 1 if bool((payload or {}).get("role_alpha", True)) else 0
+    active = 1 if bool((payload or {}).get("active", True)) else 0
+    notes = str((payload or {}).get("notes") or "").strip()
+
+    if not DB_PATH.exists():
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tracked_polymarket_wallets (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              handle TEXT NOT NULL UNIQUE,
+              profile_url TEXT NOT NULL DEFAULT '',
+              role_copy INTEGER NOT NULL DEFAULT 1,
+              role_alpha INTEGER NOT NULL DEFAULT 1,
+              active INTEGER NOT NULL DEFAULT 1,
+              notes TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO tracked_polymarket_wallets
+            (created_at, updated_at, handle, profile_url, role_copy, role_alpha, active, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(handle) DO UPDATE SET
+              updated_at=datetime('now'),
+              profile_url=excluded.profile_url,
+              role_copy=excluded.role_copy,
+              role_alpha=excluded.role_alpha,
+              active=excluded.active,
+              notes=excluded.notes
+            """,
+            (handle, profile_url, role_copy, role_alpha, active, notes),
+        )
+        conn.commit()
+        return {"ok": True, "handle": handle, "wallets": get_tracked_polymarket_wallets()}
+    finally:
+        conn.close()
+
+
+def get_polymarket_wallet_scores(limit: int = 100) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "tracked_polymarket_wallets"):
+            return []
+
+        cur = conn.cursor()
+        wallets = get_tracked_polymarket_wallets(limit=limit)
+        wallet_map = {str(w.get("handle") or "").strip().lower(): w for w in wallets}
+        out: List[Dict[str, Any]] = []
+
+        if _table_exists(conn, "polymarket_wallet_scores"):
+            cur.execute(
+                """
+                SELECT s.handle, s.sample_size, s.wins, s.losses, s.win_rate, s.avg_pnl_pct, s.reliability_score
+                FROM polymarket_wallet_scores s
+                INNER JOIN (
+                  SELECT handle, MAX(computed_at) AS latest
+                  FROM polymarket_wallet_scores
+                  GROUP BY handle
+                ) t
+                  ON t.handle = s.handle AND t.latest = s.computed_at
+                ORDER BY s.reliability_score DESC, s.sample_size DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            for h, sample_size, wins, losses, win_rate, avg_pnl_pct, reliability in cur.fetchall():
+                wl = wallet_map.get(str(h or "").strip().lower(), {})
+                out.append(
+                    {
+                        "handle": str(h or ""),
+                        "profile_url": str(wl.get("profile_url") or ""),
+                        "sample_size": int(sample_size or 0),
+                        "wins": int(wins or 0),
+                        "losses": int(losses or 0),
+                        "win_rate": round(float(win_rate or 0.0), 2),
+                        "avg_pnl_pct": round(float(avg_pnl_pct or 0.0), 2),
+                        "reliability_score": round(float(reliability or 0.0), 2),
+                        "active": int(wl.get("active") or 0),
+                    }
+                )
+            if out:
+                return out
+
+        # Fallback to tracked wallets even if scoring table hasn't run yet.
+        for w in wallets:
+            out.append(
+                {
+                    "handle": str(w.get("handle") or ""),
+                    "profile_url": str(w.get("profile_url") or ""),
+                    "sample_size": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "win_rate": 0.0,
+                    "avg_pnl_pct": 0.0,
+                    "reliability_score": 0.0,
+                    "active": int(w.get("active") or 0),
+                }
+            )
+        return out[:limit]
+    finally:
+        conn.close()
+
+
+def get_trust_panel() -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {"state": "bad", "reason": "database missing"}
+    conn = _connect()
+    try:
+        controls = {x["key"]: x["value"] for x in get_risk_controls()}
+        master = controls.get("agent_master_enabled", "0") == "1"
+        consensus_enforce = controls.get("consensus_enforce", "1") == "1"
+        cmin = int(float(controls.get("consensus_min_confirmations", "3") or 3))
+        cratio = float(controls.get("consensus_min_ratio", "0.6") or 0.6)
+        cscore = float(controls.get("consensus_min_score", "60") or 60)
+
+        flagged = 0
+        total = 0
+        if _table_exists(conn, "trade_candidates"):
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM trade_candidates")
+            total = int((cur.fetchone() or [0])[0] or 0)
+            cur.execute("SELECT COUNT(*) FROM trade_candidates WHERE COALESCE(consensus_flag,0)=1")
+            flagged = int((cur.fetchone() or [0])[0] or 0)
+
+        top_sources = []
+        if _table_exists(conn, "source_learning_stats"):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT source_tag, sample_size, round(win_rate,2), round(avg_pnl_percent,2)
+                FROM source_learning_stats
+                ORDER BY sample_size DESC, win_rate DESC
+                LIMIT 8
+                """
+            )
+            top_sources = [
+                {"source": r[0], "samples": int(r[1] or 0), "win_rate": float(r[2] or 0), "avg_pnl_pct": float(r[3] or 0)}
+                for r in cur.fetchall()
+            ]
+
+        state = "good" if master and flagged > 0 else ("warn" if flagged > 0 else "bad")
+        return {
+            "state": state,
+            "master_enabled": master,
+            "consensus_enforce": consensus_enforce,
+            "consensus_thresholds": {
+                "min_confirmations": cmin,
+                "min_ratio": cratio,
+                "min_score": cscore,
+            },
+            "candidates_total": total,
+            "candidates_flagged": flagged,
+            "flagged_ratio": round((flagged / total), 4) if total else 0.0,
+            "top_sources": top_sources,
+        }
+    finally:
+        conn.close()
+
+
+def get_consensus_candidates(limit: int = 100, flagged_only: bool = True) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "trade_candidates"):
+            return []
+        ratings = get_source_ratings(limit=500)
+        rating_map: Dict[str, Dict[str, Any]] = {}
+        for r in ratings:
+            k = str(r.get("source") or "").strip().lower()
+            if k:
+                rating_map[k] = r
+        # Backfill/merge with source_scores for sources not yet represented in source_learning_stats.
+        if _table_exists(conn, "source_scores"):
+            cur_scores = conn.cursor()
+            cur_scores.execute(
+                """
+                SELECT source_tag, COALESCE(sample_size,0), COALESCE(approved_rate,0), COALESCE(reliability_score,0)
+                FROM source_scores
+                ORDER BY sample_size DESC
+                LIMIT 800
+                """
+            )
+            for source, signals_seen, approval_rate, reliability_score in cur_scores.fetchall():
+                key = str(source or "").strip().lower()
+                if not key:
+                    continue
+                existing = rating_map.get(key)
+                incoming = {
+                    "source": str(source or ""),
+                    "sample_size": int(signals_seen or 0),
+                    "win_rate": float(approval_rate or 0.0),
+                    "avg_pnl_pct": float(reliability_score or 0.0),
+                }
+                if not existing or int(existing.get("sample_size") or 0) < incoming["sample_size"]:
+                    rating_map[key] = incoming
+
+        def _source_rating_for(tag: str) -> Dict[str, Any]:
+            raw = str(tag or "").strip()
+            key = raw.lower()
+            candidates = [key]
+            if key.startswith("liquidity_map:"):
+                candidates.append("pipeline:chart_liquidity")
+            if ":" in key:
+                parts = key.split(":")
+                if len(parts) >= 2:
+                    candidates.append(f"{parts[0]}:{parts[1]}")
+                candidates.append(parts[0])
+            for cand in candidates:
+                hit = rating_map.get(cand)
+                if hit:
+                    return {
+                        "source": raw,
+                        "matched_source": hit.get("source", ""),
+                        "sample_size": int(hit.get("sample_size") or 0),
+                        "win_rate": float(hit.get("win_rate") or 0.0),
+                        "avg_pnl_pct": float(hit.get("avg_pnl_pct") or 0.0),
+                    }
+            return {
+                "source": raw,
+                "matched_source": "",
+                "sample_size": 0,
+                "win_rate": 0.0,
+                "avg_pnl_pct": 0.0,
+            }
+
+        ticker_aliases: Dict[str, List[str]] = {
+            "TSLA": ["tesla", "elon", "musk"],
+            "AEM": ["agnico", "agnico eagle", "gold price"],
+            "BTC": ["bitcoin", "btc", "crypto"],
+            "ETH": ["ethereum", "eth", "crypto"],
+            "NVDA": ["nvidia", "ai", "chips", "semiconductor"],
+            "PLTR": ["palantir", "defense", "software"],
+            "SPY": ["s&p", "sp500", "stocks", "equities"],
+            "QQQ": ["nasdaq", "tech stocks", "nq"],
+        }
+
+        def _poly_matches(ticker: str, direction: str, max_rows: int = 3) -> List[Dict[str, Any]]:
+            if not _table_exists(conn, "polymarket_markets"):
+                return []
+            t = str(ticker or "").strip().upper()
+            if not t:
+                return []
+            tokens = [t.lower()] + ticker_aliases.get(t, [])
+            tokens = [x for x in dict.fromkeys([str(x).strip().lower() for x in tokens if x])]
+            if not tokens:
+                return []
+            cur_m = conn.cursor()
+            cur_m.execute(
+                """
+                SELECT market_id, question, slug, market_url, liquidity, volume_24h
+                FROM polymarket_markets
+                WHERE active=1 AND closed=0
+                ORDER BY liquidity DESC, volume_24h DESC
+                LIMIT 700
+                """
+            )
+            out: List[Dict[str, Any]] = []
+            up_words = {"up", "rise", "higher", "above", "yes", "bull", "increase", "gain"}
+            down_words = {"down", "fall", "lower", "below", "no", "bear", "decrease", "drop"}
+            sports_noise = ("stanley cup", "nba finals", "world series", "super bowl", "champions league")
+            for market_id, question, slug, market_url, liquidity, volume_24h in cur_m.fetchall():
+                q = str(question or "").lower()
+                s = str(slug or "").lower()
+                score = 0
+                question_hits = 0
+                hits = []
+                for tok in tokens:
+                    if not tok:
+                        continue
+                    if len(tok) < 3 and tok not in {"btc", "eth", "spy", "qqq"}:
+                        continue
+                    # strict-ish token hit in question, relaxed hit in slug
+                    if re.search(rf"(^|[^a-z0-9]){re.escape(tok)}([^a-z0-9]|$)", q):
+                        score += 5
+                        question_hits += 1
+                        hits.append(tok)
+                    elif re.search(rf"(^|[^a-z0-9]){re.escape(tok)}([^a-z0-9]|$)", s):
+                        score += 2
+                        hits.append(tok)
+                if score <= 0:
+                    continue
+                if question_hits == 0:
+                    # no direct semantic question match, avoid weak slug-only joins
+                    continue
+                if any(noise in q for noise in sports_noise) and str(ticker or "").upper() not in {"BTC", "ETH"}:
+                    # prevent accidental joins like "gold" -> "Golden Knights"
+                    continue
+                if str(direction or "").lower() == "long" and any(w in q for w in up_words):
+                    score += 1
+                if str(direction or "").lower() == "short" and any(w in q for w in down_words):
+                    score += 1
+                out.append(
+                    {
+                        "market_id": str(market_id or ""),
+                        "question": str(question or ""),
+                        "market_url": str(market_url or ""),
+                        "liquidity": round(float(liquidity or 0.0), 2),
+                        "volume_24h": round(float(volume_24h or 0.0), 2),
+                        "match_score": score,
+                        "matched_terms": sorted(list(set(hits))),
+                    }
+                )
+            out.sort(key=lambda x: (x["match_score"], x["liquidity"], x["volume_24h"]), reverse=True)
+            return out[:max_rows]
+
+        cur = conn.cursor()
+        where = "WHERE COALESCE(consensus_flag,0)=1" if flagged_only else ""
+        cur.execute(
+            f"""
+            SELECT generated_at, ticker, direction, score, source_tag,
+                   COALESCE(confirmations,0) AS confirmations,
+                   COALESCE(sources_total,0) AS sources_total,
+                   COALESCE(consensus_ratio,0) AS consensus_ratio,
+                   COALESCE(consensus_flag,0) AS consensus_flag,
+                   COALESCE(evidence_json,'[]') AS evidence_json
+            FROM trade_candidates
+            {where}
+            ORDER BY score DESC, consensus_ratio DESC, confirmations DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        for r in rows:
+            try:
+                ev = json.loads(r.get("evidence_json") or "[]")
+                if isinstance(ev, list):
+                    r["evidence"] = ", ".join([str(x) for x in ev[:6]])
+                    evidence_list = [str(x) for x in ev[:10]]
+                    r["evidence_list"] = evidence_list
+                    ratings_list = [_source_rating_for(x) for x in evidence_list]
+                    r["evidence_ratings"] = ratings_list
+                    r["evidence_ratings_text"] = " | ".join(
+                        [
+                            f"{x['source']} ({x['win_rate']:.1f}%/{x['sample_size']})"
+                            for x in ratings_list[:6]
+                        ]
+                    )
+                else:
+                    r["evidence"] = ""
+                    r["evidence_list"] = []
+                    r["evidence_ratings"] = []
+                    r["evidence_ratings_text"] = ""
+            except Exception:
+                r["evidence"] = ""
+                r["evidence_list"] = []
+                r["evidence_ratings"] = []
+                r["evidence_ratings_text"] = ""
+            matches = _poly_matches(str(r.get("ticker") or ""), str(r.get("direction") or ""), max_rows=3)
+            r["polymarket_matches"] = matches
+            if matches:
+                top = matches[0]
+                r["polymarket_best"] = f"{top.get('question','')} (liq ${top.get('liquidity',0)})"
+            else:
+                r["polymarket_best"] = "No direct market match"
+        return rows
+    finally:
+        conn.close()
+
+
+def get_source_ratings(limit: int = 50) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        cur = conn.cursor()
+        rows: List[Dict[str, Any]] = []
+        if _table_exists(conn, "source_learning_stats"):
+            cur.execute(
+                """
+                SELECT source_tag AS source,
+                       sample_size,
+                       wins,
+                       losses,
+                       round(win_rate,2) AS win_rate,
+                       round(avg_pnl_percent,2) AS avg_pnl_pct
+                FROM source_learning_stats
+                ORDER BY sample_size DESC, win_rate DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows.extend(_rows_to_dicts(cur, cur.fetchall()))
+
+        if _table_exists(conn, "source_scores"):
+            if _column_exists(conn, "source_scores", "source_tag"):
+                cur.execute(
+                    """
+                    SELECT source_tag AS source,
+                           sample_size,
+                           CAST(round((approved_rate * 100.0),2) AS REAL) AS wins,
+                           CAST(round(((1.0 - approved_rate) * 100.0),2) AS REAL) AS losses,
+                           CAST(round((approved_rate * 100.0),2) AS REAL) AS win_rate,
+                           round(reliability_score,2) AS avg_pnl_pct
+                    FROM source_scores
+                    ORDER BY sample_size DESC, reliability_score DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT source AS source,
+                           signals_seen AS sample_size,
+                           approvals AS wins,
+                           MAX(signals_seen - approvals, 0) AS losses,
+                           round(approval_rate,2) AS win_rate,
+                           round(reliability_score,2) AS avg_pnl_pct
+                    FROM source_scores
+                    ORDER BY signals_seen DESC, reliability_score DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            score_rows = _rows_to_dicts(cur, cur.fetchall())
+            # merge by source if source_learning_stats was present
+            if rows:
+                have = {str(x.get("source") or "").lower() for x in rows}
+                rows.extend([x for x in score_rows if str(x.get("source") or "").lower() not in have])
+            else:
+                rows = score_rows
+
+        if _table_exists(conn, "polymarket_wallet_scores"):
+            cur.execute(
+                """
+                SELECT
+                  ('poly_wallet:' || handle) AS source,
+                  sample_size,
+                  wins,
+                  losses,
+                  round(win_rate,2) AS win_rate,
+                  round(avg_pnl_pct,2) AS avg_pnl_pct
+                FROM polymarket_wallet_scores
+                ORDER BY reliability_score DESC, sample_size DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows.extend(_rows_to_dicts(cur, cur.fetchall()))
+
+        rows.sort(key=lambda x: (int(x.get("sample_size") or 0), float(x.get("win_rate") or 0.0)), reverse=True)
+        return rows[:limit]
     finally:
         conn.close()

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "vaultPath": "/Users/Shared/curtis/trader-curtis",
-  "generatedAt": "2026-02-23T03:52:20.457Z",
+  "generatedAt": "2026-02-23T18:26:57.261Z",
   "files": {
     "AGENTS.md": {
       "relativePath": "AGENTS.md",
-      "mtimeMs": 1769996693114.367,
+      "mtimeMs": 1771869805808.1858,
       "nodes": [
         {
           "id": "note:AGENTS",
@@ -16,7 +16,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-02T01:44:53.114Z"
+          "modifiedAt": "2026-02-23T18:03:25.808Z"
         }
       ],
       "edges": []
@@ -849,6 +849,42 @@
       ],
       "edges": []
     },
+    "alerts/political-CRITICAL-20260223-063031.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-063031.md",
+      "mtimeMs": 1771857031259.8145,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-063031",
+          "title": "Political CRITICAL 20260223 063031",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-063031.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T14:30:31.259Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260223-063041.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-063041.md",
+      "mtimeMs": 1771857041994.9185,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-063041",
+          "title": "Political CRITICAL 20260223 063041",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-063041.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T14:30:41.994Z"
+        }
+      ],
+      "edges": []
+    },
     "archive/memory/2026-02-01.md": {
       "relativePath": "archive/memory/2026-02-01.md",
       "mtimeMs": 1771399940786.0547,
@@ -1087,7 +1123,7 @@
     },
     "AUTO_TRADE_PROTOCOL.md": {
       "relativePath": "AUTO_TRADE_PROTOCOL.md",
-      "mtimeMs": 1770009273601.704,
+      "mtimeMs": 1771827146887.2314,
       "nodes": [
         {
           "id": "note:AUTO_TRADE_PROTOCOL",
@@ -1098,7 +1134,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-02T05:14:33.601Z"
+          "modifiedAt": "2026-02-23T06:12:26.887Z"
         }
       ],
       "edges": []
@@ -1407,6 +1443,42 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-17T01:51:03.414Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/AGENT-ROLE-CONTEXT.md": {
+      "relativePath": "docs/AGENT-ROLE-CONTEXT.md",
+      "mtimeMs": 1771869799452.0166,
+      "nodes": [
+        {
+          "id": "note:docs/AGENT-ROLE-CONTEXT",
+          "title": "AGENT ROLE CONTEXT",
+          "type": "note",
+          "category": "note",
+          "path": "docs/AGENT-ROLE-CONTEXT.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T18:03:19.452Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/AGENT-SIGNAL-COMMANDS.md": {
+      "relativePath": "docs/AGENT-SIGNAL-COMMANDS.md",
+      "mtimeMs": 1771863070500.9036,
+      "nodes": [
+        {
+          "id": "note:docs/AGENT-SIGNAL-COMMANDS",
+          "title": "AGENT SIGNAL COMMANDS",
+          "type": "note",
+          "category": "note",
+          "path": "docs/AGENT-SIGNAL-COMMANDS.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T16:11:10.500Z"
         }
       ],
       "edges": []
@@ -1879,6 +1951,42 @@
       ],
       "edges": []
     },
+    "handoffs/handoff-2026-02-23-0732.md": {
+      "relativePath": "handoffs/handoff-2026-02-23-0732.md",
+      "mtimeMs": 1771831949515.6516,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-23-0732",
+          "title": "handoff-2026-02-23-0732",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-23-0732.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T07:32:29.515Z"
+        }
+      ],
+      "edges": []
+    },
+    "handoffs/handoff-2026-02-23-1602.md": {
+      "relativePath": "handoffs/handoff-2026-02-23-1602.md",
+      "mtimeMs": 1771862538683.263,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-23-1602",
+          "title": "handoff-2026-02-23-1602",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-23-1602.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T16:02:18.683Z"
+        }
+      ],
+      "edges": []
+    },
     "handoffs/handoff-2026-02-23-learning-health-loop.md": {
       "relativePath": "handoffs/handoff-2026-02-23-learning-health-loop.md",
       "mtimeMs": 1771806278635.5618,
@@ -1929,6 +2037,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-02T01:42:59.585Z"
+        }
+      ],
+      "edges": []
+    },
+    "inbox/note-1771871217251.md": {
+      "relativePath": "inbox/note-1771871217251.md",
+      "mtimeMs": 1771871217252.396,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1771871217251",
+          "title": "note-1771871217251",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1771871217251.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T18:26:57.252Z"
         }
       ],
       "edges": []
@@ -2226,7 +2352,7 @@
     },
     "memory/2026-02-23.md": {
       "relativePath": "memory/2026-02-23.md",
-      "mtimeMs": 1771806278632.9534,
+      "mtimeMs": 1771871211807.7124,
       "nodes": [
         {
           "id": "note:memory/2026-02-23",
@@ -2237,7 +2363,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T00:24:38.632Z"
+          "modifiedAt": "2026-02-23T18:26:51.807Z"
         }
       ],
       "edges": []
@@ -2908,6 +3034,24 @@
       ],
       "edges": []
     },
+    "memory/trading-plan-2026-02-23.md": {
+      "relativePath": "memory/trading-plan-2026-02-23.md",
+      "mtimeMs": 1771831948997.752,
+      "nodes": [
+        {
+          "id": "note:memory/trading-plan-2026-02-23",
+          "title": "Trading Plan 2026 02 23",
+          "type": "note",
+          "category": "note",
+          "path": "memory/trading-plan-2026-02-23.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T07:32:28.997Z"
+        }
+      ],
+      "edges": []
+    },
     "memory/VETTED-SOURCES-REPORT.md": {
       "relativePath": "memory/VETTED-SOURCES-REPORT.md",
       "mtimeMs": 1771227404203.4968,
@@ -2928,7 +3072,7 @@
     },
     "notes/Trading/DASHBOARD-GUIDE-FOR-TEENS.md": {
       "relativePath": "notes/Trading/DASHBOARD-GUIDE-FOR-TEENS.md",
-      "mtimeMs": 1771816305007.4177,
+      "mtimeMs": 1771868540778.6738,
       "nodes": [
         {
           "id": "note:notes/Trading/DASHBOARD-GUIDE-FOR-TEENS",
@@ -2939,7 +3083,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T03:11:45.007Z"
+          "modifiedAt": "2026-02-23T17:42:20.778Z"
         }
       ],
       "edges": []
@@ -3374,7 +3518,7 @@
     },
     "QUICK_REFERENCE.md": {
       "relativePath": "QUICK_REFERENCE.md",
-      "mtimeMs": 1771299972107.0632,
+      "mtimeMs": 1771863902939.9407,
       "nodes": [
         {
           "id": "note:QUICK_REFERENCE",
@@ -3385,7 +3529,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-17T03:46:12.107Z"
+          "modifiedAt": "2026-02-23T16:25:02.939Z"
         }
       ],
       "edges": []
@@ -3422,6 +3566,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-20T06:02:40.145Z"
+        }
+      ],
+      "edges": []
+    },
+    "reports/clickhouse_analytics_2026-02-22.md": {
+      "relativePath": "reports/clickhouse_analytics_2026-02-22.md",
+      "mtimeMs": 1771826647111.1326,
+      "nodes": [
+        {
+          "id": "note:reports/clickhouse_analytics_2026-02-22",
+          "title": "Clickhouse Analytics 2026 02 22",
+          "type": "note",
+          "category": "note",
+          "path": "reports/clickhouse_analytics_2026-02-22.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T06:04:07.111Z"
         }
       ],
       "edges": []
@@ -3662,7 +3824,7 @@
     },
     "SOUL.md": {
       "relativePath": "SOUL.md",
-      "mtimeMs": 1771304727757.855,
+      "mtimeMs": 1771869814461.3633,
       "nodes": [
         {
           "id": "note:SOUL",
@@ -3673,7 +3835,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-17T05:05:27.757Z"
+          "modifiedAt": "2026-02-23T18:03:34.461Z"
         }
       ],
       "edges": []
@@ -3734,7 +3896,7 @@
     },
     "SYSTEM_STATUS.md": {
       "relativePath": "SYSTEM_STATUS.md",
-      "mtimeMs": 1770101160169.0947,
+      "mtimeMs": 1771863890903.167,
       "nodes": [
         {
           "id": "note:SYSTEM_STATUS",
@@ -3745,7 +3907,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-03T06:46:00.169Z"
+          "modifiedAt": "2026-02-23T16:24:50.903Z"
         }
       ],
       "edges": []
@@ -4761,7 +4923,7 @@
     },
     "TOOLS.md": {
       "relativePath": "TOOLS.md",
-      "mtimeMs": 1771785473098.7156,
+      "mtimeMs": 1771824897940.6577,
       "nodes": [
         {
           "id": "note:TOOLS",
@@ -4772,7 +4934,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-22T18:37:53.098Z"
+          "modifiedAt": "2026-02-23T05:34:57.940Z"
         }
       ],
       "edges": []
@@ -4974,7 +5136,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-02T01:44:53.114Z"
+        "modifiedAt": "2026-02-23T18:03:25.808Z"
       },
       {
         "id": "note:alerts/political-CRITICAL-20260216-193448",
@@ -5483,6 +5645,28 @@
         "modifiedAt": "2026-02-22T21:32:32.096Z"
       },
       {
+        "id": "note:alerts/political-CRITICAL-20260223-063031",
+        "title": "Political CRITICAL 20260223 063031",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-063031.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T14:30:31.259Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260223-063041",
+        "title": "Political CRITICAL 20260223 063041",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-063041.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T14:30:41.994Z"
+      },
+      {
         "id": "note:archive/memory/2026-02-01",
         "title": "2026 02 01",
         "type": "note",
@@ -5595,7 +5779,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-02T05:14:33.601Z"
+        "modifiedAt": "2026-02-23T06:12:26.887Z"
       },
       {
         "id": "note:BEST-TRADER-MASTERPLAN",
@@ -5754,6 +5938,28 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-17T01:51:03.414Z"
+      },
+      {
+        "id": "note:docs/AGENT-ROLE-CONTEXT",
+        "title": "AGENT ROLE CONTEXT",
+        "type": "note",
+        "category": "note",
+        "path": "docs/AGENT-ROLE-CONTEXT.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T18:03:19.452Z"
+      },
+      {
+        "id": "note:docs/AGENT-SIGNAL-COMMANDS",
+        "title": "AGENT SIGNAL COMMANDS",
+        "type": "note",
+        "category": "note",
+        "path": "docs/AGENT-SIGNAL-COMMANDS.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T16:11:10.500Z"
       },
       {
         "id": "note:docs/alpha-source-matrix",
@@ -6042,6 +6248,28 @@
         "modifiedAt": "2026-02-22T21:25:47.477Z"
       },
       {
+        "id": "note:handoffs/handoff-2026-02-23-0732",
+        "title": "handoff-2026-02-23-0732",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-23-0732.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T07:32:29.515Z"
+      },
+      {
+        "id": "note:handoffs/handoff-2026-02-23-1602",
+        "title": "handoff-2026-02-23-1602",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-23-1602.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T16:02:18.683Z"
+      },
+      {
         "id": "note:handoffs/handoff-2026-02-23-learning-health-loop",
         "title": "handoff-2026-02-23-learning-health-loop",
         "type": "handoff",
@@ -6073,6 +6301,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-02T01:42:59.585Z"
+      },
+      {
+        "id": "note:inbox/note-1771871217251",
+        "title": "note-1771871217251",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1771871217251.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T18:26:57.252Z"
       },
       {
         "id": "note:inbox/welcome",
@@ -6220,7 +6459,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T00:24:38.632Z"
+        "modifiedAt": "2026-02-23T18:26:51.807Z"
       },
       {
         "id": "note:memory/COMBO-ANALYSIS-2026-02-15",
@@ -6630,6 +6869,17 @@
         "modifiedAt": "2026-02-18T07:33:02.782Z"
       },
       {
+        "id": "note:memory/trading-plan-2026-02-23",
+        "title": "Trading Plan 2026 02 23",
+        "type": "note",
+        "category": "note",
+        "path": "memory/trading-plan-2026-02-23.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T07:32:28.997Z"
+      },
+      {
         "id": "note:memory/VETTED-SOURCES-REPORT",
         "title": "VETTED SOURCES REPORT",
         "type": "note",
@@ -6649,7 +6899,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T03:11:45.007Z"
+        "modifiedAt": "2026-02-23T17:42:20.778Z"
       },
       {
         "id": "note:notes/Trading/TRADER-DASHBOARD-CURRENT-STATUS",
@@ -6772,7 +7022,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-17T03:46:12.107Z"
+        "modifiedAt": "2026-02-23T16:25:02.939Z"
       },
       {
         "id": "note:README",
@@ -6795,6 +7045,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-20T06:02:40.145Z"
+      },
+      {
+        "id": "note:reports/clickhouse_analytics_2026-02-22",
+        "title": "Clickhouse Analytics 2026 02 22",
+        "type": "note",
+        "category": "note",
+        "path": "reports/clickhouse_analytics_2026-02-22.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T06:04:07.111Z"
       },
       {
         "id": "note:reports/clickhouse_migration_2026-02-21",
@@ -6948,7 +7209,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-17T05:05:27.757Z"
+        "modifiedAt": "2026-02-23T18:03:34.461Z"
       },
       {
         "id": "note:SOURCE_TRACKING",
@@ -6992,7 +7253,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-03T06:46:00.169Z"
+        "modifiedAt": "2026-02-23T16:24:50.903Z"
       },
       {
         "id": "note:SYSTEM-STATUS",
@@ -7212,7 +7473,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-22T18:37:53.098Z"
+        "modifiedAt": "2026-02-23T05:34:57.940Z"
       },
       {
         "id": "note:TRADER-BUILD-PLAN",
@@ -8208,15 +8469,15 @@
       }
     ],
     "stats": {
-      "generatedAt": "2026-02-23T03:52:20.457Z",
-      "nodeCount": 245,
+      "generatedAt": "2026-02-23T18:26:57.261Z",
+      "nodeCount": 254,
       "edgeCount": 77,
       "nodeTypeCounts": {
-        "note": 189,
+        "note": 196,
         "tag": 34,
         "commitment": 4,
         "decision": 3,
-        "handoff": 5,
+        "handoff": 7,
         "unresolved": 4,
         "lesson": 2,
         "project": 4

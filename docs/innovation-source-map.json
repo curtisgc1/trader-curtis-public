@@ -1,0 +1,16 @@
+{
+  "handles": {
+    "thisguyknowsai": ["NVDA", "MSFT", "AMZN", "GOOGL", "PLTR"],
+    "jasonkimvc": ["NVDA", "ASML", "TSM", "IONQ", "QBTS"],
+    "llmjunky": ["NVDA", "MSFT", "GOOGL", "META", "AMD"]
+  },
+  "domains": {
+    "k-dense.ai": ["NVDA", "MSFT", "GOOGL", "AMD"],
+    "github.com": ["NVDA", "MSFT", "GOOGL"],
+    "arxiv.org": ["NVDA", "AMD", "TSM"],
+    "nature.com": ["CRSP", "BEAM", "NTLA", "RXRX"],
+    "science.org": ["CRSP", "BEAM", "NTLA"],
+    "openai.com": ["MSFT", "NVDA", "AMD"],
+    "deepmind.google": ["GOOGL", "NVDA"]
+  }
+}

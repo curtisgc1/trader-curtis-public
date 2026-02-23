@@ -9,6 +9,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+import requests
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "data" / "trades.db"
@@ -80,11 +81,50 @@ def init_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tracked_x_sources (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          handle TEXT NOT NULL UNIQUE,
+          role_copy INTEGER NOT NULL DEFAULT 1,
+          role_alpha INTEGER NOT NULL DEFAULT 1,
+          active INTEGER NOT NULL DEFAULT 1,
+          notes TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
     conn.commit()
+
+
+def load_tracked_sources(conn: sqlite3.Connection) -> dict:
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT lower(COALESCE(handle,'')), COALESCE(role_copy,1), COALESCE(role_alpha,1), COALESCE(active,1)
+        FROM tracked_x_sources
+        """
+    )
+    out = {}
+    for handle, role_copy, role_alpha, active in cur.fetchall():
+        h = str(handle or "").strip()
+        if not h:
+            continue
+        out[h] = {
+            "role_copy": int(role_copy or 0) == 1,
+            "role_alpha": int(role_alpha or 0) == 1,
+            "active": int(active or 0) == 1,
+        }
+    return out
 
 
 def classify_handle(handle: str) -> tuple[str, str, float]:
     lower = handle.lower()
+    if any(k in lower for k in ["thisguyknowsai", "jasonkimvc", "llmjunky", "sama", "openai"]):
+        return ("innovation", "position", 0.68)
+    if any(k in lower for k in ["github.com", "arxiv.org", "nature.com", "science.org", "k-dense.ai"]):
+        return ("innovation", "position", 0.66)
     if any(k in lower for k in ["quant", "trader", "gains", "crypto"]):
         return ("trading", "intraday", 0.58)
     if any(k in lower for k in ["ai", "vc", "science", "bio"]):
@@ -117,7 +157,11 @@ def infer_ticker_and_direction(url: str, handle: str) -> tuple[str, str]:
 
 
 def parse_handle(url: str) -> str:
-    path = urlparse(url).path.strip("/")
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower().replace("www.", "")
+    if host and host not in {"x.com", "twitter.com"}:
+        return host
+    path = parsed.path.strip("/")
     if not path:
         return "unknown"
     return re.split(r"/", path)[0] or "unknown"
@@ -139,6 +183,18 @@ def load_urls() -> list[str]:
     return out
 
 
+def resolve_url(url: str) -> str:
+    try:
+        # Follow short-links (t.co etc.) to actual source domain.
+        res = requests.get(url, timeout=15, allow_redirects=True, headers={"User-Agent": "Mozilla/5.0"})
+        final = str(getattr(res, "url", "") or "").strip()
+        if final:
+            return final
+    except Exception:
+        pass
+    return url
+
+
 def main() -> int:
     env = load_env()
     promote_enabled = str(env.get("BOOKMARK_PROMOTE_TO_SIGNALS", "0")).strip() == "1"
@@ -150,29 +206,50 @@ def main() -> int:
     conn = sqlite3.connect(str(DB_PATH))
     try:
         init_table(conn)
+        tracked = load_tracked_sources(conn)
         cur = conn.cursor()
         inserted = 0
         promoted = 0
-        for url in urls:
+        for raw_url in urls:
+            url = resolve_url(raw_url)
             handle = parse_handle(url)
             thesis_type, horizon, confidence = classify_handle(handle)
             strategy_tag = classify_strategy(handle, url)
+            meta = tracked.get(str(handle).lower().strip())
+            if meta and meta.get("active"):
+                if meta.get("role_copy"):
+                    strategy_tag = "POLY_COPY"
+                elif meta.get("role_alpha"):
+                    strategy_tag = "POLY_ALPHA"
+                confidence = min(0.90, float(confidence) + 0.10)
             cur.execute(
                 """
-                INSERT OR IGNORE INTO bookmark_theses
+                INSERT INTO bookmark_theses
                 (created_at, source_handle, source_url, thesis_type, horizon, confidence, status, notes)
                 VALUES (?, ?, ?, ?, ?, ?, 'new', '')
+                ON CONFLICT(source_url) DO UPDATE SET
+                  source_handle=excluded.source_handle,
+                  thesis_type=excluded.thesis_type,
+                  horizon=excluded.horizon,
+                  confidence=excluded.confidence,
+                  status='new'
                 """,
                 (now_iso(), handle, url, thesis_type, horizon, confidence),
             )
-            if cur.rowcount > 0:
-                inserted += 1
+            inserted += 1
 
             cur.execute(
                 """
-                INSERT OR IGNORE INTO bookmark_alpha_ideas
+                INSERT INTO bookmark_alpha_ideas
                 (created_at, source_handle, source_url, strategy_tag, thesis_type, horizon, confidence, idea_text, promoted_to_signal)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                ON CONFLICT(source_url) DO UPDATE SET
+                  source_handle=excluded.source_handle,
+                  strategy_tag=excluded.strategy_tag,
+                  thesis_type=excluded.thesis_type,
+                  horizon=excluded.horizon,
+                  confidence=excluded.confidence,
+                  idea_text=excluded.idea_text
                 """,
                 (
                     now_iso(),

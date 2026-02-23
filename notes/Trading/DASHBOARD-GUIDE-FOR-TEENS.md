@@ -2,6 +2,8 @@
 
 Open the dashboard here:
 `http://127.0.0.1:8090/`
+Polymarket + MM page:
+`http://127.0.0.1:8090/polymarket`
 
 Think of this dashboard like a game control room for your trading bot.
 
@@ -54,6 +56,24 @@ Think of this dashboard like a game control room for your trading bot.
 - `Copy-Trade Watch`
   - Tracked accounts/signals you follow.
 
+- `MM v1 State` (on Polymarket page)
+  - Shows if market-making logic is `GOOD`, `CAUTION`, or `KILLSWITCH`.
+  - Uses history data:
+    - source accuracy (how often sources were right),
+    - polymarket execution accuracy (recent execution quality),
+    - polymarket signal accuracy (recent realized results),
+    - toxicity (how dangerous current order flow looks).
+
+- `MM Opportunities (Flagged + Matched)` (on Polymarket page)
+  - One row = one flagged setup matched to a real Polymarket market.
+  - Key columns:
+    - `Implied`: market’s current probability.
+    - `Fair`: bot’s probability from combined data engine + history.
+    - `Bid/Ask`: suggested quote zone.
+    - `Edge bps`: bigger means more potential edge.
+    - `State`: normal/caution/killswitch.
+    - `READY/HOLD`: if it passes MM safety gates.
+
 - `Bookmarks (Trader)`
   - Saved links/research references.
 
@@ -73,6 +93,9 @@ Think of this dashboard like a game control room for your trading bot.
 
 - `Disable Auto`
   - Stops auto trading.
+
+- `Run MM Refresh` (Polymarket page)
+  - Recomputes MM opportunities using the latest signals + history.
 
 - `Save HL $`
   - Sets Hyperliquid test order size.

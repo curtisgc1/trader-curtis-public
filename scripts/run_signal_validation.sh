@@ -29,6 +29,9 @@ echo "🗳️ POLYMARKET PIPELINE..."
 echo "🧬 PIPELINE B (INNOVATION)..."
 "$BASE/pipeline_b_innovation.py" 2>/dev/null || true
 
+echo "🚀 PIPELINE E (BREAKTHROUGHS)..."
+"$BASE/pipeline_e_breakthroughs.py" 2>/dev/null || true
+
 echo "🚨 EVENT ALERT ENGINE..."
 "$BASE/event_alert_engine.py" 2>/dev/null || true
 

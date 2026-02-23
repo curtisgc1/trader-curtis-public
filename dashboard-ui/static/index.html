@@ -6,122 +6,181 @@
     <title>Trader Curtis Dashboard</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
+  <body class="dashboard-home">
     <div class="page">
       <header class="top">
         <div>
-          <h1>Trader Curtis</h1>
-          <p class="sub">Liquidity pattern engine • Macro filter • Copy-trade watch</p>
-          <p class="sub"><a href="/learning">Learning</a> • <a href="/signals">Signals</a> • <a href="/polymarket">Polymarket</a></p>
+          <h1>Trader Curtis Mission Control</h1>
+          <p class="sub">Fast signal view with live execution pulse</p>
+          <p class="sub"><a href="/consensus">Consensus</a> • <a href="/signals">Signals</a> • <a href="/polymarket">Polymarket</a> • <a href="/learning">Learning</a></p>
         </div>
         <div class="status" id="status-pill">loading</div>
       </header>
 
-      <section class="grid">
-        <div class="card">
-          <h2>Summary</h2>
-          <div class="stats" id="summary"></div>
+      <section class="grid hero-grid">
+        <div class="card hero-card">
+          <label>Total PnL</label>
+          <div id="metric-pnl" class="hero-value">--</div>
         </div>
-        <div class="card">
-          <h2>Open Trades</h2>
-          <div id="open-trades" class="empty">No open trades</div>
+        <div class="card hero-card">
+          <label>Win Rate</label>
+          <div id="metric-win" class="hero-value">--</div>
         </div>
-        <div class="card">
-          <h2>System Health</h2>
-          <div id="system-health" class="health"></div>
-          <div class="controls">
-            <div id="action-status" class="control-warning"></div>
-            <div class="control-actions">
-              <button id="btn-run-scan">Run Scan Now</button>
-              <button id="btn-sync-broker">Sync Broker</button>
-              <button id="btn-refresh-learning">Refresh Learning</button>
-            </div>
-          </div>
+        <div class="card hero-card">
+          <label>Open Trades</label>
+          <div id="metric-open" class="hero-value">--</div>
+        </div>
+        <div class="card hero-card">
+          <label>Mode</label>
+          <div id="metric-mode" class="hero-value">--</div>
         </div>
       </section>
 
       <section class="grid">
-        <div class="card">
-          <h2>Copy-Trade Watch</h2>
-          <div id="copy-trades" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Recent Trades</h2>
-          <div id="trades" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Liquidity Patterns</h2>
-          <div id="patterns" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Top Candidates</h2>
-          <div id="candidates" class="table"></div>
-        </div>
-      </section>
-
-      <section class="grid">
-        <div class="card">
-          <h2>Bookmarks (Trader)</h2>
-          <div id="bookmarks" class="links"></div>
-        </div>
-        <div class="card">
-          <h2>External Signals</h2>
-          <div id="external-signals" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Risk Controls</h2>
-          <div id="risk-controls" class="table"></div>
-          <div class="controls">
-            <div id="control-warning" class="control-warning"></div>
-            <div class="control-row">
-              <label for="hl-notional">HL Test $</label>
-              <input id="hl-notional" type="number" step="0.1" min="0.1" value="1" />
-            </div>
-            <div class="control-actions">
-              <button id="btn-enable-auto">Enable Auto Test</button>
-              <button id="btn-disable-auto">Disable Auto</button>
-              <button id="btn-save-hl">Save HL $</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="grid">
-        <div class="card">
-          <h2>Signals Page</h2>
-          <div class="links">
-            <a href="/signals">Open full Signals page</a>
-          </div>
-          <div id="signals-summary" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Polymarket Page</h2>
-          <div class="links">
-            <a href="/polymarket">Open full Polymarket page</a>
-          </div>
-          <div id="polymarket-summary" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Learning Page</h2>
-          <div class="links">
-            <a href="/learning">Open full Learning page</a>
-          </div>
-          <div id="learning-summary" class="table"></div>
-        </div>
-      </section>
-
-      <section class="grid">
-        <div class="card">
-          <h2>Learning Health (7d)</h2>
-          <div id="learning-health" class="table"></div>
-        </div>
         <div class="card span-2">
-          <h2>Memory Integrity (30d)</h2>
-          <div id="memory-integrity" class="table"></div>
-          <div class="controls">
-            <a class="expand-link" href="/learning">View Full Learning Details</a>
+          <h2>System Pulse</h2>
+          <div class="pulse-grid">
+            <div class="ring-wrap">
+              <div id="ring-health" class="ring" style="--p:0"></div>
+              <div id="ring-health-text" class="ring-text">Health</div>
+            </div>
+            <div class="ring-wrap">
+              <div id="ring-readiness" class="ring" style="--p:0"></div>
+              <div id="ring-readiness-text" class="ring-text">Readiness</div>
+            </div>
+            <div class="ring-wrap">
+              <div id="ring-automation" class="ring" style="--p:0"></div>
+              <div id="ring-automation-text" class="ring-text">Automation</div>
+            </div>
+          </div>
+          <div id="alerts" class="health"></div>
+        </div>
+
+        <div class="card">
+          <h2>Wallet & Awareness</h2>
+          <div id="wallet-brief" class="health"></div>
+          <div id="awareness-brief" class="health" style="margin-top:10px;"></div>
+          <details style="margin-top:10px;">
+            <summary>Agent awareness checks</summary>
+            <div id="awareness-checks" class="table"></div>
+          </details>
+          <div class="controls compact">
+            <a class="expand-link" href="/polymarket">Open Polymarket details</a>
           </div>
         </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Live Flow</h2>
+          <div class="split-flow">
+            <div>
+              <h3>Execution Orders</h3>
+              <div id="list-exec" class="flow-list"></div>
+            </div>
+            <div>
+              <h3>Polymarket Orders</h3>
+              <div id="list-poly" class="flow-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Master Controls</h2>
+          <div class="control-row">
+            <label for="ctl-hl-notional">HL $</label>
+            <input id="ctl-hl-notional" type="number" step="0.1" min="0.1" value="10" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-hl-lev">HL Lev</label>
+            <input id="ctl-hl-lev" type="number" step="0.1" min="1" value="1" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-max-signal">Max Signal $</label>
+            <input id="ctl-max-signal" type="number" step="1" min="1" value="150" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-min-score">Min Score</label>
+            <input id="ctl-min-score" type="number" step="1" min="0" max="100" value="50" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-route-limit">Route Limit</label>
+            <input id="ctl-route-limit" type="number" step="1" min="1" value="24" />
+          </div>
+          <div class="control-actions">
+            <button id="btn-master-save">Save Limits</button>
+            <button id="btn-master-enable">Enable Trading</button>
+            <button id="btn-master-safe">Safe Mode</button>
+            <button id="btn-master-quant-soft">Quant Soft</button>
+          </div>
+          <div id="master-control-status" class="control-warning"></div>
+          <div class="control-actions" style="margin-top:10px;">
+            <button id="btn-run-cycle">Run Full Cycle</button>
+            <button id="btn-run-scan">Run Scan</button>
+            <button id="btn-sync-broker">Sync Broker</button>
+            <button id="btn-refresh-learning">Refresh Learn</button>
+            <button id="btn-check-awareness">Check Awareness</button>
+          </div>
+          <div id="action-status" class="control-warning"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Positions & Balances</h2>
+          <div id="portfolio-brief" class="health"></div>
+          <div class="split-flow" style="margin-top:10px;">
+            <div>
+              <h3>Alpaca Positions</h3>
+              <div id="alpaca-positions" class="flow-list"></div>
+            </div>
+            <div>
+              <h3>Hyperliquid Positions</h3>
+              <div id="hl-positions" class="flow-list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Quick Links</h2>
+          <div class="links">
+            <a href="/signals">Signal Diagnostics</a>
+            <a href="/consensus">Consensus Control</a>
+            <a href="/polymarket">Polymarket Markets and Orders</a>
+            <a href="/learning">Memory and Learning Stats</a>
+          </div>
+          <details style="margin-top:10px;">
+            <summary>Show raw risk controls</summary>
+            <div id="risk-controls" class="table"></div>
+          </details>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Performance Curve</h2>
+          <div class="control-actions" style="margin-bottom:10px;">
+            <button id="btn-curve-time">Time Scale</button>
+            <button id="btn-curve-trade">Trade # Scale</button>
+          </div>
+          <div id="curve-mode-label" class="sub">mode: time</div>
+          <div id="perf-chart" class="perf-chart"></div>
+          <div id="perf-stats" class="health" style="margin-top:10px;"></div>
+        </div>
+        <div class="card">
+          <h2>Manual Actions</h2>
+          <div class="health" id="manual-actions-help">
+            <div class="item"><span class="label">Run Full Cycle</span><span>all pipelines + routing + execution + learning</span></div>
+            <div class="item"><span class="label">Run Scan</span><span>signal scan and routing pass</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Why Agent Took Trades</h2>
+          <div id="trade-decisions" class="flow-list"></div>
+        </div>
+        <div class="card"></div>
       </section>
     </div>
 

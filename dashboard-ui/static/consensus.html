@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Consensus - Trader Curtis</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <h1>Consensus Control</h1>
+          <p class="sub">N-of-M confirmation, source quality, and master execution switch</p>
+          <p class="sub"><a href="/">Main</a> • <a href="/polymarket">Polymarket</a> • <a href="/signals">Signals</a> • <a href="/learning">Learning</a></p>
+        </div>
+        <div class="status" id="status-pill">loading</div>
+      </header>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Trust State</h2>
+          <div id="trust-state" class="health"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Master & Consensus Controls</h2>
+          <div class="controls">
+            <div class="control-row"><label><input id="ctl-master" type="checkbox" /> Agent Master ON</label></div>
+            <div class="control-row"><label><input id="ctl-consensus" type="checkbox" /> Enforce Consensus</label></div>
+            <div class="control-row">Min confirmations <input id="ctl-c-min" type="number" min="1" max="5" step="1" /></div>
+            <div class="control-row">Min ratio (0-1) <input id="ctl-c-ratio" type="number" min="0" max="1" step="0.05" /></div>
+            <div class="control-row">Min score <input id="ctl-c-score" type="number" min="0" max="100" step="1" /></div>
+            <div class="control-row">Aligned view
+              <select id="aligned-mode">
+                <option value="all">All</option>
+                <option value="high_signal_low_interest">High Signal + Low Interest</option>
+                <option value="high_signal_direct">High Signal + Direct Tradable</option>
+                <option value="watchlist">Watchlist Only</option>
+              </select>
+            </div>
+            <div class="control-actions">
+              <button id="btn-save">Save Controls</button>
+              <button id="btn-scan">Run Scan</button>
+              <button id="btn-poly-align">Build Poly Alignments</button>
+            </div>
+            <div id="control-status" class="control-warning"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Flagged Consensus Trades</h2>
+          <div id="consensus-candidates" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Source Ratings</h2>
+          <div id="source-ratings" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-3">
+          <h2>High-Signal → Polymarket Aligned Bets</h2>
+          <div id="aligned-poly-setups" class="table"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/consensus.js"></script>
+  </body>
+</html>

@@ -1,83 +1,47 @@
-# 🎯 QUICK REFERENCE CARD
-**Scan this at the start of EVERY session**
+# QUICK REFERENCE (CURRENT)
 
----
+## 1) One-Liner Truth
 
-## ⚡ CRITICAL FACTS
+- `polymarket_candidates` = ideas
+- `polymarket_orders` = execution truth
+- no order event = no trade
 
-| What | Value |
-|------|-------|
-| **Holdings** | NEM, ASTS, MARA, PLTR, AEM |
-| **Risk/Trade** | Max 5% |
-| **Neutral Rule** | NO TRADE (40-60 score) |
-| **Entry Rule** | 2+ sources agree |
-| **Political Cost** | $0 (Grok + Brave) |
-| **Model** | moonshot/kimi-k2.5 |
+## 2) Pre-Trade Controls
 
----
-
-## 📅 DAILY SCHEDULE (PST)
-
-```
-6:30 AM  → Political + Sentiment scans
-9:30 AM  → Market opens
-12:00 PM → Political + Sentiment checks
-1:00 PM  → Close check + EOD summary
-2:00 PM  → Learning + Grading
+```bash
+cd /Users/Shared/curtis/trader-curtis
+./scripts/polymarket_control.sh status
+./scripts/polymarket_control.sh set-max 3 15
+./scripts/polymarket_control.sh set-edge 5.0
 ```
 
----
+## 3) Live / Paper Mode
 
-## 🔧 KEY SCRIPTS
+```bash
+# live
+./scripts/polymarket_control.sh go-live 3 15 0 5.0
 
-| Script | Purpose | When |
-|--------|---------|------|
-| unified_social_scanner.py | Sentiment (X/Reddit/ST) | 6:30 AM, 12:00 PM |
-| political_monitor_free.py | Trump/Bessent | 6:30 AM, 12:00 PM, 1:00 PM |
-| reddit-scanner.js | Reddit mentions | On demand |
-| learning_engine.py | Grade trades | 2:00 PM |
-| combo_analyzer.py | Best sources | 2:15 PM |
+# paper-safe
+./scripts/polymarket_control.sh paper-safe 3 15
+```
 
----
+## 4) Execute and Verify
 
-## 🔑 API KEYS (Available)
+```bash
+./scripts/polymarket_control.sh run
+sqlite3 data/trades.db "select id,created_at,mode,status,notional from polymarket_orders order by id desc limit 10;"
+```
 
-- ✅ XAI_API_KEY (Grok)
-- ✅ BRAVE_API_KEY (News)
-- ✅ ALPACA_API_KEY (Trading)
-- ✅ Reddit (public - no key)
+## 5) Dashboard
 
----
+- Main: `http://127.0.0.1:8090/`
+- Polymarket: `http://127.0.0.1:8090/polymarket`
+- Signals: `http://127.0.0.1:8090/signals`
+- Learning: `http://127.0.0.1:8090/learning`
 
-## 📁 KEY FILES
+## 6) Do Not Say
 
-| File | Why Read It |
-|------|-------------|
-| HEARTBEAT.md | Daily schedule |
-| MEMORY.md | Long-term memory index |
-| SYSTEM_ARCHITECTURE.md | How things connect |
-| SESSION_CHECKLIST.md | Start-of-session audit |
-
----
-
-## 🚨 DON'T FORGET
-
-1. **ALWAYS** read HEARTBEAT.md first
-2. **ALWAYS** sync git notes memory
-3. **NEVER** build standalone (integrate!)
-4. **NEVER** trade on neutral sentiment
-5. **ALWAYS** log to memory
-
----
-
-## 💾 MEMORY LOCATIONS
-
-- Git notes: `skills/git-notes-memory/`
-- Daily logs: `memory/YYYY-MM-DD.md`
-- Database: `data/trades.db`
-- Alerts: `alerts/`
-- Tasks: `tasks/`
-
----
-
-*Keep this visible. Refer to it constantly.*
+- "I executed" unless there is an order row.
+- "80% confidence means trade" (not true).
+- "after 5 approvals auto-trade" unless controls/code match.
+- "next scan at X" unless schedule is confirmed.

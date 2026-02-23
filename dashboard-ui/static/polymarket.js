@@ -4,11 +4,48 @@ async function fetchJson(url) {
   return res.json();
 }
 
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error(`${url} failed: ${res.status}`);
+  return res.json();
+}
+
+function fmtUsd(v) {
+  const n = Number(v || 0);
+  if (!Number.isFinite(n)) return "$0.00";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
+}
+
 function setStatus(text, cls = "") {
   const el = document.getElementById("status-pill");
   if (!el) return;
   el.textContent = text;
   el.className = `status ${cls}`;
+}
+
+function setControlStatus(msg, cls = "warn") {
+  const el = document.getElementById("poly-control-status");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.className = `control-warning ${cls}`;
+}
+
+function setSourceStatus(msg, cls = "warn") {
+  const el = document.getElementById("source-status");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.className = `control-warning ${cls}`;
+}
+
+function setPolyWalletStatus(msg, cls = "warn") {
+  const el = document.getElementById("polyw-status");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.className = `control-warning ${cls}`;
 }
 
 function renderTable(elId, rows, headers, fields) {
@@ -23,19 +60,221 @@ function renderTable(elId, rows, headers, fields) {
   el.innerHTML = head + body;
 }
 
+function renderOverview(overview) {
+  const el = document.getElementById("polymarket-overview");
+  if (!el) return;
+  const mode = overview.live_enabled ? "LIVE REAL MONEY" : "PAPER";
+  const modeClass = overview.live_enabled ? "bad" : "good";
+  const exposurePct = overview.daily_cap_usd > 0 ? Math.min(100, Math.round((overview.daily_used_usd / overview.daily_cap_usd) * 100)) : 0;
+
+  el.innerHTML = [
+    `<div class="item"><span class="label">Execution Mode</span><span class="${modeClass}">${mode}</span></div>`,
+    `<div class="item"><span class="label">Auto Execution</span><span>${overview.auto_enabled ? "enabled" : "disabled"}</span></div>`,
+    `<div class="item"><span class="label">Daily Exposure (${overview.live_enabled ? "live" : "paper"})</span><span>${fmtUsd(overview.daily_used_usd)} / ${fmtUsd(overview.daily_cap_usd)} (${exposurePct}%)</span></div>`,
+    `<div class="item"><span class="label">Live Used Today</span><span>${fmtUsd(overview.live_used_usd || 0)}</span></div>`,
+    `<div class="item"><span class="label">Paper Used Today</span><span>${fmtUsd(overview.paper_used_usd || 0)}</span></div>`,
+    `<div class="item"><span class="label">Pending Approval</span><span>${overview.pending_approval || 0}</span></div>`,
+    `<div class="item"><span class="label">Live Submitted / Filled</span><span>${overview.submitted_live || 0} / ${overview.filled_live || 0}</span></div>`,
+    `<div class="item"><span class="label">Paper Submitted</span><span>${overview.submitted_paper || 0}</span></div>`,
+    `<div class="item"><span class="label">Blocked / Failed</span><span>${overview.blocked || 0} / ${overview.failed || 0}</span></div>`,
+    `<div class="item"><span class="label">Manual Approval</span><span>${overview.manual_approval ? "required" : "off"} (${overview.approval_count || 0}/${overview.approval_threshold || 0})</span></div>`,
+  ].join("");
+}
+
+function renderMmOverview(mm) {
+  const el = document.getElementById("polymarket-mm-overview");
+  if (!el) return;
+  if (!mm) {
+    el.innerHTML = `<div class="empty">No MM data</div>`;
+    return;
+  }
+  const state = String(mm.state || "offline");
+  const stateCls = state === "good" ? "good" : (state === "caution" || state === "standby" ? "warn" : "bad");
+  el.innerHTML = [
+    `<div class="item"><span class="label">State</span><span class="${stateCls}">${state.toUpperCase()}</span></div>`,
+    `<div class="item"><span class="label">MM Enabled</span><span>${mm.mm_enabled ? "ON" : "OFF"}</span></div>`,
+    `<div class="item"><span class="label">Execution Ready</span><span>${mm.ready_count || 0} / ${mm.snapshot_count || 0}</span></div>`,
+    `<div class="item"><span class="label">Avg Toxicity</span><span>${Number(mm.avg_toxicity || 0).toFixed(3)}</span></div>`,
+    `<div class="item"><span class="label">Source Accuracy (hist)</span><span>${Number(mm.avg_source_accuracy || 0).toFixed(1)}%</span></div>`,
+    `<div class="item"><span class="label">Poly Exec Accuracy (30d)</span><span>${Number(mm.poly_exec_accuracy_30d || 0).toFixed(1)}%</span></div>`,
+    `<div class="item"><span class="label">Poly Signal Accuracy (30d)</span><span>${Number(mm.poly_signal_accuracy_30d || 0).toFixed(1)}%</span></div>`,
+    `<div class="item"><span class="label">Avg Edge (bps)</span><span>${Number(mm.avg_edge_bps || 0).toFixed(1)}</span></div>`,
+  ].join("");
+}
+
+function renderPreTradeControls(controls) {
+  const byKey = {};
+  (controls || []).forEach((r) => { byKey[r.key] = String(r.value || ""); });
+  const master = document.getElementById("ctl-master");
+  const live = document.getElementById("ctl-poly-live");
+  const auto = document.getElementById("ctl-poly-auto");
+  const manual = document.getElementById("ctl-poly-manual");
+  const consensus = document.getElementById("ctl-consensus");
+  const max = document.getElementById("ctl-poly-max");
+  const daily = document.getElementById("ctl-poly-daily");
+  const edge = document.getElementById("ctl-poly-edge");
+  const feeGate = document.getElementById("ctl-poly-fee-gate");
+  const feePct = document.getElementById("ctl-poly-fee");
+  const feeBuf = document.getElementById("ctl-poly-fee-buf");
+  const cMin = document.getElementById("ctl-c-min");
+  const cRatio = document.getElementById("ctl-c-ratio");
+  const cScore = document.getElementById("ctl-c-score");
+  const mmEnabled = document.getElementById("ctl-mm-enabled");
+  const mmRisk = document.getElementById("ctl-mm-risk");
+  const mmSpread = document.getElementById("ctl-mm-spread");
+  const mmInv = document.getElementById("ctl-mm-inv");
+  const mmTox = document.getElementById("ctl-mm-tox");
+  const mmEdge = document.getElementById("ctl-mm-edge");
+  if (master) master.checked = (byKey.agent_master_enabled || "0") === "1";
+  if (live) live.checked = ["1","true","yes","on","enabled","live"].includes((byKey.allow_polymarket_live || "0").toLowerCase());
+  if (auto) auto.checked = (byKey.enable_polymarket_auto || "0") === "1";
+  if (manual) manual.checked = (byKey.polymarket_manual_approval || "1") === "1";
+  if (consensus) consensus.checked = (byKey.consensus_enforce || "1") === "1";
+  if (max) max.value = byKey.polymarket_max_notional_usd || "10";
+  if (daily) daily.value = byKey.polymarket_max_daily_exposure || "20";
+  if (edge) edge.value = byKey.polymarket_min_edge_pct || "5";
+  if (feeGate) feeGate.checked = (byKey.polymarket_fee_gate_enabled || "1") === "1";
+  if (feePct) feePct.value = byKey.polymarket_taker_fee_pct || "3.15";
+  if (feeBuf) feeBuf.value = byKey.polymarket_fee_buffer_pct || "0.50";
+  if (cMin) cMin.value = byKey.consensus_min_confirmations || "3";
+  if (cRatio) cRatio.value = byKey.consensus_min_ratio || "0.6";
+  if (cScore) cScore.value = byKey.consensus_min_score || "60";
+  if (mmEnabled) mmEnabled.checked = (byKey.mm_enabled || "0") === "1";
+  if (mmRisk) mmRisk.value = byKey.mm_risk_aversion || "0.25";
+  if (mmSpread) mmSpread.value = byKey.mm_base_spread_bps || "80";
+  if (mmInv) mmInv.value = byKey.mm_inventory_limit || "200";
+  if (mmTox) mmTox.value = byKey.mm_toxicity_threshold || "0.72";
+  if (mmEdge) mmEdge.value = byKey.mm_min_edge_bps || "50";
+}
+
+function wirePreTradeActions() {
+  const saveBtn = document.getElementById("btn-poly-save");
+  if (saveBtn && !saveBtn.dataset.wired) {
+    saveBtn.dataset.wired = "1";
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const payload = {
+          updates: {
+            agent_master_enabled: document.getElementById("ctl-master")?.checked ? "1" : "0",
+            allow_polymarket_live: document.getElementById("ctl-poly-live")?.checked ? "1" : "0",
+            enable_polymarket_auto: document.getElementById("ctl-poly-auto")?.checked ? "1" : "0",
+            polymarket_manual_approval: document.getElementById("ctl-poly-manual")?.checked ? "1" : "0",
+            consensus_enforce: document.getElementById("ctl-consensus")?.checked ? "1" : "0",
+            consensus_min_confirmations: String(document.getElementById("ctl-c-min")?.value || "3"),
+            consensus_min_ratio: String(document.getElementById("ctl-c-ratio")?.value || "0.6"),
+            consensus_min_score: String(document.getElementById("ctl-c-score")?.value || "60"),
+            polymarket_max_notional_usd: String(document.getElementById("ctl-poly-max")?.value || "10"),
+            polymarket_max_daily_exposure: String(document.getElementById("ctl-poly-daily")?.value || "20"),
+            polymarket_min_edge_pct: String(document.getElementById("ctl-poly-edge")?.value || "5"),
+            polymarket_fee_gate_enabled: document.getElementById("ctl-poly-fee-gate")?.checked ? "1" : "0",
+            polymarket_taker_fee_pct: String(document.getElementById("ctl-poly-fee")?.value || "3.15"),
+            polymarket_fee_buffer_pct: String(document.getElementById("ctl-poly-fee-buf")?.value || "0.50"),
+            mm_enabled: document.getElementById("ctl-mm-enabled")?.checked ? "1" : "0",
+            mm_risk_aversion: String(document.getElementById("ctl-mm-risk")?.value || "0.25"),
+            mm_base_spread_bps: String(document.getElementById("ctl-mm-spread")?.value || "80"),
+            mm_inventory_limit: String(document.getElementById("ctl-mm-inv")?.value || "200"),
+            mm_toxicity_threshold: String(document.getElementById("ctl-mm-tox")?.value || "0.72"),
+            mm_min_edge_bps: String(document.getElementById("ctl-mm-edge")?.value || "50"),
+          },
+        };
+        const out = await postJson("/api/risk-controls", payload);
+        if (!out || typeof out.updated !== "number") throw new Error("failed to save controls");
+        setControlStatus("Saved pre-trade controls", "good");
+        await boot();
+      } catch (err) {
+        console.error(err);
+        setControlStatus("Save failed", "bad");
+      }
+    });
+  }
+
+  const execBtn = document.getElementById("btn-poly-exec");
+  if (execBtn && !execBtn.dataset.wired) {
+    execBtn.dataset.wired = "1";
+    execBtn.addEventListener("click", async () => {
+      try {
+        await postJson("/api/actions", { action: "run_polymarket_exec" });
+        setControlStatus("Execution triggered", "good");
+        setTimeout(() => { boot(); }, 1500);
+      } catch (err) {
+        console.error(err);
+        setControlStatus("Execution trigger failed", "bad");
+      }
+    });
+  }
+
+  const mmBtn = document.getElementById("btn-poly-mm");
+  if (mmBtn && !mmBtn.dataset.wired) {
+    mmBtn.dataset.wired = "1";
+    mmBtn.addEventListener("click", async () => {
+      try {
+        await postJson("/api/actions", { action: "run_polymarket_mm" });
+        setControlStatus("MM refresh triggered", "good");
+        setTimeout(() => { boot(); }, 1200);
+      } catch (err) {
+        console.error(err);
+        setControlStatus("MM refresh failed", "bad");
+      }
+    });
+  }
+}
+
+function renderTrustPanel(panel) {
+  const el = document.getElementById("trust-panel");
+  if (!el) return;
+  if (!panel) {
+    el.innerHTML = `<div class="empty">No trust data</div>`;
+    return;
+  }
+  const stateCls = panel.state === "good" ? "good" : (panel.state === "warn" ? "warn" : "bad");
+  const thresholds = panel.consensus_thresholds || {};
+  const lines = [
+    `<div class="item"><span class="label">State</span><span class="${stateCls}">${String(panel.state || "unknown").toUpperCase()}</span></div>`,
+    `<div class="item"><span class="label">Master Switch</span><span>${panel.master_enabled ? "ON" : "OFF"}</span></div>`,
+    `<div class="item"><span class="label">Consensus Gate</span><span>${panel.consensus_enforce ? "ENFORCED" : "OFF"}</span></div>`,
+    `<div class="item"><span class="label">Thresholds</span><span>${thresholds.min_confirmations || 0} / ${thresholds.min_ratio || 0} / ${thresholds.min_score || 0}</span></div>`,
+    `<div class="item"><span class="label">Flagged Candidates</span><span>${panel.candidates_flagged || 0} / ${panel.candidates_total || 0}</span></div>`,
+  ];
+  const top = (panel.top_sources || []).slice(0, 4).map((s) => `${s.source} (${s.samples} | ${s.win_rate}%)`).join(" • ");
+  lines.push(`<div class="item"><span class="label">Top Sources</span><span>${top || "n/a"}</span></div>`);
+  el.innerHTML = lines.join("");
+}
+
 function renderPolymarketCandidates(rows) {
   const el = document.getElementById("polymarket-candidates");
   if (!el) return;
   if (!rows || rows.length === 0) {
-    el.innerHTML = `<div class="empty">No data</div>`;
+    el.innerHTML = `<div class="empty">No candidates</div>`;
     return;
   }
-  const head = `<div class="row header"><div>Strategy</div><div>Edge %</div><div>Outcome</div><div>Market</div></div>`;
-  const body = rows.slice(0, 40).map((r) => {
+
+  const grid = "120px 1fr 120px 120px 180px 120px 90px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>ID</div><div>Strategy</div><div>Edge %</div><div>Outcome</div><div>Status</div><div>Action</div><div>Market</div></div>`;
+  const body = rows.slice(0, 50).map((r) => {
     const link = r.market_url ? `<a href="${r.market_url}" target="_blank" rel="noreferrer">open</a>` : "";
-    return `<div class="row"><div>${r.strategy_id || ""}</div><div>${r.edge || ""}</div><div>${r.outcome || ""}</div><div>${link}</div></div>`;
+    const st = String(r.status || "new");
+    const canApprove = st === "new" || st === "awaiting_approval";
+    const action = canApprove ? `<button data-cid="${r.id}" class="approve-btn">approve</button>` : "";
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${r.id || ""}</div><div>${r.strategy_id || ""}</div><div>${Number(r.edge || 0).toFixed(2)}</div><div>${r.outcome || ""}</div><div>${st}</div><div>${action}</div><div>${link}</div></div>`;
   }).join("");
   el.innerHTML = head + body;
+
+  el.querySelectorAll(".approve-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = Number(btn.getAttribute("data-cid"));
+      btn.disabled = true;
+      btn.textContent = "approving...";
+      try {
+        const out = await postJson("/api/polymarket-approve", { ids: [id] });
+        if (!out.ok) throw new Error(out.error || "approve failed");
+        await boot();
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "retry";
+      }
+    });
+  });
 }
 
 function renderPolymarketMarkets(rows) {
@@ -45,10 +284,69 @@ function renderPolymarketMarkets(rows) {
     el.innerHTML = `<div class="empty">No data</div>`;
     return;
   }
-  const head = `<div class="row header"><div>Slug</div><div>Liq</div><div>Vol 24h</div><div>URL</div></div>`;
+  const grid = "1fr 140px 140px 80px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Slug</div><div>Liq</div><div>Vol 24h</div><div>URL</div></div>`;
   const body = rows.slice(0, 30).map((r) => {
     const link = r.market_url ? `<a href="${r.market_url}" target="_blank" rel="noreferrer">open</a>` : "";
-    return `<div class="row"><div>${r.slug || ""}</div><div>${r.liquidity || ""}</div><div>${r.volume_24h || ""}</div><div>${link}</div></div>`;
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${r.slug || ""}</div><div>${r.liquidity || ""}</div><div>${r.volume_24h || ""}</div><div>${link}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function renderPolymarketOrders(rows) {
+  const el = document.getElementById("polymarket-orders");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No order events yet</div>`;
+    return;
+  }
+  const grid = "170px 90px 80px 170px 120px 220px 1fr";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Time</div><div>Candidate</div><div>Money</div><div>Status</div><div>Notional</div><div>Order ID</div><div>Notes</div></div>`;
+  const body = rows.slice(0, 60).map((r) => {
+    const t = (r.created_at || "").replace("T", " ").slice(0, 19);
+    const money = (r.money_type === "real") ? "REAL" : "PAPER";
+    const moneyCls = (r.money_type === "real") ? "bad" : "good";
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${t}</div><div>${r.candidate_id || ""}</div><div class="${moneyCls}">${money}</div><div>${r.status || ""}</div><div>${fmtUsd(r.notional || 0)}</div><div>${r.order_id || ""}</div><div>${r.notes || ""}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function renderMmSnapshots(rows) {
+  const el = document.getElementById("polymarket-mm-snapshots");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No MM opportunities yet. Run MM refresh after scans.</div>`;
+    return;
+  }
+  const grid = "70px 80px 70px 110px 90px 90px 90px 90px 80px 80px 1fr";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Ticker</div><div>Dir</div><div>N/M</div><div>Market</div><div>Implied</div><div>Fair</div><div>Bid</div><div>Ask</div><div>Edge bps</div><div>State</div><div>History Context</div></div>`;
+  const body = rows.slice(0, 40).map((r) => {
+    const conf = `${Number(r.confirmations || 0)}/${Number(r.sources_total || 0)}`;
+    const link = r.market_url ? `<a href=\"${r.market_url}\" target=\"_blank\" rel=\"noreferrer\">open</a>` : "";
+    const state = String(r.state || "");
+    const stCls = state === "normal" ? "good" : (state === "caution" ? "warn" : "bad");
+    const ready = Number(r.execution_ready || 0) === 1 ? "READY" : "HOLD";
+    const readyCls = Number(r.execution_ready || 0) === 1 ? "good" : "warn";
+    const hist = `src ${Number(r.source_accuracy || 0).toFixed(1)}% | exec ${Number(r.poly_exec_accuracy || 0).toFixed(1)}% | tox ${Number(r.toxicity || 0).toFixed(2)} | <span class=\"${readyCls}\">${ready}</span>`;
+    return `<div class=\"row\" style=\"grid-template-columns:${grid}\"><div>${r.ticker || ""}</div><div>${r.direction || ""}</div><div>${conf}</div><div>${link}</div><div>${Number(r.implied_prob || 0).toFixed(3)}</div><div>${Number(r.fair_prob || 0).toFixed(3)}</div><div>${Number(r.bid_price || 0).toFixed(3)}</div><div>${Number(r.ask_price || 0).toFixed(3)}</div><div>${Number(r.edge_bps || 0).toFixed(1)}</div><div class=\"${stCls}\">${state}</div><div>${hist}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function renderWeatherMarketProbs(rows) {
+  const el = document.getElementById("weather-market-probs");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No active weather temp markets detected right now.</div>`;
+    return;
+  }
+  const grid = "80px 90px 70px 1fr 90px 70px 1fr 70px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>City</div><div>Date</div><div>Models</div><div>Top Outcome Probabilities</div><div>Best</div><div>Unc.</div><div>Resolver</div><div>Market</div></div>`;
+  const body = rows.slice(0, 30).map((r) => {
+    const link = r.market_url ? `<a href="${r.market_url}" target="_blank" rel="noreferrer">open</a>` : "";
+    const unc = Number(r.uncertainty || 0).toFixed(2);
+    const resolver = `${r.station_hint || ""} | ${r.source_hint || "src?"} | ${r.rounding_hint || "nearest-int"}`;
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${r.city || ""}</div><div>${r.target_date || ""}</div><div>${Number(r.model_count || 0)}</div><div>${r.top_probs || ""}</div><div>${r.best_outcome || ""} (${(Number(r.best_prob || 0) * 100).toFixed(1)}%)</div><div>${unc}</div><div>${resolver}</div><div>${link}</div></div>`;
   }).join("");
   el.innerHTML = head + body;
 }
@@ -60,28 +358,182 @@ function renderBookmarkAlphaIdeas(rows) {
     el.innerHTML = `<div class="empty">No data</div>`;
     return;
   }
-  const head = `<div class="row header"><div>Source</div><div>Strategy</div><div>Thesis</div><div>URL</div></div>`;
+  const grid = "160px 160px 1fr 80px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Source</div><div>Strategy</div><div>Thesis</div><div>URL</div></div>`;
   const body = rows.slice(0, 30).map((r) => {
     const link = r.source_url ? `<a href="${r.source_url}" target="_blank" rel="noreferrer">open</a>` : "";
-    return `<div class="row"><div>${r.source_handle || ""}</div><div>${r.strategy_tag || ""}</div><div>${r.thesis_type || ""}</div><div>${link}</div></div>`;
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${r.source_handle || ""}</div><div>${r.strategy_tag || ""}</div><div>${r.thesis_type || ""}</div><div>${link}</div></div>`;
   }).join("");
   el.innerHTML = head + body;
+}
+
+function renderTrackedSources(rows) {
+  const el = document.getElementById("tracked-sources");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No tracked sources yet</div>`;
+    return;
+  }
+  const grid = "140px 80px 80px 80px 1fr";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Handle</div><div>Copy</div><div>Alpha</div><div>Active</div><div>Notes</div></div>`;
+  const body = rows.slice(0, 30).map((r) => {
+    const h = `@${r.handle || ""}`;
+    const c = Number(r.role_copy || 0) === 1 ? "yes" : "no";
+    const a = Number(r.role_alpha || 0) === 1 ? "yes" : "no";
+    const active = Number(r.active || 0) === 1 ? "yes" : "no";
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${h}</div><div>${c}</div><div>${a}</div><div>${active}</div><div>${r.notes || ""}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function renderTrackedPolyWallets(rows) {
+  const el = document.getElementById("tracked-poly-wallets");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No tracked wallets yet</div>`;
+    return;
+  }
+  const grid = "130px 70px 70px 70px 1fr";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Handle</div><div>Copy</div><div>Alpha</div><div>Active</div><div>Profile</div></div>`;
+  const body = rows.slice(0, 30).map((r) => {
+    const h = `@${r.handle || ""}`;
+    const c = Number(r.role_copy || 0) === 1 ? "yes" : "no";
+    const a = Number(r.role_alpha || 0) === 1 ? "yes" : "no";
+    const active = Number(r.active || 0) === 1 ? "yes" : "no";
+    const profile = r.profile_url ? `<a href="${r.profile_url}" target="_blank" rel="noreferrer">open</a>` : "";
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${h}</div><div>${c}</div><div>${a}</div><div>${active}</div><div>${profile}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function renderPolyWalletScores(rows) {
+  const el = document.getElementById("poly-wallet-scores");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No wallet score data yet</div>`;
+    return;
+  }
+  const grid = "140px 80px 80px 90px 90px 100px 80px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Handle</div><div>Samples</div><div>Win%</div><div>Avg PnL%</div><div>Reliability</div><div>Profile</div><div>Active</div></div>`;
+  const body = rows.slice(0, 40).map((r) => {
+    const p = r.profile_url ? `<a href="${r.profile_url}" target="_blank" rel="noreferrer">open</a>` : "";
+    return `<div class="row" style="grid-template-columns:${grid}"><div>@${r.handle || ""}</div><div>${Number(r.sample_size || 0)}</div><div>${Number(r.win_rate || 0).toFixed(1)}</div><div>${Number(r.avg_pnl_pct || 0).toFixed(2)}</div><div>${Number(r.reliability_score || 0).toFixed(1)}</div><div>${p}</div><div>${Number(r.active || 0) === 1 ? "yes" : "no"}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function wireSourceActions() {
+  const btn = document.getElementById("btn-source-save");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  btn.addEventListener("click", async () => {
+    const handle = (document.getElementById("src-handle")?.value || "").trim();
+    if (!handle) {
+      setSourceStatus("Handle is required", "bad");
+      return;
+    }
+    try {
+      const payload = {
+        handle,
+        role_copy: !!document.getElementById("src-copy")?.checked,
+        role_alpha: !!document.getElementById("src-alpha")?.checked,
+        active: true,
+        notes: (document.getElementById("src-notes")?.value || "").trim(),
+      };
+      const out = await postJson("/api/tracked-sources", payload);
+      if (!out.ok) throw new Error(out.error || "failed");
+      setSourceStatus(`Saved @${out.handle}`, "good");
+      await boot();
+    } catch (err) {
+      console.error(err);
+      setSourceStatus("Save failed", "bad");
+    }
+  });
+}
+
+function wirePolyWalletActions() {
+  const btn = document.getElementById("btn-polyw-save");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  btn.addEventListener("click", async () => {
+    const handle = (document.getElementById("polyw-handle")?.value || "").trim();
+    if (!handle) {
+      setPolyWalletStatus("Handle is required", "bad");
+      return;
+    }
+    try {
+      const payload = {
+        handle,
+        profile_url: (document.getElementById("polyw-url")?.value || "").trim(),
+        role_copy: !!document.getElementById("polyw-copy")?.checked,
+        role_alpha: !!document.getElementById("polyw-alpha")?.checked,
+        active: true,
+        notes: (document.getElementById("polyw-notes")?.value || "").trim(),
+      };
+      const out = await postJson("/api/tracked-poly-wallets", payload);
+      if (!out.ok) throw new Error(out.error || "failed");
+      setPolyWalletStatus(`Saved @${out.handle}`, "good");
+      await boot();
+    } catch (err) {
+      console.error(err);
+      setPolyWalletStatus("Save failed", "bad");
+    }
+  });
 }
 
 async function boot() {
   try {
     setStatus("loading");
-    const [systemHealth, polymarketCandidates, polymarketMarkets, bookmarkAlphaIdeas, externalSignals] = await Promise.all([
+    const [
+      systemHealth,
+      polymarketOverview,
+      polymarketMmOverview,
+      polymarketMmSnapshots,
+      weatherMarketProbs,
+      polymarketCandidates,
+      polymarketMarkets,
+      polymarketOrders,
+      bookmarkAlphaIdeas,
+      externalSignals,
+      riskControls,
+      trackedSources,
+      trackedPolyWallets,
+      polyWalletScores,
+      trustPanel,
+    ] = await Promise.all([
       fetchJson("/api/system-health"),
+      fetchJson("/api/polymarket-overview"),
+      fetchJson("/api/polymarket-mm-overview"),
+      fetchJson("/api/polymarket-mm-snapshots?ready_only=0"),
+      fetchJson("/api/weather-market-probs"),
       fetchJson("/api/polymarket-candidates"),
       fetchJson("/api/polymarket-markets"),
+      fetchJson("/api/polymarket-orders"),
       fetchJson("/api/bookmark-alpha-ideas"),
       fetchJson("/api/external-signals"),
+      fetchJson("/api/risk-controls"),
+      fetchJson("/api/tracked-sources"),
+      fetchJson("/api/tracked-poly-wallets"),
+      fetchJson("/api/polymarket-wallet-scores"),
+      fetchJson("/api/trust-panel"),
     ]);
 
+    renderOverview(polymarketOverview || {});
+    renderMmOverview(polymarketMmOverview || {});
+    renderPreTradeControls(riskControls || []);
+    wirePreTradeActions();
     renderPolymarketCandidates(polymarketCandidates || []);
     renderPolymarketMarkets(polymarketMarkets || []);
+    renderPolymarketOrders(polymarketOrders || []);
+    renderMmSnapshots(polymarketMmSnapshots || []);
+    renderWeatherMarketProbs(weatherMarketProbs || []);
     renderBookmarkAlphaIdeas(bookmarkAlphaIdeas || []);
+    renderTrackedSources(trackedSources || []);
+    renderTrackedPolyWallets(trackedPolyWallets || []);
+    renderPolyWalletScores(polyWalletScores || []);
+    renderTrustPanel(trustPanel || {});
+    wireSourceActions();
+    wirePolyWalletActions();
     renderTable("external-signals", (externalSignals || []).slice(0, 20), ["Source", "Ticker", "Dir", "Conf"], ["source", "ticker", "direction", "confidence"]);
 
     const topState = (systemHealth && systemHealth.overall) || "good";

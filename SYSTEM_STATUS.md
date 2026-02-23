@@ -1,191 +1,46 @@
-# TRADER CURTIS - FULL SYSTEM INTEGRATION
-## Status: OPERATIONAL | Date: 2026-02-02
+# TRADER CURTIS - SYSTEM STATUS (CANONICAL)
+## Date: 2026-02-23
 
----
+This file replaces prior legacy status text.
 
-## 🎯 **COMPLETE SENTIMENT STACK**
+## Runtime Truth
 
-### ✅ StockTwits (ACTIVE)
-- **File:** `integrated-scanner.js`
-- **Features:**
-  - Trending symbols fetch
-  - Watchlist sentiment (NEM, ASTS, MARA, etc.)
-  - Bullish/Bearish scoring
-  - Real-time API calls
-- **Status:** ✅ Working
+- Canonical execution model is **control-gated by DB** (`execution_controls`).
+- Polymarket execution path is:
+  1. `pipeline_polymarket.py` creates `polymarket_candidates` (ideas)
+  2. `execution_polymarket.py` enforces controls and writes `polymarket_orders` (execution events)
+  3. Dashboard `/polymarket` renders truth-labeled state (`REAL` vs `PAPER`)
+- A candidate is **not** a trade.
+- A trade claim is valid only with matching `polymarket_orders` rows.
 
-### ✅ Reddit (ACTIVE)
-- **File:** `reddit-scanner.js`
-- **Subreddits:**
-  - r/wallstreetbets
-  - r/stocks
-  - r/investing
-- **Features:**
-  - Ticker mention extraction ($SYMBOL)
-  - Upvote scoring
-  - Cross-subreddit aggregation
-- **Status:** ✅ Working
+## Forbidden Claims (Do Not Say)
 
-### ✅ X/Twitter (ACTIVE)
-- **Tool:** Bird CLI
-- **Account:** @Dontsuspe
-- **Features:**
-  - Real-time search
-  - Trump/Bessent monitoring
-  - Market sentiment tracking
-- **Status:** ✅ Connected
+- "I made trades" without an order event in DB.
+- "After N approvals it auto-trades" unless that exact logic exists in controls/code.
+- "Next scan at X" unless a real cron/schedule is confirmed.
+- "Say execute and I'll trade" as a generic flow.
 
-### 🟡 Grok-4 (READY)
-- **Integration:** Code ready in mahoraga-reference.mjs
-- **Needs:** XAI_API_KEY
-- **Features:**
-  - AI-powered trade analysis
-  - Signal confidence scoring
-  - Market regime detection
-- **Status:** ⏳ Awaiting API key
+## Required Control Surface
 
----
+Always use:
 
-## 🤖 **AUTO-TRADING SYSTEM**
-
-### Authority Granted ✅
-- Max $500 per trade
-- Stop loss mandatory
-- Trading plan enforced
-- Telegram notifications
-
-### Current Positions
-| Ticker | Shares | Entry | P&L | Stop |
-|--------|--------|-------|-----|------|
-| NEM | 100 | $111.50 | +$226 | $100 |
-| ASTS | 35 | $109.36 | -$142 | $88 |
-| MARA | 54 | ~$9.16 | Pending | $7.50 |
-
-### Execution Criteria
-- 2+ sentiment sources align
-- Position size ≤ $500
-- Stop loss within 10%
-- 2:1 reward/risk minimum
-
----
-
-## 📊 **ANALYTICS INFRASTRUCTURE**
-
-### ClickHouse (STARTING)
-- Database schema created
-- Tables: trades, sentiment_accuracy, social_posts, performance_daily
-- Nightly analytics runs
-
-### Evaluation Framework (BUILT)
-- **File:** `analysis/evals.py`
-- Tests sentiment accuracy
-- Tracks risk management
-- Validates position sizing
-
-### Dashboard (BUILT)
-- **File:** `analysis/dashboard.py`
-- Daily performance reports
-- Source accuracy tracking
-- Win/loss analysis
-
----
-
-## ⏰ **AUTOMATED SCHEDULE**
-
-| Time (PST) | Task | Status |
-|------------|------|--------|
-| 6:30 AM | Pre-market sentiment scan | ✅ Active |
-| 10:00 AM | Mid-day check | ✅ Active |
-| 1:00 PM | EOD summary | ✅ Active |
-| Hourly | Trump/Bessent post check | ✅ Active |
-| 10:00 PM | Nightly skill analysis | ✅ Active |
-| 2:00 PM | Post-market trade analysis | ✅ Active |
-
----
-
-## 📈 **PERFORMANCE TRACKING**
-
-### Metrics Collected
-- Win rate by ticker type
-- Sentiment source accuracy
-- Risk/reward ratios
-- Max drawdown
-- Trump/Bessent prediction hit rate
-
-### Learning Loop
-1. Trade execution → Immediate logging
-2. Position close → Outcome analysis
-3. Nightly run → Pattern extraction
-4. Strategy update → Better next trade
-
----
-
-## 🛡️ **RISK MANAGEMENT**
-
-### Hard Limits
-- Max $500 per trade
-- Max 5 open positions
-- Daily loss limit: $200
-- Stop loss on every trade
-- 50% cash minimum
-
-### Monitoring
-- Real-time P&L tracking
-- Stop loss automation
-- Position correlation check
-- Daily risk reports
-
----
-
-## 🚀 **NEXT ENHANCEMENTS**
-
-### Phase 2 (After Paper Validation)
-- Real money account ($100)
-- Real-time data feed (Polygon.io)
-- Options flow (Cheddar Flow)
-- Benzinga Pro news
-
-### Phase 3 (Advanced)
-- ML model training
-- Predictive analytics
-- Portfolio optimization
-- Options strategies
-
----
-
-## 💡 **HOW TO USE**
-
-**Manual:**
 ```bash
-# Run sentiment scan
-node integrated-scanner.js
-
-# Run Reddit scan
-node reddit-scanner.js
-
-# Run all scans
-./run-all-scans.sh
+./scripts/polymarket_control.sh status
+./scripts/polymarket_control.sh set-max <per_trade_usd> <daily_usd>
+./scripts/polymarket_control.sh go-live <per_trade_usd> <daily_usd> <manual_approval:0|1> <min_edge_pct>
+./scripts/polymarket_control.sh run
+./scripts/polymarket_control.sh approve <candidate_id...>
 ```
 
-**Automatic:**
-- All scans run on schedule
-- Alerts sent to Telegram
-- Trades execute automatically
-- Reports generated nightly
+## Verification Commands
 
----
+```bash
+./scripts/check_agent_awareness.sh
+./scripts/check_polymarket_setup.sh
+sqlite3 data/trades.db "select id,mode,status,notional from polymarket_orders order by id desc limit 20;"
+```
 
-## 🤝 **PARTNERSHIP STATUS**
+## Notes
 
-**Curtis ↔ Trader Curtis**
-- ✅ Shared goal: Become greatest trader
-- ✅ Open communication
-- ✅ Resource sharing
-- ✅ Continuous improvement
-
-**Current Phase:** Paper trading validation (2-3 weeks)
-**Next Phase:** Real money trading
-
----
-
-*System fully operational. Sentiment integration complete. Learning begins.*
+- Confidence scores are signal metadata, not execution authority.
+- Execution authority comes from DB controls + passing risk gates + valid venue credentials.

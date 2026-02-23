@@ -1,0 +1,417 @@
+[2026-02-23T05:48:32Z] trader cycle start (manual)
+Running political monitor...
+═══════════════════════════════════════════════════
+  TRADER CURTIS - COMPLETE SENTIMENT ANALYSIS
+═══════════════════════════════════════════════════
+
+🔍 SCANNING STOCKTWITS...
+🔍 TRADER CURTIS - SENTIMENT SCAN
+
+📊 WATCHLIST SENTIMENT:
+
+
+📈 TRENDING ON STOCKTWITS:
+
+Could not fetch trending
+
+🎯 TRADING SIGNALS:
+
+
+✅ Scan complete
+
+🔍 SCANNING REDDIT...
+🔍 REDDIT SENTIMENT SCAN
+
+📱 r/wallstreetbets:
+  $GOOGL: 1 mentions, 93⬆️
+  $SRAD: 2 mentions, 16⬆️
+  $FLNC: 1 mentions, 4⬆️
+  $AESC: 1 mentions, 4⬆️
+
+📱 r/stocks:
+  $NAVN: 1 mentions, 168⬆️
+  $PAR: 1 mentions, 168⬆️
+  $VERX: 1 mentions, 168⬆️
+  $MSFT: 1 mentions, 168⬆️
+  $VRNS: 1 mentions, 168⬆️
+
+📱 r/investing:
+
+📊 TOP MENTIONS ACROSS REDDIT:
+
+$NAVN: 1 mentions, 168⬆️ [stocks]
+$PAR: 1 mentions, 168⬆️ [stocks]
+$VERX: 1 mentions, 168⬆️ [stocks]
+$MSFT: 1 mentions, 168⬆️ [stocks]
+$VRNS: 1 mentions, 168⬆️ [stocks]
+$GOOGL: 1 mentions, 93⬆️ [wallstreetbets]
+$SRAD: 2 mentions, 16⬆️ [wallstreetbets]
+$FLNC: 1 mentions, 4⬆️ [wallstreetbets]
+$AESC: 1 mentions, 4⬆️ [wallstreetbets]
+
+✅ Reddit scan complete
+
+🔍 CHECKING X/TWITTER...
+
+@grok (Grok):
+The midcap index (Nifty Midcap 150) has shown mixed moves lately, with broader factors like IT sector weakness and valuation resets playing a bigger role than any one stock. Top weights (Shriram Finance ~2.4%, Max Healthcare ~2.1%, Trent ~1.8%) are mostly stable or up recently—no clear sole "drag" stands out in data. Which one did the OP have in mind?
+📅 Mon Feb 23 05:48:48 +0000 2026
+🔗 https://x.com/grok/status/2025810050439094680
+──────────────────────────────────────────────────
+
+@ChiomaChukwura2 (Chioma Chukwurah ⚛️🥷⚔️):
+Top gainers you shouldn’t miss!  
+
+As Bitcoin dominance fluctuates, capital rotation into high-beta altcoins is becoming visible again. 
+
+Several trading pairs on BingX are posting sharp intraday gains backed by volume spikes, momentum traders are active.
+
+#CryptoGainers #BingX https://t.co/dSooo4MdtS
+🖼️ https://pbs.twimg.com/media/HB0fgC9WwAA8TzQ.jpg
+📅 Mon Feb 23 05:48:48 +0000 2026
+🔗 https://x.com/ChiomaChukwura2/status/2025810049508008051
+──────────────────────────────────────────────────
+
+
+🔗 INGESTING BOOKMARK THESES (PIPELINE D)...
+Pipeline D: processed 17 URLs, inserted 0 thesis records, promoted 0 ideas (promotion disabled)
+
+⚡ RUNNING PIPELINE A (LIQUIDITY SCALP)...
+Pipeline A: created 0 scalp signals
+
+📈 RUNNING CHART LIQUIDITY PIPELINE...
+CHART_LIQUIDITY: created 0 directional signals
+
+🗳️ RUNNING POLYMARKET PIPELINE...
+POLYMARKET: fetched=180 stored=180 candidates=187
+
+🧬 RUNNING PIPELINE B (LONG-TERM INNOVATION)...
+Pipeline B: created 5 long-term signals
+
+🚨 BUILDING EVENT ALERTS...
+Event alert engine: inserted 2 alerts
+
+🌍 RUNNING PIPELINE C (EVENT ALPHA)...
+Pipeline C: created 2 event signals
+
+🧠 BUILDING TRADE CANDIDATES...
+Generated 14 trade candidates
+
+🛡️ APPLYING EXECUTION GUARDS + ROUTING...
+Routed 14 candidates (0 approved, 14 blocked) in paper mode
+
+📤 EXECUTING APPROVED ROUTES (PAPER WORKER)...
+Execution worker: processed 0 queued routes
+
+🗳️ POLYMARKET EXECUTION...
+POLY_EXEC: live requested but POLY_PRIVATE_KEY missing; falling back to paper mode
+POLY_EXEC: mode=paper processed=30 submitted_live=0 submitted_paper=1 blocked=29
+
+🔄 SYNCING ALPACA ORDER STATUS...
+Alpaca sync: checked 37, updated 37
+
+📊 RANKING SOURCES...
+Source ranker: scored 6 sources
+
+🧹 APPLYING TABLE RETENTION...
+Maintenance: retention policy applied
+
+🔐 SYNCING WALLET CONFIG...
+wallet_config: synced
+
+📚 UPDATING LEARNING FEEDBACK...
+Learning feedback: cleaned 0 placeholders, backfilled 0 route links, resolved 0 new route outcomes, refreshed 6 source stats, 2 strategy stats
+
+═══════════════════════════════════════════════════
+  ANALYSIS COMPLETE
+═══════════════════════════════════════════════════
+
+=== Trader Cycle Summary ===
+pipeline    new_rows
+----------  --------
+B_LONGTERM  115     
+C_EVENT     46      
+
+decision  count
+--------  -----
+approved  50   
+rejected  230  
+
+status    count
+--------  -----
+blocked   237  
+executed  43   
+
+source_tag    sample_size  reliability_score
+------------  -----------  -----------------
+TestSource    5            60.0             
+NoLimitGains  6            23.81            
+C_EVENT       65           21.76            
+B_LONGTERM    158          15.82            
+internal      166          10.42            
+
+[2026-02-23T05:50:17Z] trader cycle complete (manual)
+[2026-02-23T16:20:00Z] trader cycle start (pre_open)
+Running political monitor...
+Running agent awareness check...
+== Trader Agent Awareness Check ==
+time_utc=2026-02-23T16:20:01Z
+HL env keys present:
+ - HL_AGENT_PRIVATE_KEY=<set>
+ - HL_WALLET_ADDRESS=<set>
+ - HL_USE_TESTNET=<set>
+ - HL_API_URL=<set>
+ - HL_INFO_URL=<set>
+
+Runtime probe:
+/Users/curtiscorum/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+network=testnet
+api_url=https://api.hyperliquid-testnet.xyz
+info_url=https://api.hyperliquid-testnet.xyz/info
+meta_ok=True
+meta_msg=ok
+universe_size=207
+btc_listed=True
+
+== Polymarket Awareness Check ==
+control.enable_polymarket_auto=1
+control.allow_polymarket_live=enabled
+wallet.poly_wallet_address=0x41597a1F7b3dada71Eaa9E709E74629e6D755548
+BAD: Polymarket API credentials missing (env/keychain)
+WARN: POLY_PRIVATE_KEY not set (live disabled, paper-only is fine)
+markets_age_min=19.09
+candidates_age_min=19.09
+orders_age_min=9.19
+overall=bad
+
+self_check=available
+overall=bad
+═══════════════════════════════════════════════════
+  TRADER CURTIS - COMPLETE SENTIMENT ANALYSIS
+═══════════════════════════════════════════════════
+
+🔍 SCANNING STOCKTWITS...
+
+🔍 SCANNING REDDIT...
+
+🔗 INGESTING BOOKMARK THESES (PIPELINE D)...
+Pipeline D: processed 17 URLs, inserted 17 thesis records, promoted 0 ideas (promotion disabled)
+
+⚡ RUNNING PIPELINE A (LIQUIDITY SCALP)...
+Pipeline A: created 0 scalp signals
+
+📈 RUNNING CHART LIQUIDITY PIPELINE...
+CHART_LIQUIDITY: created 8 directional signals
+
+🗳️ RUNNING POLYMARKET PIPELINE...
+/Users/curtiscorum/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+POLYMARKET: fetched=180 stored=180 candidates=186
+
+🧬 RUNNING PIPELINE B (LONG-TERM INNOVATION)...
+Pipeline B: created 13 long-term signals
+
+🚀 RUNNING PIPELINE E (BREAKTHROUGHS)...
+E_BREAKTHROUGH: feeds=6 fetched_items=477 new_events=0 new_signals=0
+
+🚨 BUILDING EVENT ALERTS...
+Event alert engine: inserted 2 alerts
+
+🌍 RUNNING PIPELINE C (EVENT ALPHA)...
+Pipeline C: created 2 event signals
+
+🧠 BUILDING TRADE CANDIDATES...
+Generated 45 trade candidates
+
+🛡️ APPLYING EXECUTION GUARDS + ROUTING...
+Routed 40 candidates (0 approved, 40 blocked) in paper mode
+
+📤 EXECUTING APPROVED ROUTES (PAPER WORKER)...
+Execution worker: processed 0 queued routes
+
+🗳️ POLYMARKET EXECUTION...
+/Users/Shared/curtis/trader-curtis/scripts/with_polymarket_keychain.sh: line 32: exec: python3.11: not found
+
+🔄 SYNCING ALPACA ORDER STATUS...
+Alpaca sync: checked 37, updated 37
+
+📊 RANKING SOURCES...
+Source ranker: scored 8 sources
+
+🧹 APPLYING TABLE RETENTION...
+Maintenance: retention policy applied
+
+🔐 SYNCING WALLET CONFIG...
+wallet_config: synced
+
+📚 UPDATING LEARNING FEEDBACK...
+Learning feedback: cleaned 0 placeholders, backfilled 0 route links, resolved 0 new route outcomes, operational pnl backfilled 0, refreshed 6 source stats, 2 strategy stats
+
+═══════════════════════════════════════════════════
+  ANALYSIS COMPLETE
+═══════════════════════════════════════════════════
+
+=== Trader Cycle Summary ===
+pipeline         new_rows
+---------------  --------
+B_LONGTERM       182     
+CHART_LIQUIDITY  32      
+C_EVENT          52      
+E_BREAKTHROUGH   438     
+
+decision  count
+--------  -----
+approved  47   
+rejected  342  
+
+status    count
+--------  -----
+blocked   348  
+executed  41   
+
+source_tag    sample_size  reliability_score
+------------  -----------  -----------------
+TestSource    10           30.0             
+C_EVENT       75           19.83            
+NoLimitGains  16           13.5             
+B_LONGTERM    190          13.16            
+internal      174          10.28            
+
+[2026-02-23T16:22:12Z] trader cycle complete (pre_open)
+[2026-02-23T17:40:00Z] trader cycle start (post_open)
+Running political monitor...
+Running agent awareness check...
+== Trader Agent Awareness Check ==
+time_utc=2026-02-23T17:40:01Z
+policy.execution_model=control_gated_db_truth
+HL env keys present:
+ - HL_AGENT_PRIVATE_KEY=<set>
+ - HL_WALLET_ADDRESS=<set>
+ - HL_USE_TESTNET=<set>
+ - HL_API_URL=<set>
+ - HL_INFO_URL=<set>
+
+Runtime probe:
+/Users/curtiscorum/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+network=testnet
+api_url=https://api.hyperliquid-testnet.xyz
+info_url=https://api.hyperliquid-testnet.xyz/info
+meta_ok=True
+meta_msg=ok
+universe_size=207
+btc_listed=True
+
+== Polymarket Awareness Check ==
+control.enable_polymarket_auto=1
+control.allow_polymarket_live=1
+wallet.poly_wallet_address=0x41597a1F7b3dada71Eaa9E709E74629e6D755548
+BAD: Polymarket API credentials missing (env/keychain)
+BAD: allow_polymarket_live=1 but POLY_PRIVATE_KEY missing; runtime will fall back to paper
+markets_age_min=5.94
+candidates_age_min=5.94
+orders_age_min=60.93
+overall=bad
+
+self_check=available
+polymarket_control=available
+overall=bad
+═══════════════════════════════════════════════════
+  TRADER CURTIS - COMPLETE SENTIMENT ANALYSIS
+═══════════════════════════════════════════════════
+
+🔍 SCANNING STOCKTWITS...
+
+🔍 SCANNING REDDIT...
+
+📰 RUNNING PIPELINE F (FINVIZ FREE RSS)...
+Pipeline F (Finviz): tickers=20 headlines_inserted=13 external_signals=13
+
+🔗 INGESTING BOOKMARK THESES (PIPELINE D)...
+Pipeline D: processed 17 URLs, inserted 17 thesis records, promoted 0 ideas (promotion disabled)
+
+⚡ RUNNING PIPELINE A (LIQUIDITY SCALP)...
+Pipeline A: created 0 scalp signals
+
+📈 RUNNING CHART LIQUIDITY PIPELINE...
+CHART_LIQUIDITY: created 7 directional signals
+
+🗳️ RUNNING POLYMARKET PIPELINE...
+/Users/curtiscorum/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+POLYMARKET: fetched=500 stored=500 candidates=461
+
+🧬 RUNNING PIPELINE B (LONG-TERM INNOVATION)...
+Pipeline B: created 13 long-term signals
+
+🚀 RUNNING PIPELINE E (BREAKTHROUGHS)...
+E_BREAKTHROUGH: feeds=6 fetched_items=479 new_events=3 new_signals=18
+
+🚨 BUILDING EVENT ALERTS...
+Event alert engine: inserted 2 alerts
+
+🌍 RUNNING PIPELINE C (EVENT ALPHA)...
+Pipeline C: created 2 event signals
+
+🧠 BUILDING TRADE CANDIDATES...
+Generated 49 trade candidates
+
+🧮 BUILDING POLYMARKET MM SNAPSHOTS...
+POLY_MM_V1: snapshots=2
+
+🛡️ APPLYING EXECUTION GUARDS + ROUTING...
+Routed 3 candidates (0 approved, 3 blocked) in paper mode
+
+📤 EXECUTING APPROVED ROUTES (PAPER WORKER)...
+Execution worker: agent_master_enabled=0, execution paused
+
+🗳️ POLYMARKET EXECUTION...
+/Users/Shared/curtis/trader-curtis/scripts/with_polymarket_keychain.sh: line 32: exec: python3.11: not found
+
+🔄 SYNCING ALPACA ORDER STATUS...
+Alpaca sync: checked 37, updated 37
+
+📊 RANKING SOURCES...
+Source ranker: scored 9 sources
+
+🧹 APPLYING TABLE RETENTION...
+Maintenance: retention policy applied
+
+🔐 SYNCING WALLET CONFIG...
+wallet_config: synced
+
+📚 UPDATING LEARNING FEEDBACK...
+Learning feedback: cleaned 0 placeholders, backfilled 0 route links, resolved 0 new route outcomes, operational pnl backfilled 0, refreshed 6 source stats, 2 strategy stats
+
+═══════════════════════════════════════════════════
+  ANALYSIS COMPLETE
+═══════════════════════════════════════════════════
+
+=== Trader Cycle Summary ===
+pipeline         new_rows
+---------------  --------
+B_LONGTERM       221     
+CHART_LIQUIDITY  44      
+C_EVENT          54      
+E_BREAKTHROUGH   456     
+
+decision  count
+--------  -----
+approved  47   
+rejected  345  
+
+status    count
+--------  -----
+blocked   351  
+executed  41   
+
+source_tag    sample_size  reliability_score
+------------  -----------  -----------------
+TestSource    10           30.0             
+C_EVENT       75           19.83            
+NoLimitGains  16           13.5             
+B_LONGTERM    190          13.16            
+internal      174          10.28            
+
+[2026-02-23T17:43:09Z] trader cycle complete (post_open)

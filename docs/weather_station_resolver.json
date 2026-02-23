@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "notes": "City->primary station mapping for strict weather-market resolution.",
+  "stations": [
+    {"city": "Seoul", "station_name": "Incheon International Airport", "iata": "ICN", "latitude": 37.4602, "longitude": 126.4407, "aliases": ["incheon", "icn", "seoul"]},
+    {"city": "New York", "station_name": "John F. Kennedy International Airport", "iata": "JFK", "latitude": 40.6413, "longitude": -73.7781, "aliases": ["jfk", "new york", "nyc"]},
+    {"city": "Los Angeles", "station_name": "Los Angeles International Airport", "iata": "LAX", "latitude": 33.9416, "longitude": -118.4085, "aliases": ["lax", "los angeles", "la"]},
+    {"city": "Chicago", "station_name": "Chicago O'Hare International Airport", "iata": "ORD", "latitude": 41.9742, "longitude": -87.9073, "aliases": ["ord", "chicago", "o'hare"]},
+    {"city": "Houston", "station_name": "George Bush Intercontinental Airport", "iata": "IAH", "latitude": 29.9902, "longitude": -95.3368, "aliases": ["iah", "houston"]},
+    {"city": "London", "station_name": "London Heathrow Airport", "iata": "LHR", "latitude": 51.4700, "longitude": -0.4543, "aliases": ["lhr", "heathrow", "london"]},
+    {"city": "Paris", "station_name": "Paris Charles de Gaulle Airport", "iata": "CDG", "latitude": 49.0097, "longitude": 2.5479, "aliases": ["cdg", "paris"]},
+    {"city": "Tokyo", "station_name": "Tokyo Haneda Airport", "iata": "HND", "latitude": 35.5494, "longitude": 139.7798, "aliases": ["hnd", "haneda", "tokyo"]},
+    {"city": "Singapore", "station_name": "Singapore Changi Airport", "iata": "SIN", "latitude": 1.3644, "longitude": 103.9915, "aliases": ["sin", "changi", "singapore"]},
+    {"city": "Sydney", "station_name": "Sydney Kingsford Smith Airport", "iata": "SYD", "latitude": -33.9399, "longitude": 151.1753, "aliases": ["syd", "sydney"]},
+    {"city": "Dubai", "station_name": "Dubai International Airport", "iata": "DXB", "latitude": 25.2532, "longitude": 55.3657, "aliases": ["dxb", "dubai"]},
+    {"city": "Hong Kong", "station_name": "Hong Kong International Airport", "iata": "HKG", "latitude": 22.3080, "longitude": 113.9185, "aliases": ["hkg", "hong kong"]}
+  ]
+}

@@ -12,6 +12,11 @@ if [ -x "$ROOT/political_monitor_free.py" ]; then
   "$ROOT/political_monitor_free.py" >/tmp/trader-political.out 2>/tmp/trader-political.err || true
 fi
 
+if [ -x "$ROOT/scripts/check_agent_awareness.sh" ]; then
+  echo "Running agent awareness check..."
+  "$ROOT/scripts/check_agent_awareness.sh" || true
+fi
+
 "$ROOT/run-all-scans.sh"
 
 if [ ! -f "$DB" ]; then

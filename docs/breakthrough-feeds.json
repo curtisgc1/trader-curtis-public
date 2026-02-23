@@ -1,0 +1,26 @@
+[
+  {
+    "name": "GoogleNews Breakthrough Tech",
+    "url": "https://news.google.com/rss/search?q=technology+breakthrough"
+  },
+  {
+    "name": "GoogleNews Cancer Robotics",
+    "url": "https://news.google.com/rss/search?q=cancer+blood+robotics"
+  },
+  {
+    "name": "GoogleNews Quantum Breakthrough",
+    "url": "https://news.google.com/rss/search?q=quantum+breakthrough"
+  },
+  {
+    "name": "GoogleNews Fusion Breakthrough",
+    "url": "https://news.google.com/rss/search?q=fusion+energy+breakthrough"
+  },
+  {
+    "name": "GoogleNews Space Breakthrough",
+    "url": "https://news.google.com/rss/search?q=space+breakthrough"
+  },
+  {
+    "name": "NASA Breaking",
+    "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+  }
+]
