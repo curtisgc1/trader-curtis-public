@@ -58,7 +58,7 @@ function renderMemoryIntegrity(memoryIntegrity) {
 async function boot() {
   try {
     setStatus("loading");
-    const [systemHealth, learningHealth, memoryIntegrity, tradeIntents, executionLearning, sourceLearning, strategyLearning] = await Promise.all([
+    const [systemHealth, learningHealth, memoryIntegrity, tradeIntents, executionLearning, sourceLearning, strategyLearning, inputFeatureStats] = await Promise.all([
       fetchJson("/api/system-health"),
       fetchJson("/api/learning-health"),
       fetchJson("/api/memory-integrity"),
@@ -66,6 +66,7 @@ async function boot() {
       fetchJson("/api/execution-learning"),
       fetchJson("/api/source-learning"),
       fetchJson("/api/strategy-learning"),
+      fetchJson("/api/input-feature-stats"),
     ]);
 
     renderLearningHealth(learningHealth || {});
@@ -74,6 +75,12 @@ async function boot() {
     renderTable("execution-learning", (executionLearning || []).slice(0, 20), ["Ticker", "Source", "Venue", "Order"], ["ticker", "source_tag", "venue", "order_status"]);
     renderTable("source-learning", (sourceLearning || []).slice(0, 20), ["Source", "N", "Win %", "Avg PnL%"], ["source_tag", "sample_size", "win_rate", "avg_pnl_percent"]);
     renderTable("strategy-learning", (strategyLearning || []).slice(0, 20), ["Strategy", "N", "Win %", "Avg PnL%"], ["strategy_tag", "sample_size", "win_rate", "avg_pnl_percent"]);
+    renderTable(
+      "input-feature-stats",
+      (inputFeatureStats || []).slice(0, 40),
+      ["Outcome", "Dimension", "Value", "N", "Win %", "Avg PnL%"],
+      ["outcome_type", "dimension", "dimension_value", "sample_size", "win_rate", "avg_pnl_percent"]
+    );
 
     const topState = (systemHealth && systemHealth.overall) || "good";
     setStatus("online", topState === "good" ? "good" : (topState === "warn" ? "warn" : "bad"));

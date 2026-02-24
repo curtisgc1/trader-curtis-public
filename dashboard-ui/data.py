@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import urllib.error
@@ -28,7 +29,12 @@ PATTERN_RELIABILITY = {
 
 
 def _connect():
-    return sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=20.0)
+    try:
+        conn.execute("PRAGMA busy_timeout=20000")
+    except Exception:
+        pass
+    return conn
 
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -623,6 +629,35 @@ def _keychain_secret_present(service: str, account: str = "curtiscorum") -> bool
     return proc.returncode == 0 and bool((proc.stdout or "").strip())
 
 
+def _run_tooling_context_check() -> Dict[str, Any]:
+    script = BASE_DIR / "scripts" / "check_tooling_context.sh"
+    if not script.exists():
+        return {"state": "bad", "detail": "missing"}
+    if not os.access(script, os.X_OK):
+        return {"state": "bad", "detail": "not executable"}
+    try:
+        proc = subprocess.run(
+            [str(script)],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=12,
+            check=False,
+        )
+    except Exception as exc:
+        return {"state": "bad", "detail": f"error: {exc.__class__.__name__}"}
+    out = (proc.stdout or "").strip().splitlines()
+    marker = ""
+    for line in out:
+        if line.startswith("tooling_context="):
+            marker = line.split("=", 1)[1].strip()
+    if proc.returncode == 0 and marker == "good":
+        return {"state": "good", "detail": "good"}
+    if proc.returncode == 1 or marker == "warn":
+        return {"state": "warn", "detail": "warn"}
+    return {"state": "bad", "detail": marker or f"exit={proc.returncode}"}
+
+
 def get_agent_awareness() -> Dict[str, Any]:
     checks: List[Dict[str, Any]] = []
     blockers: List[str] = []
@@ -636,6 +671,7 @@ def get_agent_awareness() -> Dict[str, Any]:
         controls = {x["key"]: x["value"] for x in get_risk_controls()}
         poly_auto = controls.get("enable_polymarket_auto", "0") == "1"
         poly_live = controls.get("allow_polymarket_live", "0") == "1"
+        x_influence_enabled = controls.get("x_influence_enabled", "1") == "1"
 
         api_env_ok = all(bool(str(env.get(k, "")).strip()) for k in ("POLY_API_KEY", "POLY_API_SECRET", "POLY_API_PASSPHRASE"))
         api_keychain_ok = all(
@@ -677,6 +713,24 @@ def get_agent_awareness() -> Dict[str, Any]:
         checks.append({"name": "Polymarket Market Freshness", "state": "good" if (m_age is not None and m_age <= 1440) else "warn", "detail": f"{m_age} min ago" if m_age is not None else "no data"})
         checks.append({"name": "Polymarket Candidate Freshness", "state": "good" if (c_age is not None and c_age <= 360) else "warn", "detail": f"{c_age} min ago" if c_age is not None else "no data"})
         checks.append({"name": "Polymarket Order Activity", "state": "good" if (o_age is not None and o_age <= 1440) else "warn", "detail": f"{o_age} min ago" if o_age is not None else "no orders yet"})
+        xai_ok = bool(str(env.get("XAI_API_KEY", "")).strip())
+        checks.append({"name": "X Input Influence", "state": "good" if x_influence_enabled else "warn", "detail": "enabled" if x_influence_enabled else "disabled"})
+        checks.append({"name": "X API Key (xAI)", "state": "good" if xai_ok else ("warn" if not x_influence_enabled else "bad"), "detail": "available" if xai_ok else "missing XAI_API_KEY"})
+        checks.append(
+            {
+                "name": "Tooling Playbook",
+                "state": "good" if (BASE_DIR / "docs" / "TOOLING-RUNTIME-PLAYBOOK.md").exists() else "bad",
+                "detail": "available" if (BASE_DIR / "docs" / "TOOLING-RUNTIME-PLAYBOOK.md").exists() else "missing",
+            }
+        )
+        tooling_check = _run_tooling_context_check()
+        checks.append(
+            {
+                "name": "Tooling Context Check",
+                "state": tooling_check["state"],
+                "detail": tooling_check["detail"],
+            }
+        )
 
         if not api_ok:
             blockers.append("Polymarket API credentials are not available from env/keychain")
@@ -684,6 +738,12 @@ def get_agent_awareness() -> Dict[str, Any]:
             blockers.append("Polymarket live enabled but no POLY_PRIVATE_KEY; worker will fall back to paper")
         if poly_auto and not poly_wallet:
             warnings.append("Polymarket auto is enabled but wallet address is not visible in wallet_config")
+        if x_influence_enabled and not xai_ok:
+            blockers.append("X influence enabled but XAI_API_KEY missing")
+        if tooling_check["state"] == "bad":
+            blockers.append("Tooling context check failed; agent may not be grounded on runtime tools")
+        elif tooling_check["state"] == "warn":
+            warnings.append("Tooling context check returned warnings; verify missing components")
 
         bad = len([c for c in checks if c["state"] == "bad"])
         warn = len([c for c in checks if c["state"] == "warn"])
@@ -703,6 +763,109 @@ def get_agent_awareness() -> Dict[str, Any]:
             "checks": checks,
             "blockers": blockers,
             "warnings": warnings,
+        }
+    finally:
+        conn.close()
+
+
+def get_trade_claim_guard() -> Dict[str, Any]:
+    checks: List[Dict[str, Any]] = []
+    blockers: List[str] = []
+    warnings: List[str] = []
+
+    if not DB_PATH.exists():
+        return {
+            "state": "bad",
+            "trade_ready": False,
+            "summary": "database missing",
+            "checks": [],
+            "blockers": ["trades.db missing"],
+            "warnings": [],
+            "approved_queued_routes": 0,
+        }
+
+    env = _load_env()
+    conn = _connect()
+    try:
+        controls = {x["key"]: x["value"] for x in get_risk_controls()}
+        master = controls.get("agent_master_enabled", "0") == "1"
+        live = controls.get("allow_live_trading", "0") == "1"
+        alpaca_auto = controls.get("enable_alpaca_paper_auto", "0") == "1"
+        hl_test_auto = controls.get("enable_hyperliquid_test_auto", "0") == "1"
+        hl_live = controls.get("allow_hyperliquid_live", "0") == "1"
+        poly_auto = controls.get("enable_polymarket_auto", "0") == "1"
+        poly_live = controls.get("allow_polymarket_live", "0") == "1"
+
+        any_adapter = alpaca_auto or hl_test_auto or poly_auto
+        checks.append({"name": "Master Enabled", "state": "good" if master else "bad", "detail": "on" if master else "off"})
+        checks.append({"name": "Execution Adapter", "state": "good" if any_adapter else "bad", "detail": "enabled" if any_adapter else "none enabled"})
+        checks.append({"name": "Trading Mode", "state": "good", "detail": "live" if live else "paper/test"})
+        checks.append(
+            {
+                "name": "Adapters Detail",
+                "state": "good",
+                "detail": f"alpaca={int(alpaca_auto)} hl_test={int(hl_test_auto)} hl_live={int(hl_live)} poly={int(poly_auto)}",
+            }
+        )
+
+        py_ok = bool(shutil.which("python3") or shutil.which("python"))
+        checks.append({"name": "Python Runtime", "state": "good" if py_ok else "bad", "detail": "available" if py_ok else "missing"})
+
+        cur = conn.cursor()
+        approved_queued = 0
+        if _table_exists(conn, "signal_routes"):
+            cur.execute("SELECT COUNT(*) FROM signal_routes WHERE decision='approved' AND status='queued'")
+            approved_queued = int((cur.fetchone() or [0])[0] or 0)
+        checks.append(
+            {
+                "name": "Approved Queued Routes",
+                "state": "good" if approved_queued > 0 else "warn",
+                "detail": str(approved_queued),
+            }
+        )
+
+        if not master:
+            blockers.append("agent_master_enabled=0 (execution worker paused)")
+        if not any_adapter:
+            blockers.append("no execution adapter enabled")
+        if not py_ok:
+            blockers.append("python runtime missing")
+        if approved_queued == 0:
+            warnings.append("no approved queued routes")
+
+        # Polymarket live signing must be present if live mode is enabled.
+        if poly_auto and poly_live:
+            signing_env_ok = bool(str(env.get("POLY_PRIVATE_KEY", "")).strip())
+            signing_keychain_ok = _keychain_secret_present("trader-curtis-POLY_PRIVATE_KEY")
+            signing_ok = signing_env_ok or signing_keychain_ok
+            checks.append(
+                {
+                    "name": "Polymarket Signing Key",
+                    "state": "good" if signing_ok else "bad",
+                    "detail": "available" if signing_ok else "missing",
+                }
+            )
+            if not signing_ok:
+                blockers.append("polymarket live enabled but signing key missing")
+
+        if blockers:
+            state = "bad"
+            ready = False
+        elif warnings:
+            state = "warn"
+            ready = False
+        else:
+            state = "good"
+            ready = True
+
+        return {
+            "state": state,
+            "trade_ready": ready,
+            "summary": "ready to claim trade readiness" if ready else "not ready for trade-readiness claim",
+            "checks": checks,
+            "blockers": blockers,
+            "warnings": warnings,
+            "approved_queued_routes": approved_queued,
         }
     finally:
         conn.close()
@@ -867,6 +1030,7 @@ def run_system_action(action: str) -> Dict[str, Any]:
         "run_poly_wallet_ingest": "cd /Users/Shared/curtis/trader-curtis && python3.11 ./ingest_polymarket_wallet_activity.py && python3.11 ./score_polymarket_wallets.py",
         "sync_broker": "cd /Users/Shared/curtis/trader-curtis && ./sync_alpaca_order_status.py",
         "refresh_learning": "cd /Users/Shared/curtis/trader-curtis && ./update_learning_feedback.py && ./source_ranker.py",
+        "run_auto_tune": "cd /Users/Shared/curtis/trader-curtis && ./auto_tune_controls.py",
         "validate_signals": "cd /Users/Shared/curtis/trader-curtis && ./scripts/run_signal_validation.sh",
         "check_awareness": "cd /Users/Shared/curtis/trader-curtis && ./scripts/check_agent_awareness.sh",
     }
@@ -926,6 +1090,149 @@ def get_risk_controls() -> List[Dict[str, Any]]:
         conn.close()
 
 
+def _ensure_venue_matrix(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS venue_matrix (
+          venue TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          min_score REAL NOT NULL DEFAULT 60,
+          max_notional REAL NOT NULL DEFAULT 100,
+          mode TEXT NOT NULL DEFAULT 'paper',
+          updated_at TEXT NOT NULL
+        )
+        """
+    )
+    cur = conn.cursor()
+    controls: Dict[str, Any] = {}
+    if _table_exists(conn, "execution_controls"):
+        cur.execute("SELECT key, value FROM execution_controls")
+        controls = {str(k): str(v) for k, v in cur.fetchall()}
+    rows = [
+        (
+            "stocks",
+            1 if controls.get("enable_alpaca_paper_auto", "1") == "1" else 0,
+            float(controls.get("alpaca_min_route_score", "60") or 60.0),
+            float(controls.get("max_signal_notional_usd", "150") or 150.0),
+            "paper",
+        ),
+        (
+            "crypto",
+            1 if controls.get("enable_hyperliquid_test_auto", "1") == "1" else 0,
+            float(controls.get("hyperliquid_min_route_score", "60") or 60.0),
+            float(controls.get("hyperliquid_test_notional_usd", "10") or 10.0),
+            "paper",
+        ),
+        (
+            "prediction",
+            1 if controls.get("enable_polymarket_auto", "0") == "1" else 0,
+            float(controls.get("polymarket_min_confidence_pct", "60") or 60.0),
+            float(controls.get("polymarket_max_notional_usd", "10") or 10.0),
+            "paper",
+        ),
+    ]
+    for venue, enabled, min_score, max_notional, mode in rows:
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO venue_matrix(venue, enabled, min_score, max_notional, mode, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+            """,
+            (venue, int(enabled), float(min_score), float(max_notional), mode),
+        )
+    conn.commit()
+
+
+def get_venue_matrix() -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        _ensure_venue_matrix(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT venue, enabled, min_score, max_notional, mode, updated_at FROM venue_matrix ORDER BY venue")
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def set_venue_matrix(updates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    allowed_venues = {"stocks", "crypto", "prediction"}
+    if not DB_PATH.exists():
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = _connect()
+    try:
+        _ensure_venue_matrix(conn)
+        changed = 0
+        cur = conn.cursor()
+        for row in (updates or []):
+            venue = str((row or {}).get("venue", "")).strip().lower()
+            if venue not in allowed_venues:
+                continue
+            enabled = 1 if str((row or {}).get("enabled", "1")).strip().lower() in {"1", "true", "yes", "on"} else 0
+            min_score = float((row or {}).get("min_score", 60.0) or 60.0)
+            max_notional = float((row or {}).get("max_notional", 100.0) or 100.0)
+            mode = str((row or {}).get("mode", "paper") or "paper").strip().lower()
+            if mode not in {"paper", "live"}:
+                mode = "paper"
+            cur.execute(
+                """
+                UPDATE venue_matrix
+                SET enabled=?, min_score=?, max_notional=?, mode=?, updated_at=datetime('now')
+                WHERE venue=?
+                """,
+                (int(enabled), float(min_score), float(max_notional), mode, venue),
+            )
+            changed += int(cur.rowcount or 0)
+        conn.commit()
+        return {"updated": changed, "venues": get_venue_matrix()}
+    finally:
+        conn.close()
+
+
+def get_venue_readiness() -> Dict[str, Any]:
+    matrix = get_venue_matrix()
+    controls = {x.get("key"): x.get("value") for x in get_risk_controls()}
+    snapshot = get_portfolio_snapshot()
+    by_venue: Dict[str, Any] = {}
+    rows_by_name = {str(x.get("venue")): x for x in matrix}
+    for venue in ("stocks", "crypto", "prediction"):
+        row = rows_by_name.get(venue, {})
+        enabled = int(row.get("enabled", 0) or 0) == 1
+        min_score = float(row.get("min_score", 60) or 60)
+        max_notional = float(row.get("max_notional", 0) or 0)
+        checks: List[Dict[str, Any]] = []
+        if venue == "stocks":
+            auto = controls.get("enable_alpaca_paper_auto", "0") == "1"
+            ok = bool(snapshot.get("alpaca", {}).get("ok"))
+            checks.append({"name": "adapter", "state": "good" if auto else "bad", "detail": "alpaca_auto"})
+            checks.append({"name": "account", "state": "good" if ok else "warn", "detail": snapshot.get("alpaca", {}).get("error", "")})
+        elif venue == "crypto":
+            auto = controls.get("enable_hyperliquid_test_auto", "0") == "1"
+            ok = bool(snapshot.get("hyperliquid", {}).get("ok"))
+            checks.append({"name": "adapter", "state": "good" if auto else "bad", "detail": "hl_auto"})
+            checks.append({"name": "account", "state": "good" if ok else "warn", "detail": snapshot.get("hyperliquid", {}).get("error", "")})
+        else:
+            auto = controls.get("enable_polymarket_auto", "0") == "1"
+            live = controls.get("allow_polymarket_live", "0") == "1"
+            checks.append({"name": "adapter", "state": "good" if auto else "bad", "detail": "polymarket_auto"})
+            checks.append({"name": "mode", "state": "warn" if live else "good", "detail": "live" if live else "paper"})
+        states = [c.get("state") for c in checks]
+        state = "good" if enabled and "bad" not in states else ("warn" if enabled else "bad")
+        by_venue[venue] = {
+            "state": state,
+            "enabled": enabled,
+            "min_score": min_score,
+            "max_notional": max_notional,
+            "checks": checks,
+        }
+    overall = "good"
+    if any(v.get("state") == "bad" for v in by_venue.values()):
+        overall = "bad"
+    elif any(v.get("state") == "warn" for v in by_venue.values()):
+        overall = "warn"
+    return {"overall": overall, "venues": by_venue}
+
+
 def get_wallet_config() -> List[Dict[str, Any]]:
     if not DB_PATH.exists():
         return []
@@ -941,7 +1248,29 @@ def get_wallet_config() -> List[Dict[str, Any]]:
             ORDER BY key ASC
             """
         )
-        return _rows_to_dicts(cur, cur.fetchall())
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        if rows and _table_exists(conn, "trade_candidates"):
+            cur2 = conn.cursor()
+            for r in rows:
+                t = str(r.get("ticker") or "").strip().upper()
+                if not t:
+                    r["candidate_rationale"] = ""
+                    r["candidate_inputs"] = "[]"
+                    continue
+                cur2.execute(
+                    """
+                    SELECT COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]')
+                    FROM trade_candidates
+                    WHERE UPPER(COALESCE(ticker,''))=?
+                    ORDER BY generated_at DESC
+                    LIMIT 1
+                    """,
+                    (t,),
+                )
+                x = cur2.fetchone()
+                r["candidate_rationale"] = str(x[0]) if x else ""
+                r["candidate_inputs"] = str(x[1]) if x else "[]"
+        return rows
     finally:
         conn.close()
 
@@ -964,6 +1293,11 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
             "account_value": 0.0,
             "withdrawable": 0.0,
             "positions": [],
+            "perp_account_value": 0.0,
+            "perp_withdrawable": 0.0,
+            "spot_total_usdc": 0.0,
+            "spot_balances": [],
+            "spot_available_after_maintenance": [],
             "error": "",
         },
     }
@@ -1020,20 +1354,25 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
 
     if hl_wallet:
         try:
-            payload = {"type": "clearinghouseState", "user": hl_wallet}
-            req = urllib.request.Request(
+            # Perps state: account margin, withdrawable, perp positions.
+            perp_payload = {"type": "clearinghouseState", "user": hl_wallet}
+            perp_req = urllib.request.Request(
                 hl_info,
-                data=json.dumps(payload).encode("utf-8"),
+                data=json.dumps(perp_payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                state = json.loads(resp.read().decode("utf-8"))
-            ms = state.get("marginSummary", {}) if isinstance(state, dict) else {}
-            snapshot["hyperliquid"]["account_value"] = float(ms.get("accountValue") or 0.0)
-            snapshot["hyperliquid"]["withdrawable"] = float(state.get("withdrawable") or 0.0)
+            with urllib.request.urlopen(perp_req, timeout=12) as resp:
+                perp_state = json.loads(resp.read().decode("utf-8"))
+            ms = perp_state.get("marginSummary", {}) if isinstance(perp_state, dict) else {}
+            perp_account_value = float(ms.get("accountValue") or 0.0)
+            perp_withdrawable = float(perp_state.get("withdrawable") or 0.0)
+            snapshot["hyperliquid"]["account_value"] = perp_account_value
+            snapshot["hyperliquid"]["withdrawable"] = perp_withdrawable
+            snapshot["hyperliquid"]["perp_account_value"] = perp_account_value
+            snapshot["hyperliquid"]["perp_withdrawable"] = perp_withdrawable
             positions = []
-            for item in (state.get("assetPositions") or []):
+            for item in (perp_state.get("assetPositions") or []):
                 if not isinstance(item, dict):
                     continue
                 pos = item.get("position", {}) if isinstance(item.get("position"), dict) else {}
@@ -1046,6 +1385,44 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                     }
                 )
             snapshot["hyperliquid"]["positions"] = positions
+
+            # Spot state: token balances; this is separate from perp margin.
+            spot_payload = {"type": "spotClearinghouseState", "user": hl_wallet}
+            spot_req = urllib.request.Request(
+                hl_info,
+                data=json.dumps(spot_payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(spot_req, timeout=12) as resp:
+                spot_state = json.loads(resp.read().decode("utf-8"))
+            balances = spot_state.get("balances") if isinstance(spot_state, dict) else []
+            token_after_maint = spot_state.get("tokenToAvailableAfterMaintenance") if isinstance(spot_state, dict) else []
+
+            spot_balances = []
+            spot_total_usdc = 0.0
+            if isinstance(balances, list):
+                for b in balances:
+                    if not isinstance(b, dict):
+                        continue
+                    coin = str(b.get("coin") or "")
+                    total = float(b.get("total") or 0.0)
+                    hold = float(b.get("hold") or 0.0)
+                    entry_ntl = float(b.get("entryNtl") or 0.0)
+                    spot_balances.append(
+                        {
+                            "coin": coin,
+                            "total": total,
+                            "hold": hold,
+                            "entry_ntl": entry_ntl,
+                        }
+                    )
+                    if coin.upper() in {"USDC", "USD"}:
+                        spot_total_usdc += total
+            snapshot["hyperliquid"]["spot_balances"] = spot_balances
+            snapshot["hyperliquid"]["spot_total_usdc"] = round(spot_total_usdc, 6)
+            if isinstance(token_after_maint, list):
+                snapshot["hyperliquid"]["spot_available_after_maintenance"] = token_after_maint
             snapshot["hyperliquid"]["ok"] = True
         except Exception as exc:
             snapshot["hyperliquid"]["error"] = str(exc)
@@ -1146,7 +1523,9 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "allow_hyperliquid_live",
         "allow_equity_shorts",
         "enable_alpaca_paper_auto",
+        "alpaca_min_route_score",
         "enable_hyperliquid_test_auto",
+        "hyperliquid_min_route_score",
         "hyperliquid_test_notional_usd",
         "hyperliquid_test_leverage",
         "enable_polymarket_auto",
@@ -1154,6 +1533,7 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "polymarket_max_notional_usd",
         "polymarket_max_daily_exposure",
         "polymarket_min_edge_pct",
+        "polymarket_min_confidence_pct",
         "polymarket_fee_gate_enabled",
         "polymarket_taker_fee_pct",
         "polymarket_fee_buffer_pct",
@@ -1185,12 +1565,43 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "allocator_block_posterior_floor",
         "allocator_max_scale_up",
         "allocator_max_scale_down",
+        "auto_tuner_apply",
         "min_candidate_score",
         "max_open_positions",
         "max_daily_new_notional_usd",
         "max_signal_notional_usd",
         "auto_route_limit",
         "auto_route_notional",
+        "x_influence_enabled",
+        "input_auto_reweight_enabled",
+        "input_weight_min_samples",
+        "input_weight_floor",
+        "input_weight_ceiling",
+        "input_auto_disable_threshold",
+        "missed_opportunity_resolver_enabled",
+        "training_mode_enabled",
+        "training_min_candidate_score",
+        "training_consensus_min_confirmations",
+        "training_consensus_min_ratio",
+        "training_consensus_min_score",
+        "training_alpaca_min_route_score",
+        "training_hyperliquid_min_route_score",
+        "training_polymarket_min_confidence_pct",
+        "training_max_signal_notional_usd",
+        "training_max_daily_new_notional_usd",
+        "training_hyperliquid_test_notional_usd",
+        "training_polymarket_max_notional_usd",
+        "training_polymarket_max_daily_exposure",
+        "grpo_alignment_enabled",
+        "grpo_alignment_lookback_days",
+        "grpo_alignment_min_samples",
+        "grpo_alignment_weight_floor",
+        "grpo_alignment_weight_ceiling",
+        "grpo_apply_weight_updates",
+        "grpo_llm_reasoner_enabled",
+        "grpo_local_model",
+        "kaggle_auto_pull_enabled",
+        "kaggle_poly_dataset_slug",
     }
     if not DB_PATH.exists():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -1262,6 +1673,21 @@ def get_master_overview() -> Dict[str, Any]:
         alp_margin_reason = f"alpaca check error: {exc}"
 
     recent_exec = {"submitted": 0, "blocked": 0, "accepted": 0, "filled": 0}
+    venue_24h = {
+        "alpaca": {"events": 0, "submitted": 0, "filled": 0, "blocked": 0},
+        "hyperliquid": {"events": 0, "submitted": 0, "filled": 0, "blocked": 0},
+        "polymarket": {"events": 0, "submitted": 0, "filled": 0, "blocked": 0},
+    }
+    missed = {
+        "lookback_days": 7,
+        "not_taken_total": 0,
+        "not_taken_resolved": 0,
+        "not_taken_wins": 0,
+        "not_taken_losses": 0,
+        "not_taken_win_rate": 0.0,
+        "not_taken_avg_pnl_pct": 0.0,
+        "missed_winners_flagged": 0,
+    }
     if DB_PATH.exists():
         conn = _connect()
         try:
@@ -1278,6 +1704,86 @@ def get_master_overview() -> Dict[str, Any]:
                 for s, n in cur.fetchall():
                     if s in recent_exec:
                         recent_exec[s] = int(n or 0)
+                has_venue_col = _column_exists(conn, "execution_orders", "venue")
+                if has_venue_col:
+                    cur.execute(
+                        """
+                        SELECT lower(COALESCE(venue,'')) AS v, lower(COALESCE(order_status,'')) AS s, COUNT(*)
+                        FROM execution_orders
+                        WHERE datetime(COALESCE(created_at, '1970-01-01')) >= datetime('now', '-24 hour')
+                        GROUP BY v, s
+                        """
+                    )
+                    iter_rows = cur.fetchall()
+                else:
+                    cur.execute(
+                        """
+                        SELECT lower(COALESCE(notes,'')) AS notes_v, lower(COALESCE(order_status,'')) AS s, COUNT(*)
+                        FROM execution_orders
+                        WHERE datetime(COALESCE(created_at, '1970-01-01')) >= datetime('now', '-24 hour')
+                        GROUP BY notes_v, s
+                        """
+                    )
+                    iter_rows = cur.fetchall()
+                for v, s, n in iter_rows:
+                    vv = str(v or "")
+                    venue = "alpaca"
+                    if "hyperliquid" in vv or "hl " in vv or " hl" in vv:
+                        venue = "hyperliquid"
+                    elif "alpaca" in vv:
+                        venue = "alpaca"
+                    venue_24h[venue]["events"] += int(n or 0)
+                    if "fill" in str(s):
+                        venue_24h[venue]["filled"] += int(n or 0)
+                    elif "block" in str(s) or "reject" in str(s) or "fail" in str(s):
+                        venue_24h[venue]["blocked"] += int(n or 0)
+                    else:
+                        venue_24h[venue]["submitted"] += int(n or 0)
+            if _table_exists(conn, "polymarket_orders"):
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT lower(COALESCE(status,'')) AS s, COUNT(*)
+                    FROM polymarket_orders
+                    WHERE datetime(COALESCE(created_at, '1970-01-01')) >= datetime('now', '-24 hour')
+                    GROUP BY s
+                    """
+                )
+                for s, n in cur.fetchall():
+                    venue_24h["polymarket"]["events"] += int(n or 0)
+                    ss = str(s)
+                    if "fill" in ss:
+                        venue_24h["polymarket"]["filled"] += int(n or 0)
+                    elif "block" in ss or "reject" in ss or "fail" in ss:
+                        venue_24h["polymarket"]["blocked"] += int(n or 0)
+                    else:
+                        venue_24h["polymarket"]["submitted"] += int(n or 0)
+
+            if _table_exists(conn, "signal_routes") and _table_exists(conn, "route_outcomes"):
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT
+                      COUNT(*) AS not_taken_total,
+                      SUM(CASE WHEN o.route_id IS NOT NULL THEN 1 ELSE 0 END) AS not_taken_resolved,
+                      SUM(CASE WHEN o.route_id IS NOT NULL AND o.resolution='win' THEN 1 ELSE 0 END) AS not_taken_wins,
+                      SUM(CASE WHEN o.route_id IS NOT NULL AND o.resolution='loss' THEN 1 ELSE 0 END) AS not_taken_losses,
+                      AVG(CASE WHEN o.route_id IS NOT NULL THEN o.pnl_percent END) AS not_taken_avg_pnl_pct
+                    FROM signal_routes r
+                    LEFT JOIN route_outcomes o ON o.route_id = r.id
+                    WHERE datetime(COALESCE(r.routed_at, '1970-01-01')) >= datetime('now', '-7 day')
+                      AND COALESCE(r.decision,'') <> 'approved'
+                    """
+                )
+                row = cur.fetchone() or (0, 0, 0, 0, 0.0)
+                missed["not_taken_total"] = int(row[0] or 0)
+                missed["not_taken_resolved"] = int(row[1] or 0)
+                missed["not_taken_wins"] = int(row[2] or 0)
+                missed["not_taken_losses"] = int(row[3] or 0)
+                missed["not_taken_avg_pnl_pct"] = round(float(row[4] or 0.0), 4)
+                if missed["not_taken_resolved"] > 0:
+                    missed["not_taken_win_rate"] = round((missed["not_taken_wins"] / missed["not_taken_resolved"]) * 100.0, 2)
+                missed["missed_winners_flagged"] = missed["not_taken_wins"]
         finally:
             conn.close()
 
@@ -1307,7 +1813,68 @@ def get_master_overview() -> Dict[str, Any]:
             "alpaca_margin_reason": alp_margin_reason,
         },
         "execution_24h": recent_exec,
+        "venue_24h": venue_24h,
+        "missed_opportunities": missed,
     }
+
+
+def get_missed_opportunities(lookback_days: int = 7) -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {
+            "lookback_days": lookback_days,
+            "not_taken_total": 0,
+            "not_taken_resolved": 0,
+            "not_taken_wins": 0,
+            "not_taken_losses": 0,
+            "not_taken_win_rate": 0.0,
+            "not_taken_avg_pnl_pct": 0.0,
+            "missed_winners_flagged": 0,
+        }
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "signal_routes") or not _table_exists(conn, "route_outcomes"):
+            return {
+                "lookback_days": lookback_days,
+                "not_taken_total": 0,
+                "not_taken_resolved": 0,
+                "not_taken_wins": 0,
+                "not_taken_losses": 0,
+                "not_taken_win_rate": 0.0,
+                "not_taken_avg_pnl_pct": 0.0,
+                "missed_winners_flagged": 0,
+            }
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+              COUNT(*) AS not_taken_total,
+              SUM(CASE WHEN o.route_id IS NOT NULL THEN 1 ELSE 0 END) AS not_taken_resolved,
+              SUM(CASE WHEN o.route_id IS NOT NULL AND o.resolution='win' THEN 1 ELSE 0 END) AS not_taken_wins,
+              SUM(CASE WHEN o.route_id IS NOT NULL AND o.resolution='loss' THEN 1 ELSE 0 END) AS not_taken_losses,
+              AVG(CASE WHEN o.route_id IS NOT NULL THEN o.pnl_percent END) AS not_taken_avg_pnl_pct
+            FROM signal_routes r
+            LEFT JOIN route_outcomes o ON o.route_id = r.id
+            WHERE datetime(COALESCE(r.routed_at, '1970-01-01')) >= datetime('now', ?)
+              AND COALESCE(r.decision,'') <> 'approved'
+            """,
+            (f"-{int(lookback_days)} day",),
+        )
+        row = cur.fetchone() or (0, 0, 0, 0, 0.0)
+        out = {
+            "lookback_days": lookback_days,
+            "not_taken_total": int(row[0] or 0),
+            "not_taken_resolved": int(row[1] or 0),
+            "not_taken_wins": int(row[2] or 0),
+            "not_taken_losses": int(row[3] or 0),
+            "not_taken_avg_pnl_pct": round(float(row[4] or 0.0), 4),
+            "not_taken_win_rate": 0.0,
+            "missed_winners_flagged": int(row[2] or 0),
+        }
+        if out["not_taken_resolved"] > 0:
+            out["not_taken_win_rate"] = round((out["not_taken_wins"] / out["not_taken_resolved"]) * 100.0, 2)
+        return out
+    finally:
+        conn.close()
 
 
 def get_signal_routes(limit: int = 200) -> List[Dict[str, Any]]:
@@ -1320,7 +1887,10 @@ def get_signal_routes(limit: int = 200) -> List[Dict[str, Any]]:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT routed_at, ticker, direction, score, source_tag, proposed_notional, mode, decision, reason, status
+            SELECT routed_at, ticker, direction, score, source_tag, proposed_notional, mode, decision, reason, status,
+                   COALESCE(preferred_venue,'') AS preferred_venue,
+                   COALESCE(venue_scores_json,'{}') AS venue_scores_json,
+                   COALESCE(venue_decisions_json,'{}') AS venue_decisions_json
             FROM signal_routes
             ORDER BY routed_at DESC
             LIMIT ?
@@ -1639,6 +2209,40 @@ def get_strategy_learning_stats(limit: int = 200) -> List[Dict[str, Any]]:
             """,
             (limit,),
         )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_input_feature_stats(limit: int = 300, dimension: str = "") -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "input_feature_stats"):
+            return []
+        cur = conn.cursor()
+        if dimension:
+            cur.execute(
+                """
+                SELECT computed_at, outcome_type, dimension, dimension_value, sample_size, wins, losses, pushes, win_rate, avg_pnl, avg_pnl_percent
+                FROM input_feature_stats
+                WHERE dimension=?
+                ORDER BY sample_size DESC, win_rate DESC
+                LIMIT ?
+                """,
+                (dimension, limit),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT computed_at, outcome_type, dimension, dimension_value, sample_size, wins, losses, pushes, win_rate, avg_pnl, avg_pnl_percent
+                FROM input_feature_stats
+                ORDER BY sample_size DESC, win_rate DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
         return _rows_to_dicts(cur, cur.fetchall())
     finally:
         conn.close()
@@ -2281,24 +2885,16 @@ def get_tracked_sources(limit: int = 200) -> List[Dict[str, Any]]:
         return []
     conn = _connect()
     try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS tracked_x_sources (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              created_at TEXT NOT NULL,
-              updated_at TEXT NOT NULL,
-              handle TEXT NOT NULL UNIQUE,
-              role_copy INTEGER NOT NULL DEFAULT 1,
-              role_alpha INTEGER NOT NULL DEFAULT 1,
-              active INTEGER NOT NULL DEFAULT 1,
-              notes TEXT NOT NULL DEFAULT ''
-            )
-            """
-        )
+        if not _table_exists(conn, "tracked_x_sources"):
+            return []
+        has_x_api = _column_exists(conn, "tracked_x_sources", "x_api_enabled")
+        has_weight = _column_exists(conn, "tracked_x_sources", "source_weight")
+        x_api_expr = "x_api_enabled" if has_x_api else "1 AS x_api_enabled"
+        weight_expr = "source_weight" if has_weight else "1.0 AS source_weight"
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, created_at, updated_at, handle, role_copy, role_alpha, active, notes
+            SELECT id, created_at, updated_at, handle, role_copy, role_alpha, active, """ + x_api_expr + """, """ + weight_expr + """, notes
             FROM tracked_x_sources
             ORDER BY updated_at DESC
             LIMIT ?
@@ -2317,6 +2913,12 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
     role_copy = 1 if bool((payload or {}).get("role_copy", True)) else 0
     role_alpha = 1 if bool((payload or {}).get("role_alpha", True)) else 0
     active = 1 if bool((payload or {}).get("active", True)) else 0
+    x_api_enabled = 1 if bool((payload or {}).get("x_api_enabled", True)) else 0
+    source_weight = float((payload or {}).get("source_weight", 1.0) or 1.0)
+    if source_weight < 0.0:
+        source_weight = 0.0
+    if source_weight > 3.0:
+        source_weight = 3.0
     notes = str((payload or {}).get("notes") or "").strip()
 
     if not DB_PATH.exists():
@@ -2333,25 +2935,167 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
               role_copy INTEGER NOT NULL DEFAULT 1,
               role_alpha INTEGER NOT NULL DEFAULT 1,
               active INTEGER NOT NULL DEFAULT 1,
+              x_api_enabled INTEGER NOT NULL DEFAULT 1,
+              source_weight REAL NOT NULL DEFAULT 1.0,
               notes TEXT NOT NULL DEFAULT ''
             )
             """
         )
+        if not _column_exists(conn, "tracked_x_sources", "x_api_enabled"):
+            conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN x_api_enabled INTEGER NOT NULL DEFAULT 1")
+        if not _column_exists(conn, "tracked_x_sources", "source_weight"):
+            conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN source_weight REAL NOT NULL DEFAULT 1.0")
         conn.execute(
             """
-            INSERT INTO tracked_x_sources (created_at, updated_at, handle, role_copy, role_alpha, active, notes)
-            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?)
+            INSERT INTO tracked_x_sources (created_at, updated_at, handle, role_copy, role_alpha, active, x_api_enabled, source_weight, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(handle) DO UPDATE SET
               updated_at=datetime('now'),
               role_copy=excluded.role_copy,
               role_alpha=excluded.role_alpha,
               active=excluded.active,
+              x_api_enabled=excluded.x_api_enabled,
+              source_weight=excluded.source_weight,
               notes=excluded.notes
             """,
-            (handle, role_copy, role_alpha, active, notes),
+            (handle, role_copy, role_alpha, active, x_api_enabled, float(source_weight), notes),
         )
         conn.commit()
         return {"ok": True, "handle": handle, "sources": get_tracked_sources()}
+    finally:
+        conn.close()
+
+
+def _ensure_input_source_controls(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS input_source_controls (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          source_key TEXT NOT NULL UNIQUE,
+          source_label TEXT NOT NULL DEFAULT '',
+          source_class TEXT NOT NULL DEFAULT '',
+          enabled INTEGER NOT NULL DEFAULT 1,
+          manual_weight REAL NOT NULL DEFAULT 1.0,
+          auto_weight REAL NOT NULL DEFAULT 1.0,
+          notes TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_input_source_controls_class ON input_source_controls(source_class)")
+    conn.commit()
+
+
+def _seed_input_sources_from_runtime(conn: sqlite3.Connection) -> None:
+    _ensure_input_source_controls(conn)
+    keys: List[tuple[str, str, str]] = [
+        ("family:social", "Social Sentiment", "family"),
+        ("family:pattern", "Pattern Quality", "family"),
+        ("family:external", "External Signals", "family"),
+        ("family:copy", "Copy Signals", "family"),
+        ("family:pipeline", "Pipeline Signals", "family"),
+        ("family:liquidity", "Liquidity Map", "family"),
+    ]
+    cur = conn.cursor()
+    if _table_exists(conn, "tracked_x_sources"):
+        cur.execute("SELECT handle FROM tracked_x_sources")
+        for (h,) in cur.fetchall():
+            hh = str(h or "").strip().lower()
+            if hh:
+                keys.append((f"x:{hh}", f"X @{hh}", "x_account"))
+    if _table_exists(conn, "source_learning_stats"):
+        cur.execute("SELECT DISTINCT source_tag FROM source_learning_stats")
+        for (s,) in cur.fetchall():
+            tag = str(s or "").strip()
+            if tag:
+                keys.append((f"source:{tag.lower()}", f"Source {tag}", "source_tag"))
+    if _table_exists(conn, "strategy_learning_stats"):
+        cur.execute("SELECT DISTINCT strategy_tag FROM strategy_learning_stats")
+        for (s,) in cur.fetchall():
+            tag = str(s or "").strip()
+            if tag:
+                keys.append((f"pipeline:{tag.upper()}", f"Pipeline {tag}", "pipeline"))
+    seen = set()
+    for key, label, klass in keys:
+        if key in seen:
+            continue
+        seen.add(key)
+        conn.execute(
+            """
+            INSERT INTO input_source_controls
+            (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, 1, 1.0, 1.0, '')
+            ON CONFLICT(source_key) DO UPDATE SET
+              source_label=COALESCE(NULLIF(excluded.source_label,''), input_source_controls.source_label),
+              source_class=COALESCE(NULLIF(excluded.source_class,''), input_source_controls.source_class),
+              updated_at=input_source_controls.updated_at
+            """,
+            (key, label, klass),
+        )
+    conn.commit()
+
+
+def get_input_source_controls(limit: int = 400) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "input_source_controls"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight,
+                   ROUND(COALESCE(manual_weight,1.0) * COALESCE(auto_weight,1.0), 6) AS effective_weight,
+                   notes
+            FROM input_source_controls
+            ORDER BY source_class ASC, source_key ASC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def upsert_input_source_control(payload: Dict[str, Any]) -> Dict[str, Any]:
+    source_key = str((payload or {}).get("source_key") or "").strip()
+    if not source_key:
+        return {"ok": False, "error": "source_key required"}
+    source_label = str((payload or {}).get("source_label") or "").strip()
+    source_class = str((payload or {}).get("source_class") or "").strip()
+    enabled = 1 if bool((payload or {}).get("enabled", True)) else 0
+    manual_weight = float((payload or {}).get("manual_weight", 1.0) or 1.0)
+    auto_weight = float((payload or {}).get("auto_weight", 1.0) or 1.0)
+    notes = str((payload or {}).get("notes") or "").strip()
+    manual_weight = max(0.0, min(5.0, manual_weight))
+    auto_weight = max(0.1, min(5.0, auto_weight))
+
+    if not DB_PATH.exists():
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = _connect()
+    try:
+        _ensure_input_source_controls(conn)
+        conn.execute(
+            """
+            INSERT INTO input_source_controls
+            (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_key) DO UPDATE SET
+              updated_at=datetime('now'),
+              source_label=excluded.source_label,
+              source_class=excluded.source_class,
+              enabled=excluded.enabled,
+              manual_weight=excluded.manual_weight,
+              auto_weight=excluded.auto_weight,
+              notes=excluded.notes
+            """,
+            (source_key, source_label, source_class, int(enabled), float(manual_weight), float(auto_weight), notes),
+        )
+        conn.commit()
+        return {"ok": True, "source_key": source_key}
     finally:
         conn.close()
 

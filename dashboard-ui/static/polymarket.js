@@ -125,6 +125,12 @@ function renderPreTradeControls(controls) {
   const mmInv = document.getElementById("ctl-mm-inv");
   const mmTox = document.getElementById("ctl-mm-tox");
   const mmEdge = document.getElementById("ctl-mm-edge");
+  const xInfluence = document.getElementById("ctl-x-influence");
+  const inputReweight = document.getElementById("ctl-input-reweight");
+  const inputMinSamples = document.getElementById("ctl-input-min-samples");
+  const inputFloor = document.getElementById("ctl-input-floor");
+  const inputCeil = document.getElementById("ctl-input-ceil");
+  const inputDisableThreshold = document.getElementById("ctl-input-disable-threshold");
   if (master) master.checked = (byKey.agent_master_enabled || "0") === "1";
   if (live) live.checked = ["1","true","yes","on","enabled","live"].includes((byKey.allow_polymarket_live || "0").toLowerCase());
   if (auto) auto.checked = (byKey.enable_polymarket_auto || "0") === "1";
@@ -145,6 +151,12 @@ function renderPreTradeControls(controls) {
   if (mmInv) mmInv.value = byKey.mm_inventory_limit || "200";
   if (mmTox) mmTox.value = byKey.mm_toxicity_threshold || "0.72";
   if (mmEdge) mmEdge.value = byKey.mm_min_edge_bps || "50";
+  if (xInfluence) xInfluence.checked = (byKey.x_influence_enabled || "1") === "1";
+  if (inputReweight) inputReweight.checked = (byKey.input_auto_reweight_enabled || "1") === "1";
+  if (inputMinSamples) inputMinSamples.value = byKey.input_weight_min_samples || "5";
+  if (inputFloor) inputFloor.value = byKey.input_weight_floor || "0.6";
+  if (inputCeil) inputCeil.value = byKey.input_weight_ceiling || "1.6";
+  if (inputDisableThreshold) inputDisableThreshold.value = byKey.input_auto_disable_threshold || "0.0";
 }
 
 function wirePreTradeActions() {
@@ -175,6 +187,12 @@ function wirePreTradeActions() {
             mm_inventory_limit: String(document.getElementById("ctl-mm-inv")?.value || "200"),
             mm_toxicity_threshold: String(document.getElementById("ctl-mm-tox")?.value || "0.72"),
             mm_min_edge_bps: String(document.getElementById("ctl-mm-edge")?.value || "50"),
+            x_influence_enabled: document.getElementById("ctl-x-influence")?.checked ? "1" : "0",
+            input_auto_reweight_enabled: document.getElementById("ctl-input-reweight")?.checked ? "1" : "0",
+            input_weight_min_samples: String(document.getElementById("ctl-input-min-samples")?.value || "5"),
+            input_weight_floor: String(document.getElementById("ctl-input-floor")?.value || "0.6"),
+            input_weight_ceiling: String(document.getElementById("ctl-input-ceil")?.value || "1.6"),
+            input_auto_disable_threshold: String(document.getElementById("ctl-input-disable-threshold")?.value || "0.0"),
           },
         };
         const out = await postJson("/api/risk-controls", payload);
@@ -374,14 +392,32 @@ function renderTrackedSources(rows) {
     el.innerHTML = `<div class="empty">No tracked sources yet</div>`;
     return;
   }
-  const grid = "140px 80px 80px 80px 1fr";
-  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Handle</div><div>Copy</div><div>Alpha</div><div>Active</div><div>Notes</div></div>`;
+  const grid = "140px 60px 60px 60px 60px 80px 1fr";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Handle</div><div>Copy</div><div>Alpha</div><div>X API</div><div>Active</div><div>Weight</div><div>Notes</div></div>`;
   const body = rows.slice(0, 30).map((r) => {
     const h = `@${r.handle || ""}`;
     const c = Number(r.role_copy || 0) === 1 ? "yes" : "no";
     const a = Number(r.role_alpha || 0) === 1 ? "yes" : "no";
+    const xApi = Number(r.x_api_enabled || 0) === 1 ? "yes" : "no";
     const active = Number(r.active || 0) === 1 ? "yes" : "no";
-    return `<div class="row" style="grid-template-columns:${grid}"><div>${h}</div><div>${c}</div><div>${a}</div><div>${active}</div><div>${r.notes || ""}</div></div>`;
+    const weight = Number(r.source_weight || 1).toFixed(2);
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${h}</div><div>${c}</div><div>${a}</div><div>${xApi}</div><div>${active}</div><div>${weight}</div><div>${r.notes || ""}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function renderInputSources(rows) {
+  const el = document.getElementById("input-sources");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No input sources yet</div>`;
+    return;
+  }
+  const grid = "170px 120px 70px 90px 90px 90px 1fr";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Key</div><div>Class</div><div>On</div><div>Manual</div><div>Auto</div><div>Effective</div><div>Notes</div></div>`;
+  const body = rows.slice(0, 120).map((r) => {
+    const on = Number(r.enabled || 0) === 1 ? "yes" : "no";
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${r.source_key || ""}</div><div>${r.source_class || ""}</div><div>${on}</div><div>${Number(r.manual_weight || 1).toFixed(2)}</div><div>${Number(r.auto_weight || 1).toFixed(2)}</div><div>${Number(r.effective_weight || 1).toFixed(2)}</div><div>${r.notes || ""}</div></div>`;
   }).join("");
   el.innerHTML = head + body;
 }
@@ -437,7 +473,9 @@ function wireSourceActions() {
         handle,
         role_copy: !!document.getElementById("src-copy")?.checked,
         role_alpha: !!document.getElementById("src-alpha")?.checked,
-        active: true,
+        active: !!document.getElementById("src-active")?.checked,
+        x_api_enabled: !!document.getElementById("src-x-api")?.checked,
+        source_weight: Number(document.getElementById("src-weight")?.value || "1.0"),
         notes: (document.getElementById("src-notes")?.value || "").trim(),
       };
       const out = await postJson("/api/tracked-sources", payload);
@@ -449,6 +487,61 @@ function wireSourceActions() {
       setSourceStatus("Save failed", "bad");
     }
   });
+}
+
+function wireInputSourceActions() {
+  const btn = document.getElementById("btn-input-source-save");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  btn.addEventListener("click", async () => {
+    const key = (document.getElementById("input-source-key")?.value || "").trim();
+    const status = document.getElementById("input-source-status");
+    if (!key) {
+      if (status) status.textContent = "source key is required";
+      return;
+    }
+    try {
+      const payload = {
+        source_key: key,
+        source_label: (document.getElementById("input-source-label")?.value || "").trim(),
+        source_class: (document.getElementById("input-source-class")?.value || "").trim(),
+        manual_weight: Number(document.getElementById("input-source-weight")?.value || "1.0"),
+        enabled: !!document.getElementById("input-source-enabled")?.checked,
+      };
+      const out = await postJson("/api/input-sources", payload);
+      if (!out.ok) throw new Error(out.error || "failed");
+      if (status) status.textContent = `saved ${out.source_key}`;
+      await boot();
+    } catch (err) {
+      console.error(err);
+      if (status) status.textContent = "save failed";
+    }
+  });
+
+  const btnSettings = document.getElementById("btn-input-settings-save");
+  if (btnSettings && !btnSettings.dataset.wired) {
+    btnSettings.dataset.wired = "1";
+    btnSettings.addEventListener("click", async () => {
+      const status = document.getElementById("input-settings-status");
+      try {
+        await postJson("/api/risk-controls", {
+          updates: {
+            x_influence_enabled: document.getElementById("ctl-x-influence")?.checked ? "1" : "0",
+            input_auto_reweight_enabled: document.getElementById("ctl-input-reweight")?.checked ? "1" : "0",
+            input_weight_min_samples: String(document.getElementById("ctl-input-min-samples")?.value || "5"),
+            input_weight_floor: String(document.getElementById("ctl-input-floor")?.value || "0.6"),
+            input_weight_ceiling: String(document.getElementById("ctl-input-ceil")?.value || "1.6"),
+            input_auto_disable_threshold: String(document.getElementById("ctl-input-disable-threshold")?.value || "0.0"),
+          },
+        });
+        if (status) status.textContent = "saved";
+        await boot();
+      } catch (err) {
+        console.error(err);
+        if (status) status.textContent = "save failed";
+      }
+    });
+  }
 }
 
 function wirePolyWalletActions() {
@@ -497,6 +590,7 @@ async function boot() {
       externalSignals,
       riskControls,
       trackedSources,
+      inputSources,
       trackedPolyWallets,
       polyWalletScores,
       trustPanel,
@@ -513,6 +607,7 @@ async function boot() {
       fetchJson("/api/external-signals"),
       fetchJson("/api/risk-controls"),
       fetchJson("/api/tracked-sources"),
+      fetchJson("/api/input-sources"),
       fetchJson("/api/tracked-poly-wallets"),
       fetchJson("/api/polymarket-wallet-scores"),
       fetchJson("/api/trust-panel"),
@@ -529,10 +624,12 @@ async function boot() {
     renderWeatherMarketProbs(weatherMarketProbs || []);
     renderBookmarkAlphaIdeas(bookmarkAlphaIdeas || []);
     renderTrackedSources(trackedSources || []);
+    renderInputSources(inputSources || []);
     renderTrackedPolyWallets(trackedPolyWallets || []);
     renderPolyWalletScores(polyWalletScores || []);
     renderTrustPanel(trustPanel || {});
     wireSourceActions();
+    wireInputSourceActions();
     wirePolyWalletActions();
     renderTable("external-signals", (externalSignals || []).slice(0, 20), ["Source", "Ticker", "Dir", "Conf"], ["source", "ticker", "direction", "confidence"]);
 

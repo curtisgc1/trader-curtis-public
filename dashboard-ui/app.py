@@ -27,10 +27,15 @@ from data import (
     get_source_scores,
     get_source_learning_stats,
     get_strategy_learning_stats,
+    get_input_feature_stats,
     get_memory_integrity,
+    get_missed_opportunities,
     get_signal_readiness,
     get_system_health,
+    get_trade_claim_guard,
     get_master_overview,
+    get_venue_matrix,
+    get_venue_readiness,
     get_trade_intents,
     get_risk_controls,
     get_wallet_config,
@@ -40,8 +45,10 @@ from data import (
     get_quant_validations,
     run_system_action,
     set_execution_controls,
+    set_venue_matrix,
     get_signal_routes,
     get_source_ratings,
+    get_input_source_controls,
     get_summary,
     get_agent_awareness,
     get_trade_candidates,
@@ -51,6 +58,7 @@ from data import (
     get_trust_panel,
     get_polymarket_wallet_scores,
     upsert_tracked_source,
+    upsert_input_source_control,
     upsert_tracked_polymarket_wallet,
 )
 
@@ -92,9 +100,20 @@ def api_system_health():
     return jsonify(get_system_health())
 
 
+@app.get("/api/trade-claim-guard")
+def api_trade_claim_guard():
+    return jsonify(get_trade_claim_guard())
+
+
 @app.get("/api/master-overview")
 def api_master_overview():
     return jsonify(get_master_overview())
+
+
+@app.get("/api/missed-opportunities")
+def api_missed_opportunities():
+    lookback_days = int(request.args.get("lookback_days", 7))
+    return jsonify(get_missed_opportunities(lookback_days=lookback_days))
 
 
 @app.get("/api/learning-health")
@@ -169,6 +188,23 @@ def api_risk_controls_update():
     return jsonify(set_execution_controls(updates))
 
 
+@app.get("/api/venue-matrix")
+def api_venue_matrix():
+    return jsonify(get_venue_matrix())
+
+
+@app.post("/api/venue-matrix")
+def api_venue_matrix_update():
+    payload = request.get_json(silent=True) or {}
+    updates = payload.get("updates", [])
+    return jsonify(set_venue_matrix(updates))
+
+
+@app.get("/api/venue-readiness")
+def api_venue_readiness():
+    return jsonify(get_venue_readiness())
+
+
 @app.post("/api/actions")
 def api_actions():
     payload = request.get_json(silent=True) or {}
@@ -224,6 +260,12 @@ def api_source_learning():
 @app.get("/api/strategy-learning")
 def api_strategy_learning():
     return jsonify(get_strategy_learning_stats())
+
+
+@app.get("/api/input-feature-stats")
+def api_input_feature_stats():
+    dimension = str(request.args.get("dimension", "") or "").strip()
+    return jsonify(get_input_feature_stats(dimension=dimension))
 
 
 @app.get("/api/memory-integrity")
@@ -319,6 +361,17 @@ def api_tracked_sources():
 def api_tracked_sources_upsert():
     payload = request.get_json(silent=True) or {}
     return jsonify(upsert_tracked_source(payload))
+
+
+@app.get("/api/input-sources")
+def api_input_sources():
+    return jsonify(get_input_source_controls())
+
+
+@app.post("/api/input-sources")
+def api_input_sources_upsert():
+    payload = request.get_json(silent=True) or {}
+    return jsonify(upsert_input_source_control(payload))
 
 
 @app.get("/api/tracked-poly-wallets")

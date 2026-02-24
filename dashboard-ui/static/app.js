@@ -109,7 +109,7 @@ function renderPulse(systemHealth, readiness, controls) {
   setRing("ring-automation", "ring-automation-text", autoScore, "Automation");
 }
 
-function renderAlerts(systemHealth, readiness, awareness) {
+function renderAlerts(systemHealth, readiness, awareness, tradeClaimGuard) {
   const el = document.getElementById("alerts");
   if (!el) return;
 
@@ -128,6 +128,12 @@ function renderAlerts(systemHealth, readiness, awareness) {
   });
   (awareness?.warnings || []).forEach((w) => {
     items.push({ n: "Awareness Warning", d: w, s: "warn" });
+  });
+  (tradeClaimGuard?.blockers || []).forEach((b) => {
+    items.push({ n: "Trade Claim Blocker", d: b, s: "bad" });
+  });
+  (tradeClaimGuard?.warnings || []).forEach((w) => {
+    items.push({ n: "Trade Claim Warning", d: w, s: "warn" });
   });
 
   if (items.length === 0) {
@@ -154,6 +160,25 @@ function renderAwareness(awareness) {
       .join("");
   }
   renderTable("awareness-checks", awareness?.checks || [], ["Check", "State", "Detail"], ["name", "state", "detail"]);
+}
+
+function renderTradeClaimGuard(guard) {
+  const brief = document.getElementById("trade-claim-brief");
+  if (brief) {
+    const state = guard?.state || "unknown";
+    const ready = guard?.trade_ready ? "yes" : "no";
+    const summary = guard?.summary || "n/a";
+    const queued = guard?.approved_queued_routes ?? 0;
+    brief.innerHTML = [
+      ["Trade Claim Guard", state],
+      ["Trade Ready", ready],
+      ["Approved Queued Routes", String(queued)],
+      ["Summary", summary],
+    ]
+      .map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`)
+      .join("");
+  }
+  renderTable("trade-claim-checks", guard?.checks || [], ["Check", "State", "Detail"], ["name", "state", "detail"]);
 }
 
 function renderWallet(rows) {
@@ -257,8 +282,42 @@ function renderTradeDecisions(rows) {
     const st = String(r.order_status || "").toLowerCase();
     const cls = st.includes("block") || st.includes("fail") ? "bad" : (st.includes("submit") || st.includes("fill") ? "good" : "warn");
     const why = r.learning_reason || r.route_reason || r.notes || "n/a";
-    return `<details class="flow-item"><summary><strong>${r.ticker || ""}</strong> ${r.direction || ""} • ${fmtCurrency(r.notional || 0)} • <span class="${cls}">${r.order_status || ""}</span></summary><div>source: ${r.source_tag || "n/a"} | score: ${r.score || ""} | mode: ${r.mode || ""}</div><div>reason: ${why}</div><div>notes: ${r.notes || ""}</div></details>`;
+    const candidateWhy = r.candidate_rationale || "";
+    let inputSummary = "";
+    try {
+      const parsed = JSON.parse(r.candidate_inputs || "[]");
+      if (Array.isArray(parsed) && parsed.length) {
+        inputSummary = parsed.map((x) => `${x.key || "input"}:${Number(x.value || 0).toFixed(3)}`).slice(0, 3).join(" | ");
+      }
+    } catch (_) {
+      inputSummary = "";
+    }
+    return `<details class="flow-item"><summary><strong>${r.ticker || ""}</strong> ${r.direction || ""} • ${fmtCurrency(r.notional || 0)} • <span class="${cls}">${r.order_status || ""}</span></summary><div>source: ${r.source_tag || "n/a"} | score: ${r.score || ""} | mode: ${r.mode || ""}</div><div>reason: ${why}</div><div>candidate: ${candidateWhy || "n/a"}</div><div>inputs: ${inputSummary || "n/a"}</div><div>notes: ${r.notes || ""}</div></details>`;
   }).join("");
+}
+
+function renderVenueAndMissed(master) {
+  const venueEl = document.getElementById("venue-summary");
+  const missedEl = document.getElementById("missed-summary");
+  if (!venueEl || !missedEl) return;
+  const v = (master && master.venue_24h) || {};
+  const a = v.alpaca || {};
+  const h = v.hyperliquid || {};
+  const p = v.polymarket || {};
+  venueEl.innerHTML = [
+    ["Alpaca 24h", `events ${a.events || 0} | submitted ${a.submitted || 0} | filled ${a.filled || 0}`],
+    ["Hyperliquid 24h", `events ${h.events || 0} | submitted ${h.submitted || 0} | filled ${h.filled || 0}`],
+    ["Polymarket 24h", `events ${p.events || 0} | submitted ${p.submitted || 0} | filled ${p.filled || 0}`],
+  ].map(([k, val]) => `<div class="item"><span class="label">${k}</span><span>${val}</span></div>`).join("");
+
+  const m = (master && master.missed_opportunities) || {};
+  missedEl.innerHTML = [
+    ["Not Taken (7d)", `${m.not_taken_total || 0}`],
+    ["Resolved", `${m.not_taken_resolved || 0}`],
+    ["Missed Winners", `${m.not_taken_wins || 0}`],
+    ["Missed Win Rate", `${Number(m.not_taken_win_rate || 0).toFixed(2)}%`],
+    ["Avg PnL %", `${Number(m.not_taken_avg_pnl_pct || 0).toFixed(2)}%`],
+  ].map(([k, val]) => `<div class="item"><span class="label">${k}</span><span>${val}</span></div>`).join("");
 }
 
 function buildLinePath(points, width, height, pad) {
@@ -365,12 +424,18 @@ function bindControls(controls) {
   const hlLev = document.getElementById("ctl-hl-lev");
   const maxSignal = document.getElementById("ctl-max-signal");
   const minScore = document.getElementById("ctl-min-score");
+  const alpacaMinScore = document.getElementById("ctl-alpaca-min-score");
+  const hlMinScore = document.getElementById("ctl-hl-min-score");
+  const polyMinConf = document.getElementById("ctl-poly-min-conf");
   const routeLimit = document.getElementById("ctl-route-limit");
 
   if (hlNotional) hlNotional.value = c.hyperliquid_test_notional_usd || "10";
   if (hlLev) hlLev.value = c.hyperliquid_test_leverage || "1";
   if (maxSignal) maxSignal.value = c.max_signal_notional_usd || "150";
   if (minScore) minScore.value = c.min_candidate_score || "50";
+  if (alpacaMinScore) alpacaMinScore.value = c.alpaca_min_route_score || "60";
+  if (hlMinScore) hlMinScore.value = c.hyperliquid_min_route_score || "60";
+  if (polyMinConf) polyMinConf.value = c.polymarket_min_confidence_pct || "60";
   if (routeLimit) routeLimit.value = c.auto_route_limit || "24";
 
   const status = document.getElementById("master-control-status");
@@ -383,6 +448,9 @@ function bindControls(controls) {
       hyperliquid_test_leverage: (hlLev?.value || "1").toString(),
       max_signal_notional_usd: (maxSignal?.value || "150").toString(),
       min_candidate_score: (minScore?.value || "50").toString(),
+      alpaca_min_route_score: (alpacaMinScore?.value || "60").toString(),
+      hyperliquid_min_route_score: (hlMinScore?.value || "60").toString(),
+      polymarket_min_confidence_pct: (polyMinConf?.value || "60").toString(),
       auto_route_limit: (routeLimit?.value || "24").toString(),
     });
     setMsg("Saved limits");
@@ -431,7 +499,7 @@ async function boot() {
   booting = true;
   try {
     setStatus("loading");
-    const [summary, systemHealth, readiness, controls, walletConfig, exOrders, polyOrders, portfolioSnapshot, tradeDecisions, awareness, performanceCurve] = await Promise.all([
+    const [summary, systemHealth, readiness, controls, walletConfig, exOrders, polyOrders, portfolioSnapshot, tradeDecisions, awareness, performanceCurve, tradeClaimGuard, masterOverview] = await Promise.all([
       fetchJsonSafe("/api/summary", {}),
       fetchJsonSafe("/api/system-health", { overall: "warn", checks: [] }),
       fetchJsonSafe("/api/signal-readiness", { score: 0, checks: [], blockers: [] }),
@@ -443,16 +511,20 @@ async function boot() {
       fetchJsonSafe("/api/recent-trade-decisions", []),
       fetchJsonSafe("/api/agent-awareness", { overall: "warn", checks: [], blockers: [], warnings: [] }),
       fetchJsonSafe("/api/performance-curve", { by_time: [], by_trade: [] }),
+      fetchJsonSafe("/api/trade-claim-guard", { state: "bad", trade_ready: false, checks: [], blockers: ["endpoint unavailable"], warnings: [] }),
+      fetchJsonSafe("/api/master-overview", {}),
     ]);
 
     renderHero(summary, controls);
     renderPulse(systemHealth, readiness, controls);
-    renderAlerts(systemHealth, readiness, awareness);
+    renderAlerts(systemHealth, readiness, awareness, tradeClaimGuard);
     renderWallet(walletConfig);
     renderAwareness(awareness);
+    renderTradeClaimGuard(tradeClaimGuard);
     renderFlow(exOrders, polyOrders);
     renderPortfolio(portfolioSnapshot);
     renderTradeDecisions(tradeDecisions);
+    renderVenueAndMissed(masterOverview || {});
     renderPerformanceCurve(performanceCurve || {});
     bindCurveButtons(performanceCurve || {});
     renderTable("risk-controls", controls, ["Key", "Value", "Updated"], ["key", "value", "updated_at"]);
@@ -460,7 +532,10 @@ async function boot() {
 
     const topState = (systemHealth && systemHealth.overall) || "warn";
     const awareState = (awareness && awareness.overall) || "warn";
-    const merged = topState === "bad" || awareState === "bad" ? "bad" : (topState === "warn" || awareState === "warn" ? "warn" : "good");
+    const guardState = (tradeClaimGuard && tradeClaimGuard.state) || "warn";
+    const merged = topState === "bad" || awareState === "bad" || guardState === "bad"
+      ? "bad"
+      : (topState === "warn" || awareState === "warn" || guardState === "warn" ? "warn" : "good");
     setStatus("online", merged === "good" ? "good" : (merged === "warn" ? "warn" : "bad"));
   } catch (err) {
     console.error(err);

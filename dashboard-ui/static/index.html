@@ -60,9 +60,14 @@
           <h2>Wallet & Awareness</h2>
           <div id="wallet-brief" class="health"></div>
           <div id="awareness-brief" class="health" style="margin-top:10px;"></div>
+          <div id="trade-claim-brief" class="health" style="margin-top:10px;"></div>
           <details style="margin-top:10px;">
             <summary>Agent awareness checks</summary>
             <div id="awareness-checks" class="table"></div>
+          </details>
+          <details style="margin-top:10px;">
+            <summary>Trade claim guard checks</summary>
+            <div id="trade-claim-checks" class="table"></div>
           </details>
           <div class="controls compact">
             <a class="expand-link" href="/polymarket">Open Polymarket details</a>
@@ -102,6 +107,18 @@
           <div class="control-row">
             <label for="ctl-min-score">Min Score</label>
             <input id="ctl-min-score" type="number" step="1" min="0" max="100" value="50" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-alpaca-min-score">Alpaca Min</label>
+            <input id="ctl-alpaca-min-score" type="number" step="1" min="0" max="100" value="60" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-hl-min-score">HL Min</label>
+            <input id="ctl-hl-min-score" type="number" step="1" min="0" max="100" value="60" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-poly-min-conf">Poly Min %</label>
+            <input id="ctl-poly-min-conf" type="number" step="1" min="0" max="100" value="60" />
           </div>
           <div class="control-row">
             <label for="ctl-route-limit">Route Limit</label>
@@ -180,7 +197,12 @@
           <h2>Why Agent Took Trades</h2>
           <div id="trade-decisions" class="flow-list"></div>
         </div>
-        <div class="card"></div>
+        <div class="card">
+          <h2>3-Venue Summary</h2>
+          <div id="venue-summary" class="health"></div>
+          <h3 style="margin-top:10px;">Missed Flow (Not Taken)</h3>
+          <div id="missed-summary" class="health"></div>
+        </div>
       </section>
     </div>
 
