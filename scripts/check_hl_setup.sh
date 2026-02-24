@@ -6,6 +6,12 @@ cd /Users/Shared/curtis/trader-curtis
 echo "HL env keys present:"
 awk -F= '/^(HL_AGENT_PRIVATE_KEY|HL_WALLET_ADDRESS|HL_USE_TESTNET|HL_API_URL|HL_INFO_URL)=/{print " - "$1"=<set>"}' .env || true
 
+if security find-generic-password -a "curtiscorum" -s "trader-curtis-HL_AGENT_PRIVATE_KEY" -w >/dev/null 2>&1; then
+  echo " - HL_AGENT_PRIVATE_KEY=<set: keychain>"
+else
+  echo " - HL_AGENT_PRIVATE_KEY=<missing: keychain>"
+fi
+
 echo
 echo "Runtime probe:"
 python3 - <<'PY'

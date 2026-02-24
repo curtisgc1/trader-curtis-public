@@ -7,6 +7,11 @@ DB="$ROOT/data/trades.db"
 
 printf "[%s] trader cycle start (%s)\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MODE"
 
+if [ -x "$ROOT/scripts/check_tooling_context.sh" ]; then
+  echo "Running tooling context check..."
+  "$ROOT/scripts/check_tooling_context.sh" || true
+fi
+
 if [ -x "$ROOT/political_monitor_free.py" ]; then
   echo "Running political monitor..."
   "$ROOT/political_monitor_free.py" >/tmp/trader-political.out 2>/tmp/trader-political.err || true

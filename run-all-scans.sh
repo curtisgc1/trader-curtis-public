@@ -40,6 +40,10 @@ echo "📈 RUNNING CHART LIQUIDITY PIPELINE..."
 /Users/Shared/curtis/trader-curtis/pipeline_chart_liquidity.py 2>/dev/null || true
 echo ""
 
+echo "🧭 RUNNING PIPELINE H (KYLE WILLIAMS)..."
+/Users/Shared/curtis/trader-curtis/pipeline_h_kyle_williams.py 2>/dev/null || true
+echo ""
+
 echo "👀 INGESTING TRACKED POLYMARKET WALLET ACTIVITY..."
 /Users/Shared/curtis/trader-curtis/ingest_polymarket_wallet_activity.py 2>/dev/null || true
 echo ""
@@ -69,6 +73,7 @@ echo "🌍 RUNNING PIPELINE C (EVENT ALPHA)..."
 echo ""
 
 echo "🧠 BUILDING TRADE CANDIDATES..."
+/Users/Shared/curtis/trader-curtis/reweight_input_sources.py 2>/dev/null || true
 /Users/Shared/curtis/trader-curtis/generate_trade_candidates.py 2>/dev/null || true
 echo ""
 
@@ -94,7 +99,12 @@ echo "📤 EXECUTING APPROVED ROUTES (PAPER WORKER)..."
 echo ""
 
 echo "🗳️ POLYMARKET EXECUTION..."
-/Users/Shared/curtis/trader-curtis/scripts/with_polymarket_keychain.sh python3.11 /Users/Shared/curtis/trader-curtis/execution_polymarket.py || true
+PY_BIN="$(command -v python3.11 || command -v python3 || true)"
+if [ -n "$PY_BIN" ]; then
+    /Users/Shared/curtis/trader-curtis/scripts/with_polymarket_keychain.sh "$PY_BIN" /Users/Shared/curtis/trader-curtis/execution_polymarket.py || true
+else
+    echo "WARN: no python3 interpreter available for execution_polymarket.py"
+fi
 echo ""
 
 echo "🔄 SYNCING ALPACA ORDER STATUS..."
@@ -116,6 +126,14 @@ echo ""
 
 echo "📚 UPDATING LEARNING FEEDBACK..."
 /Users/Shared/curtis/trader-curtis/update_learning_feedback.py 2>/dev/null || true
+echo ""
+
+echo "🛠️ RUNNING AUTO-TUNER..."
+/Users/Shared/curtis/trader-curtis/auto_tune_controls.py 2>/dev/null || true
+echo ""
+
+echo "🧾 TRADE CLAIM GUARD..."
+/Users/Shared/curtis/trader-curtis/scripts/trade_claim_guard.sh || true
 echo ""
 
 echo "═══════════════════════════════════════════════════"
