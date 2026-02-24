@@ -1,0 +1,27 @@
+{
+  "symbol": "MARA",
+  "entry": 7.7399000000000004,
+  "exit": 7.5,
+  "pnl": -368.99,
+  "pnl_pct": -3.099523249654394,
+  "grade": "C",
+  "stop_hit": true,
+  "sentiment": {
+    "correct": false,
+    "grade": "C",
+    "lesson": "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+    "predicted": "neutral",
+    "actual": "loss",
+    "score": 50
+  },
+  "what_right": [
+    "\ud83d\uded1 GOOD: Honored stop loss on MARA at 3.1% loss"
+  ],
+  "what_wrong": [
+    "\u274c Thesis wrong on MARA but preserved capital",
+    "\u26aa SENTIMENT NEUTRAL: No strong signal for MARA",
+    "\u274c Crypto exposure via MARA too risky"
+  ],
+  "lesson": "LIMIT: Keep crypto exposure under 5% max",
+  "shares": 100.0
+}
