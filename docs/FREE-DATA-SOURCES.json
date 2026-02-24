@@ -1,0 +1,17 @@
+[
+  {"name":"fed_press","url":"https://www.federalreserve.gov/feeds/press_all.xml"},
+  {"name":"bls_latest","url":"https://www.bls.gov/feed/bls_latest.rss"},
+  {"name":"eia_press","url":"https://www.eia.gov/rss/press_rss.xml"},
+  {"name":"treasury_news","url":"https://home.treasury.gov/news/press-releases/feed"},
+  {"name":"ecb_press","url":"https://www.ecb.europa.eu/press/pressrss.en.rss"},
+  {"name":"wsj_markets_rss","url":"https://feeds.a.dj.com/rss/RSSMarketsMain.xml"},
+  {"name":"marketwatch_topstories","url":"https://feeds.content.dowjones.io/public/rss/mw_topstories"},
+  {"name":"seekingalpha_market_currents","url":"https://seekingalpha.com/market_currents.xml"},
+  {"name":"coindesk_rss","url":"https://www.coindesk.com/arc/outboundfeeds/rss/"},
+  {"name":"cointelegraph_rss","url":"https://cointelegraph.com/rss"},
+  {"name":"sec_8k_current","url":"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-k&company=&dateb=&owner=include&start=0&count=100&output=atom"},
+  {"name":"sec_10q_current","url":"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=10-q&company=&dateb=&owner=include&start=0&count=100&output=atom"},
+  {"name":"sec_10k_current","url":"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=10-k&company=&dateb=&owner=include&start=0&count=100&output=atom"},
+  {"name":"sec_13d_current","url":"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=sc+13d&company=&dateb=&owner=include&start=0&count=100&output=atom"},
+  {"name":"sec_13g_current","url":"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=sc+13g&company=&dateb=&owner=include&start=0&count=100&output=atom"}
+]
