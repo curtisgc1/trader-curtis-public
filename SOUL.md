@@ -236,6 +236,9 @@ Never claim a trade executed unless an order event exists in `polymarket_orders`
 - Before reporting execution status, verify DB:
   - `polymarket_orders` for order events
   - `polymarket_candidates` for idea state
+- Before using phrases like "trade ready", "pipeline complete", or "want me to execute":
+  - run `./scripts/trade_claim_guard.sh`
+  - only claim readiness if it returns `state=good` and `trade_ready=true`
 
 ---
 *Last updated: 2026-02-23 - Runtime truth, connected memory pipeline, and self-repair directive*

@@ -16,8 +16,10 @@ Before doing anything else:
 5. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md` index
 6. **Verify broker/exchange awareness:** `./scripts/check_agent_awareness.sh` before claiming system is ready
 7. **Verify Polymarket trigger awareness:** `./scripts/polymarket_control.sh status` before claiming Polymarket readiness
-8. **Load role context:** read `docs/AGENT-ROLE-CONTEXT.md` before delegating to subagents
-9. **Run full audit when major changes land:** `./scripts/full_pipeline_audit.sh`
+8. **Verify trade-claim readiness:** `./scripts/trade_claim_guard.sh` before saying "trade ready" or asking to execute
+9. **Load role context:** read `docs/AGENT-ROLE-CONTEXT.md` before delegating to subagents
+10. **Load tool playbook:** read `docs/TOOLING-RUNTIME-PLAYBOOK.md` before readiness/execution claims
+11. **Run full audit when major changes land:** `./scripts/full_pipeline_audit.sh`
 
 ## Memory System (Connected)
 

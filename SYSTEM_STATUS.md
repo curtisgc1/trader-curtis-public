@@ -19,6 +19,7 @@ This file replaces prior legacy status text.
 - "After N approvals it auto-trades" unless that exact logic exists in controls/code.
 - "Next scan at X" unless a real cron/schedule is confirmed.
 - "Say execute and I'll trade" as a generic flow.
+- "Trade ready" / "Pipeline complete" claims without passing `./scripts/trade_claim_guard.sh`.
 
 ## Required Control Surface
 
@@ -37,6 +38,7 @@ Always use:
 ```bash
 ./scripts/check_agent_awareness.sh
 ./scripts/check_polymarket_setup.sh
+./scripts/trade_claim_guard.sh
 sqlite3 data/trades.db "select id,mode,status,notional from polymarket_orders order by id desc limit 20;"
 ```
 

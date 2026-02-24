@@ -47,6 +47,8 @@ Add whatever helps you do your job. This is your cheat sheet.
 - **OpenClaw env:** `~/.openclaw/openclaw.json` → `env` section (fallback source)
 - **Expected keys:** `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL`, `XAI_API_KEY`, `BRAVE_API_KEY`
 
+*See main `/Users/Shared/curtis/TOOLS.md` for shared API keys (XAI, Brave, etc.)*
+
 ## Polymarket Secrets (Keychain)
 
 - Stored in macOS Keychain (not `.env`) under services:
