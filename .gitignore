@@ -1,0 +1,27 @@
+# Large data directories
+clickhouse_data/
+.clawvault/checkpoints/
+datasets/kaggle/_archive_test/
+
+# Logs
+dashboard-ui/logs/*.log
+logs/*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Local env
+.env
+.env.local
+
+# Database journals
+*.db-journal
+
+# OS files
+.DS_Store
+
+# Database files
+data/*.db
+data/*.db-journal

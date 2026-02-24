@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "vaultPath": "/Users/Shared/curtis/trader-curtis",
-  "generatedAt": "2026-02-23T18:26:57.261Z",
+  "generatedAt": "2026-02-24T18:21:28.093Z",
   "files": {
     "AGENTS.md": {
       "relativePath": "AGENTS.md",
-      "mtimeMs": 1771869805808.1858,
+      "mtimeMs": 1771949233146.063,
       "nodes": [
         {
           "id": "note:AGENTS",
@@ -16,7 +16,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T18:03:25.808Z"
+          "modifiedAt": "2026-02-24T16:07:13.146Z"
         }
       ],
       "edges": []
@@ -885,6 +885,222 @@
       ],
       "edges": []
     },
+    "alerts/political-CRITICAL-20260223-123028.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-123028.md",
+      "mtimeMs": 1771878628788.0635,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-123028",
+          "title": "Political CRITICAL 20260223 123028",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-123028.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T20:30:28.788Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260223-123043.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-123043.md",
+      "mtimeMs": 1771878643044.5867,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-123043",
+          "title": "Political CRITICAL 20260223 123043",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-123043.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T20:30:43.044Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260223-130021.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-130021.md",
+      "mtimeMs": 1771880421825.3196,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-130021",
+          "title": "Political CRITICAL 20260223 130021",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-130021.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T21:00:21.825Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260223-130047.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-130047.md",
+      "mtimeMs": 1771880447387.231,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-130047",
+          "title": "Political CRITICAL 20260223 130047",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-130047.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T21:00:47.387Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260223-150036.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-150036.md",
+      "mtimeMs": 1771887636845.564,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-150036",
+          "title": "Political CRITICAL 20260223 150036",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-150036.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T23:00:36.845Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260223-150049.md": {
+      "relativePath": "alerts/political-CRITICAL-20260223-150049.md",
+      "mtimeMs": 1771887649160.4214,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260223-150049",
+          "title": "Political CRITICAL 20260223 150049",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260223-150049.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T23:00:49.160Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-063040.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-063040.md",
+      "mtimeMs": 1771943440615.9548,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-063040",
+          "title": "Political CRITICAL 20260224 063040",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-063040.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T14:30:40.615Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-063059.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-063059.md",
+      "mtimeMs": 1771943459363.2952,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-063059",
+          "title": "Political CRITICAL 20260224 063059",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-063059.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T14:30:59.363Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-071056.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-071056.md",
+      "mtimeMs": 1771945856364.116,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-071056",
+          "title": "Political CRITICAL 20260224 071056",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-071056.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T15:10:56.364Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-071107.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-071107.md",
+      "mtimeMs": 1771945867373.7087,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-071107",
+          "title": "Political CRITICAL 20260224 071107",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-071107.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T15:11:07.373Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-084244.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-084244.md",
+      "mtimeMs": 1771951364414.7593,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-084244",
+          "title": "Political CRITICAL 20260224 084244",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-084244.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T16:42:44.414Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-084256.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-084256.md",
+      "mtimeMs": 1771951376392.3765,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-084256",
+          "title": "Political CRITICAL 20260224 084256",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-084256.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T16:42:56.392Z"
+        }
+      ],
+      "edges": []
+    },
     "archive/memory/2026-02-01.md": {
       "relativePath": "archive/memory/2026-02-01.md",
       "mtimeMs": 1771399940786.0547,
@@ -1267,6 +1483,24 @@
       ],
       "edges": []
     },
+    "clickhouse_migration/migration_report.md": {
+      "relativePath": "clickhouse_migration/migration_report.md",
+      "mtimeMs": 1771913219896.8127,
+      "nodes": [
+        {
+          "id": "note:clickhouse_migration/migration_report",
+          "title": "Migration Report",
+          "type": "note",
+          "category": "note",
+          "path": "clickhouse_migration/migration_report.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T06:06:59.896Z"
+        }
+      ],
+      "edges": []
+    },
     "CLICKHOUSE_STATUS.md": {
       "relativePath": "CLICKHOUSE_STATUS.md",
       "mtimeMs": 1770127444538.1074,
@@ -1393,6 +1627,24 @@
       ],
       "edges": []
     },
+    "decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod.md": {
+      "relativePath": "decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod.md",
+      "mtimeMs": 1771951551441.7778,
+      "nodes": [
+        {
+          "id": "note:decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod",
+          "title": "Consolidated trader cron cadence to 4 core scans + EOD",
+          "type": "decision",
+          "category": "decision",
+          "path": "decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T16:45:51.441Z"
+        }
+      ],
+      "edges": []
+    },
     "decisions/policy-alert-triggered-bessent-tariffs.md": {
       "relativePath": "decisions/policy-alert-triggered-bessent-tariffs.md",
       "mtimeMs": 1771628438203.6118,
@@ -1449,7 +1701,7 @@
     },
     "docs/AGENT-ROLE-CONTEXT.md": {
       "relativePath": "docs/AGENT-ROLE-CONTEXT.md",
-      "mtimeMs": 1771869799452.0166,
+      "mtimeMs": 1771949240245.5015,
       "nodes": [
         {
           "id": "note:docs/AGENT-ROLE-CONTEXT",
@@ -1460,7 +1712,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T18:03:19.452Z"
+          "modifiedAt": "2026-02-24T16:07:20.245Z"
         }
       ],
       "edges": []
@@ -1555,6 +1807,78 @@
       ],
       "edges": []
     },
+    "docs/FREE-TRAINING-STACK-ROADMAP.md": {
+      "relativePath": "docs/FREE-TRAINING-STACK-ROADMAP.md",
+      "mtimeMs": 1771954764083.9487,
+      "nodes": [
+        {
+          "id": "note:docs/FREE-TRAINING-STACK-ROADMAP",
+          "title": "FREE TRAINING STACK ROADMAP",
+          "type": "note",
+          "category": "note",
+          "path": "docs/FREE-TRAINING-STACK-ROADMAP.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T17:39:24.083Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/HYPERLIQUID-AUTO-TRADER-SETUP.md": {
+      "relativePath": "docs/HYPERLIQUID-AUTO-TRADER-SETUP.md",
+      "mtimeMs": 1771873637963.8093,
+      "nodes": [
+        {
+          "id": "note:docs/HYPERLIQUID-AUTO-TRADER-SETUP",
+          "title": "HYPERLIQUID AUTO TRADER SETUP",
+          "type": "note",
+          "category": "note",
+          "path": "docs/HYPERLIQUID-AUTO-TRADER-SETUP.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T19:07:17.963Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/JANUSQ-HGRM-GRPO-IMPLEMENTATION-BLUEPRINT.md": {
+      "relativePath": "docs/JANUSQ-HGRM-GRPO-IMPLEMENTATION-BLUEPRINT.md",
+      "mtimeMs": 1771952750893.6448,
+      "nodes": [
+        {
+          "id": "note:docs/JANUSQ-HGRM-GRPO-IMPLEMENTATION-BLUEPRINT",
+          "title": "JANUSQ HGRM GRPO IMPLEMENTATION BLUEPRINT",
+          "type": "note",
+          "category": "note",
+          "path": "docs/JANUSQ-HGRM-GRPO-IMPLEMENTATION-BLUEPRINT.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T17:05:50.893Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/KYLE-WILLIAMS-STRATEGY.md": {
+      "relativePath": "docs/KYLE-WILLIAMS-STRATEGY.md",
+      "mtimeMs": 1771948343499.3232,
+      "nodes": [
+        {
+          "id": "note:docs/KYLE-WILLIAMS-STRATEGY",
+          "title": "KYLE WILLIAMS STRATEGY",
+          "type": "note",
+          "category": "note",
+          "path": "docs/KYLE-WILLIAMS-STRATEGY.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T15:52:23.499Z"
+        }
+      ],
+      "edges": []
+    },
     "docs/openclaw-agent-integration.md": {
       "relativePath": "docs/openclaw-agent-integration.md",
       "mtimeMs": 1771796009737.813,
@@ -1605,6 +1929,42 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-23T03:37:44.458Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/TOOLING-RUNTIME-PLAYBOOK.md": {
+      "relativePath": "docs/TOOLING-RUNTIME-PLAYBOOK.md",
+      "mtimeMs": 1771949195001.53,
+      "nodes": [
+        {
+          "id": "note:docs/TOOLING-RUNTIME-PLAYBOOK",
+          "title": "TOOLING RUNTIME PLAYBOOK",
+          "type": "note",
+          "category": "note",
+          "path": "docs/TOOLING-RUNTIME-PLAYBOOK.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T16:06:35.001Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/TRADING-SYSTEM-EXPLAINED-LIKE-I-AM-14.md": {
+      "relativePath": "docs/TRADING-SYSTEM-EXPLAINED-LIKE-I-AM-14.md",
+      "mtimeMs": 1771952286448.085,
+      "nodes": [
+        {
+          "id": "note:docs/TRADING-SYSTEM-EXPLAINED-LIKE-I-AM-14",
+          "title": "TRADING SYSTEM EXPLAINED LIKE I AM 14",
+          "type": "note",
+          "category": "note",
+          "path": "docs/TRADING-SYSTEM-EXPLAINED-LIKE-I-AM-14.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T16:58:06.448Z"
         }
       ],
       "edges": []
@@ -1717,6 +2077,42 @@
       ],
       "edges": []
     },
+    "facts/del-medical-vs300-wall-stand-handle-part-numbers-210-5075p1-base-switch-handle-and-303-0006p1-handle-grip-black-full-assembly-112-5550g1-lock-release-handle-assembly.md": {
+      "relativePath": "facts/del-medical-vs300-wall-stand-handle-part-numbers-210-5075p1-base-switch-handle-and-303-0006p1-handle-grip-black-full-assembly-112-5550g1-lock-release-handle-assembly.md",
+      "mtimeMs": 1771887985719.1257,
+      "nodes": [
+        {
+          "id": "note:facts/del-medical-vs300-wall-stand-handle-part-numbers-210-5075p1-base-switch-handle-and-303-0006p1-handle-grip-black-full-assembly-112-5550g1-lock-release-handle-assembly",
+          "title": "DEL Medical VS300 Wall Stand handle part numbers: 210-5075P1 (Base, Switch Handle) and 303-0006P1 (Handle Grip - Black). Full assembly: 112-5550G1 (Lock Release Handle Assembly).",
+          "type": "note",
+          "category": "note",
+          "path": "facts/del-medical-vs300-wall-stand-handle-part-numbers-210-5075p1-base-switch-handle-and-303-0006p1-handle-grip-black-full-assembly-112-5550g1-lock-release-handle-assembly.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T23:06:25.719Z"
+        }
+      ],
+      "edges": []
+    },
+    "facts/del-medical-x-ray-room-collimator-ceiling-mounted-tube-crane-with-manual-beam-limiting-collimator-shows-tube-housing-collimator-with-field-size-indicators-wall-bucky-stand-room-setup-for-general-radiographic.md": {
+      "relativePath": "facts/del-medical-x-ray-room-collimator-ceiling-mounted-tube-crane-with-manual-beam-limiting-collimator-shows-tube-housing-collimator-with-field-size-indicators-wall-bucky-stand-room-setup-for-general-radiographic.md",
+      "mtimeMs": 1771884745540.1526,
+      "nodes": [
+        {
+          "id": "note:facts/del-medical-x-ray-room-collimator-ceiling-mounted-tube-crane-with-manual-beam-limiting-collimator-shows-tube-housing-collimator-with-field-size-indicators-wall-bucky-stand-room-setup-for-general-radiographic",
+          "title": "DEL Medical X-ray room collimator - ceiling-mounted tube crane with manual beam-limiting collimator. Shows tube housing, collimator with field size indicators, wall Bucky stand. Room setup for general radiographic.",
+          "type": "note",
+          "category": "note",
+          "path": "facts/del-medical-x-ray-room-collimator-ceiling-mounted-tube-crane-with-manual-beam-limiting-collimator-shows-tube-housing-collimator-with-field-size-indicators-wall-bucky-stand-room-setup-for-general-radiographic.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T22:12:25.540Z"
+        }
+      ],
+      "edges": []
+    },
     "facts/neutral-sentiment-rule.md": {
       "relativePath": "facts/neutral-sentiment-rule.md",
       "mtimeMs": 1771300650328.7083,
@@ -1807,6 +2203,24 @@
       ],
       "edges": []
     },
+    "facts/ralco-mtr-221a-collimator-parts-ro-074-customized-housing-ro-109-customized-frame-ro-111-front-panel-used-on-del-general-radiographic-rooms-manual-dated-09052006-rev-k.md": {
+      "relativePath": "facts/ralco-mtr-221a-collimator-parts-ro-074-customized-housing-ro-109-customized-frame-ro-111-front-panel-used-on-del-general-radiographic-rooms-manual-dated-09052006-rev-k.md",
+      "mtimeMs": 1771885191436.4375,
+      "nodes": [
+        {
+          "id": "note:facts/ralco-mtr-221a-collimator-parts-ro-074-customized-housing-ro-109-customized-frame-ro-111-front-panel-used-on-del-general-radiographic-rooms-manual-dated-09052006-rev-k",
+          "title": "Ralco MTR 221/A Collimator parts: RO 074 (Customized Housing), RO 109 (Customized Frame), RO 111 (Front Panel). Used on DEL GENERAL RADIOGRAPHIC rooms. Manual dated 09.05.2006 Rev K.",
+          "type": "note",
+          "category": "note",
+          "path": "facts/ralco-mtr-221a-collimator-parts-ro-074-customized-housing-ro-109-customized-frame-ro-111-front-panel-used-on-del-general-radiographic-rooms-manual-dated-09052006-rev-k.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T22:19:51.436Z"
+        }
+      ],
+      "edges": []
+    },
     "facts/sec-bessent-x-account-confirmed.md": {
       "relativePath": "facts/sec-bessent-x-account-confirmed.md",
       "mtimeMs": 1771714864109.1982,
@@ -1821,6 +2235,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-21T23:01:04.109Z"
+        }
+      ],
+      "edges": []
+    },
+    "facts/testing-threshold-50-with-consensus-off.md": {
+      "relativePath": "facts/testing-threshold-50-with-consensus-off.md",
+      "mtimeMs": 1771947316011.003,
+      "nodes": [
+        {
+          "id": "note:facts/testing-threshold-50-with-consensus-off",
+          "title": "Testing threshold 50 with consensus off",
+          "type": "note",
+          "category": "note",
+          "path": "facts/testing-threshold-50-with-consensus-off.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T15:35:16.011Z"
         }
       ],
       "edges": []
@@ -2005,6 +2437,96 @@
       ],
       "edges": []
     },
+    "handoffs/handoff-2026-02-24-0732.md": {
+      "relativePath": "handoffs/handoff-2026-02-24-0732.md",
+      "mtimeMs": 1771918353170.0176,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-24-0732",
+          "title": "handoff-2026-02-24-0732",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-24-0732.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T07:32:33.170Z"
+        }
+      ],
+      "edges": []
+    },
+    "handoffs/handoff-2026-02-24-grpo-alignment-and-system-state.md": {
+      "relativePath": "handoffs/handoff-2026-02-24-grpo-alignment-and-system-state.md",
+      "mtimeMs": 1771952286446.212,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-24-grpo-alignment-and-system-state",
+          "title": "Handoff 2026 02 24 Grpo Alignment And System State",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-24-grpo-alignment-and-system-state.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T16:58:06.446Z"
+        }
+      ],
+      "edges": []
+    },
+    "handoffs/handoff-2026-02-24-kaggle-hardening.md": {
+      "relativePath": "handoffs/handoff-2026-02-24-kaggle-hardening.md",
+      "mtimeMs": 1771954786835.6152,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-24-kaggle-hardening",
+          "title": "Handoff 2026 02 24 Kaggle Hardening",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-24-kaggle-hardening.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T17:39:46.835Z"
+        }
+      ],
+      "edges": []
+    },
+    "handoffs/handoff-2026-02-24-three-venue-matrix-audit.md": {
+      "relativePath": "handoffs/handoff-2026-02-24-three-venue-matrix-audit.md",
+      "mtimeMs": 1771957287134.9827,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-24-three-venue-matrix-audit",
+          "title": "Handoff 2026 02 24 Three Venue Matrix Audit",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-24-three-venue-matrix-audit.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T18:21:27.134Z"
+        }
+      ],
+      "edges": []
+    },
+    "handoffs/handoff-2026-02-24-training-mode-free-data-grpo-dataset.md": {
+      "relativePath": "handoffs/handoff-2026-02-24-training-mode-free-data-grpo-dataset.md",
+      "mtimeMs": 1771954065448.7075,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-24-training-mode-free-data-grpo-dataset",
+          "title": "Handoff 2026 02 24 Training Mode Free Data Grpo Dataset",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-24-training-mode-free-data-grpo-dataset.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T17:27:45.448Z"
+        }
+      ],
+      "edges": []
+    },
     "HEARTBEAT.md": {
       "relativePath": "HEARTBEAT.md",
       "mtimeMs": 1771795997463.5425,
@@ -2055,6 +2577,96 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-23T18:26:57.252Z"
+        }
+      ],
+      "edges": []
+    },
+    "inbox/note-1771891046440.md": {
+      "relativePath": "inbox/note-1771891046440.md",
+      "mtimeMs": 1771891046441.516,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1771891046440",
+          "title": "note-1771891046440",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1771891046440.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T23:57:26.441Z"
+        }
+      ],
+      "edges": []
+    },
+    "inbox/note-1771947880664.md": {
+      "relativePath": "inbox/note-1771947880664.md",
+      "mtimeMs": 1771947880665.4314,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1771947880664",
+          "title": "note-1771947880664",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1771947880664.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T15:44:40.665Z"
+        }
+      ],
+      "edges": []
+    },
+    "inbox/note-1771949310967.md": {
+      "relativePath": "inbox/note-1771949310967.md",
+      "mtimeMs": 1771949310967.963,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1771949310967",
+          "title": "note-1771949310967",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1771949310967.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T16:08:30.967Z"
+        }
+      ],
+      "edges": []
+    },
+    "inbox/note-1771954787551.md": {
+      "relativePath": "inbox/note-1771954787551.md",
+      "mtimeMs": 1771954787551.986,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1771954787551",
+          "title": "note-1771954787551",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1771954787551.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T17:39:47.551Z"
+        }
+      ],
+      "edges": []
+    },
+    "inbox/note-1771957288080.md": {
+      "relativePath": "inbox/note-1771957288080.md",
+      "mtimeMs": 1771957288080.957,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1771957288080",
+          "title": "note-1771957288080",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1771957288080.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T18:21:28.080Z"
         }
       ],
       "edges": []
@@ -2350,9 +2962,63 @@
         }
       ]
     },
+    "memory/2026-02-23_compact.md": {
+      "relativePath": "memory/2026-02-23_compact.md",
+      "mtimeMs": 1771918337498.1895,
+      "nodes": [
+        {
+          "id": "note:memory/2026-02-23_compact",
+          "title": "2026 02 23 Compact",
+          "type": "note",
+          "category": "note",
+          "path": "memory/2026-02-23_compact.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T07:32:17.498Z"
+        }
+      ],
+      "edges": []
+    },
+    "memory/2026-02-23-clickhouse.md": {
+      "relativePath": "memory/2026-02-23-clickhouse.md",
+      "mtimeMs": 1771913227796.999,
+      "nodes": [
+        {
+          "id": "note:memory/2026-02-23-clickhouse",
+          "title": "2026 02 23 Clickhouse",
+          "type": "note",
+          "category": "note",
+          "path": "memory/2026-02-23-clickhouse.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T06:07:07.796Z"
+        }
+      ],
+      "edges": []
+    },
+    "memory/2026-02-23-PATTERN-LEARNING.md": {
+      "relativePath": "memory/2026-02-23-PATTERN-LEARNING.md",
+      "mtimeMs": 1771916602237.9077,
+      "nodes": [
+        {
+          "id": "note:memory/2026-02-23-PATTERN-LEARNING",
+          "title": "2026 02 23 PATTERN LEARNING",
+          "type": "note",
+          "category": "note",
+          "path": "memory/2026-02-23-PATTERN-LEARNING.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T07:03:22.237Z"
+        }
+      ],
+      "edges": []
+    },
     "memory/2026-02-23.md": {
       "relativePath": "memory/2026-02-23.md",
-      "mtimeMs": 1771871211807.7124,
+      "mtimeMs": 1771918349735.316,
       "nodes": [
         {
           "id": "note:memory/2026-02-23",
@@ -2363,7 +3029,25 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T18:26:51.807Z"
+          "modifiedAt": "2026-02-24T07:32:29.735Z"
+        }
+      ],
+      "edges": []
+    },
+    "memory/2026-02-24.md": {
+      "relativePath": "memory/2026-02-24.md",
+      "mtimeMs": 1771957287623.8484,
+      "nodes": [
+        {
+          "id": "note:memory/2026-02-24",
+          "title": "2026 02 24",
+          "type": "note",
+          "category": "note",
+          "path": "memory/2026-02-24.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T18:21:27.623Z"
         }
       ],
       "edges": []
@@ -2454,6 +3138,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-20T22:15:03.502Z"
+        }
+      ],
+      "edges": []
+    },
+    "memory/COMBO-ANALYSIS-2026-02-23.md": {
+      "relativePath": "memory/COMBO-ANALYSIS-2026-02-23.md",
+      "mtimeMs": 1771884905976.4104,
+      "nodes": [
+        {
+          "id": "note:memory/COMBO-ANALYSIS-2026-02-23",
+          "title": "COMBO ANALYSIS 2026 02 23",
+          "type": "note",
+          "category": "note",
+          "path": "memory/COMBO-ANALYSIS-2026-02-23.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T22:15:05.976Z"
         }
       ],
       "edges": []
@@ -2562,6 +3264,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-21T07:01:44.224Z"
+        }
+      ],
+      "edges": []
+    },
+    "memory/LEARNING-REPORT-2026-02-23.md": {
+      "relativePath": "memory/LEARNING-REPORT-2026-02-23.md",
+      "mtimeMs": 1771884157218.4329,
+      "nodes": [
+        {
+          "id": "note:memory/LEARNING-REPORT-2026-02-23",
+          "title": "LEARNING REPORT 2026 02 23",
+          "type": "note",
+          "category": "note",
+          "path": "memory/LEARNING-REPORT-2026-02-23.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T22:02:37.218Z"
         }
       ],
       "edges": []
@@ -2872,6 +3592,24 @@
       ],
       "edges": []
     },
+    "memory/SENTIMENT-ACCURACY-2026-02-23.md": {
+      "relativePath": "memory/SENTIMENT-ACCURACY-2026-02-23.md",
+      "mtimeMs": 1771884306291.6677,
+      "nodes": [
+        {
+          "id": "note:memory/SENTIMENT-ACCURACY-2026-02-23",
+          "title": "SENTIMENT ACCURACY 2026 02 23",
+          "type": "note",
+          "category": "note",
+          "path": "memory/SENTIMENT-ACCURACY-2026-02-23.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T22:05:06.291Z"
+        }
+      ],
+      "edges": []
+    },
     "memory/SOURCE-COMPARISON-2026-02-15.md": {
       "relativePath": "memory/SOURCE-COMPARISON-2026-02-15.md",
       "mtimeMs": 1771225939134.1995,
@@ -2976,6 +3714,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-20T22:10:05.092Z"
+        }
+      ],
+      "edges": []
+    },
+    "memory/SOURCE-COMPARISON-2026-02-23.md": {
+      "relativePath": "memory/SOURCE-COMPARISON-2026-02-23.md",
+      "mtimeMs": 1771884606487.687,
+      "nodes": [
+        {
+          "id": "note:memory/SOURCE-COMPARISON-2026-02-23",
+          "title": "SOURCE COMPARISON 2026 02 23",
+          "type": "note",
+          "category": "note",
+          "path": "memory/SOURCE-COMPARISON-2026-02-23.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T22:10:06.487Z"
         }
       ],
       "edges": []
@@ -3102,6 +3858,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-23T03:11:45.010Z"
+        }
+      ],
+      "edges": []
+    },
+    "notes/Trading/TRADING-SYSTEM-GUIDE-FOR-TEENS.md": {
+      "relativePath": "notes/Trading/TRADING-SYSTEM-GUIDE-FOR-TEENS.md",
+      "mtimeMs": 1771872459005.922,
+      "nodes": [
+        {
+          "id": "note:notes/Trading/TRADING-SYSTEM-GUIDE-FOR-TEENS",
+          "title": "TRADING SYSTEM GUIDE FOR TEENS",
+          "type": "note",
+          "category": "note",
+          "path": "notes/Trading/TRADING-SYSTEM-GUIDE-FOR-TEENS.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-23T18:47:39.005Z"
         }
       ],
       "edges": []
@@ -3824,7 +4598,7 @@
     },
     "SOUL.md": {
       "relativePath": "SOUL.md",
-      "mtimeMs": 1771869814461.3633,
+      "mtimeMs": 1771894834973.3535,
       "nodes": [
         {
           "id": "note:SOUL",
@@ -3835,7 +4609,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T18:03:34.461Z"
+          "modifiedAt": "2026-02-24T01:00:34.973Z"
         }
       ],
       "edges": []
@@ -3896,7 +4670,7 @@
     },
     "SYSTEM_STATUS.md": {
       "relativePath": "SYSTEM_STATUS.md",
-      "mtimeMs": 1771863890903.167,
+      "mtimeMs": 1771894861285.3333,
       "nodes": [
         {
           "id": "note:SYSTEM_STATUS",
@@ -3907,7 +4681,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T16:24:50.903Z"
+          "modifiedAt": "2026-02-24T01:01:01.285Z"
         }
       ],
       "edges": []
@@ -4923,7 +5697,7 @@
     },
     "TOOLS.md": {
       "relativePath": "TOOLS.md",
-      "mtimeMs": 1771824897940.6577,
+      "mtimeMs": 1771930955728.3777,
       "nodes": [
         {
           "id": "note:TOOLS",
@@ -4934,7 +5708,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-23T05:34:57.940Z"
+          "modifiedAt": "2026-02-24T11:02:35.728Z"
         }
       ],
       "edges": []
@@ -5087,6 +5861,24 @@
       ],
       "edges": []
     },
+    "training/grpo/README.md": {
+      "relativePath": "training/grpo/README.md",
+      "mtimeMs": 1771953216159.2507,
+      "nodes": [
+        {
+          "id": "note:training/grpo/README",
+          "title": "README",
+          "type": "note",
+          "category": "note",
+          "path": "training/grpo/README.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T17:13:36.159Z"
+        }
+      ],
+      "edges": []
+    },
     "USER.md": {
       "relativePath": "USER.md",
       "mtimeMs": 1769996709217.4155,
@@ -5136,7 +5928,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T18:03:25.808Z"
+        "modifiedAt": "2026-02-24T16:07:13.146Z"
       },
       {
         "id": "note:alerts/political-CRITICAL-20260216-193448",
@@ -5667,6 +6459,138 @@
         "modifiedAt": "2026-02-23T14:30:41.994Z"
       },
       {
+        "id": "note:alerts/political-CRITICAL-20260223-123028",
+        "title": "Political CRITICAL 20260223 123028",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-123028.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T20:30:28.788Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260223-123043",
+        "title": "Political CRITICAL 20260223 123043",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-123043.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T20:30:43.044Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260223-130021",
+        "title": "Political CRITICAL 20260223 130021",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-130021.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T21:00:21.825Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260223-130047",
+        "title": "Political CRITICAL 20260223 130047",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-130047.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T21:00:47.387Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260223-150036",
+        "title": "Political CRITICAL 20260223 150036",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-150036.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T23:00:36.845Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260223-150049",
+        "title": "Political CRITICAL 20260223 150049",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260223-150049.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T23:00:49.160Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-063040",
+        "title": "Political CRITICAL 20260224 063040",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-063040.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T14:30:40.615Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-063059",
+        "title": "Political CRITICAL 20260224 063059",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-063059.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T14:30:59.363Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-071056",
+        "title": "Political CRITICAL 20260224 071056",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-071056.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T15:10:56.364Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-071107",
+        "title": "Political CRITICAL 20260224 071107",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-071107.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T15:11:07.373Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-084244",
+        "title": "Political CRITICAL 20260224 084244",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-084244.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T16:42:44.414Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-084256",
+        "title": "Political CRITICAL 20260224 084256",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-084256.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T16:42:56.392Z"
+      },
+      {
         "id": "note:archive/memory/2026-02-01",
         "title": "2026 02 01",
         "type": "note",
@@ -5830,6 +6754,17 @@
         "modifiedAt": "2026-02-17T03:59:03.287Z"
       },
       {
+        "id": "note:clickhouse_migration/migration_report",
+        "title": "Migration Report",
+        "type": "note",
+        "category": "note",
+        "path": "clickhouse_migration/migration_report.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T06:06:59.896Z"
+      },
+      {
         "id": "note:CLICKHOUSE_STATUS",
         "title": "CLICKHOUSE STATUS",
         "type": "note",
@@ -5907,6 +6842,17 @@
         "modifiedAt": "2026-02-03T14:09:44.447Z"
       },
       {
+        "id": "note:decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod",
+        "title": "Consolidated trader cron cadence to 4 core scans + EOD",
+        "type": "decision",
+        "category": "decision",
+        "path": "decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T16:45:51.441Z"
+      },
+      {
         "id": "note:decisions/policy-alert-triggered-bessent-tariffs",
         "title": "Policy alert triggered: Bessent tariffs",
         "type": "decision",
@@ -5948,7 +6894,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T18:03:19.452Z"
+        "modifiedAt": "2026-02-24T16:07:20.245Z"
       },
       {
         "id": "note:docs/AGENT-SIGNAL-COMMANDS",
@@ -6006,6 +6952,50 @@
         "modifiedAt": "2026-02-22T21:01:07.348Z"
       },
       {
+        "id": "note:docs/FREE-TRAINING-STACK-ROADMAP",
+        "title": "FREE TRAINING STACK ROADMAP",
+        "type": "note",
+        "category": "note",
+        "path": "docs/FREE-TRAINING-STACK-ROADMAP.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T17:39:24.083Z"
+      },
+      {
+        "id": "note:docs/HYPERLIQUID-AUTO-TRADER-SETUP",
+        "title": "HYPERLIQUID AUTO TRADER SETUP",
+        "type": "note",
+        "category": "note",
+        "path": "docs/HYPERLIQUID-AUTO-TRADER-SETUP.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T19:07:17.963Z"
+      },
+      {
+        "id": "note:docs/JANUSQ-HGRM-GRPO-IMPLEMENTATION-BLUEPRINT",
+        "title": "JANUSQ HGRM GRPO IMPLEMENTATION BLUEPRINT",
+        "type": "note",
+        "category": "note",
+        "path": "docs/JANUSQ-HGRM-GRPO-IMPLEMENTATION-BLUEPRINT.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T17:05:50.893Z"
+      },
+      {
+        "id": "note:docs/KYLE-WILLIAMS-STRATEGY",
+        "title": "KYLE WILLIAMS STRATEGY",
+        "type": "note",
+        "category": "note",
+        "path": "docs/KYLE-WILLIAMS-STRATEGY.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T15:52:23.499Z"
+      },
+      {
         "id": "note:docs/openclaw-agent-integration",
         "title": "Openclaw Agent Integration",
         "type": "note",
@@ -6037,6 +7027,28 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-23T03:37:44.458Z"
+      },
+      {
+        "id": "note:docs/TOOLING-RUNTIME-PLAYBOOK",
+        "title": "TOOLING RUNTIME PLAYBOOK",
+        "type": "note",
+        "category": "note",
+        "path": "docs/TOOLING-RUNTIME-PLAYBOOK.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T16:06:35.001Z"
+      },
+      {
+        "id": "note:docs/TRADING-SYSTEM-EXPLAINED-LIKE-I-AM-14",
+        "title": "TRADING SYSTEM EXPLAINED LIKE I AM 14",
+        "type": "note",
+        "category": "note",
+        "path": "docs/TRADING-SYSTEM-EXPLAINED-LIKE-I-AM-14.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T16:58:06.448Z"
       },
       {
         "id": "note:facts/50-day-ma-bounce-pattern",
@@ -6105,6 +7117,28 @@
         "modifiedAt": "2026-02-17T03:57:27.765Z"
       },
       {
+        "id": "note:facts/del-medical-vs300-wall-stand-handle-part-numbers-210-5075p1-base-switch-handle-and-303-0006p1-handle-grip-black-full-assembly-112-5550g1-lock-release-handle-assembly",
+        "title": "DEL Medical VS300 Wall Stand handle part numbers: 210-5075P1 (Base, Switch Handle) and 303-0006P1 (Handle Grip - Black). Full assembly: 112-5550G1 (Lock Release Handle Assembly).",
+        "type": "note",
+        "category": "note",
+        "path": "facts/del-medical-vs300-wall-stand-handle-part-numbers-210-5075p1-base-switch-handle-and-303-0006p1-handle-grip-black-full-assembly-112-5550g1-lock-release-handle-assembly.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T23:06:25.719Z"
+      },
+      {
+        "id": "note:facts/del-medical-x-ray-room-collimator-ceiling-mounted-tube-crane-with-manual-beam-limiting-collimator-shows-tube-housing-collimator-with-field-size-indicators-wall-bucky-stand-room-setup-for-general-radiographic",
+        "title": "DEL Medical X-ray room collimator - ceiling-mounted tube crane with manual beam-limiting collimator. Shows tube housing, collimator with field size indicators, wall Bucky stand. Room setup for general radiographic.",
+        "type": "note",
+        "category": "note",
+        "path": "facts/del-medical-x-ray-room-collimator-ceiling-mounted-tube-crane-with-manual-beam-limiting-collimator-shows-tube-housing-collimator-with-field-size-indicators-wall-bucky-stand-room-setup-for-general-radiographic.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T22:12:25.540Z"
+      },
+      {
         "id": "note:facts/neutral-sentiment-rule",
         "title": "Neutral Sentiment Rule",
         "type": "note",
@@ -6160,6 +7194,17 @@
         "modifiedAt": "2026-02-17T18:56:05.267Z"
       },
       {
+        "id": "note:facts/ralco-mtr-221a-collimator-parts-ro-074-customized-housing-ro-109-customized-frame-ro-111-front-panel-used-on-del-general-radiographic-rooms-manual-dated-09052006-rev-k",
+        "title": "Ralco MTR 221/A Collimator parts: RO 074 (Customized Housing), RO 109 (Customized Frame), RO 111 (Front Panel). Used on DEL GENERAL RADIOGRAPHIC rooms. Manual dated 09.05.2006 Rev K.",
+        "type": "note",
+        "category": "note",
+        "path": "facts/ralco-mtr-221a-collimator-parts-ro-074-customized-housing-ro-109-customized-frame-ro-111-front-panel-used-on-del-general-radiographic-rooms-manual-dated-09052006-rev-k.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T22:19:51.436Z"
+      },
+      {
         "id": "note:facts/sec-bessent-x-account-confirmed",
         "title": "Sec Bessent X Account Confirmed",
         "type": "note",
@@ -6169,6 +7214,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-21T23:01:04.109Z"
+      },
+      {
+        "id": "note:facts/testing-threshold-50-with-consensus-off",
+        "title": "Testing threshold 50 with consensus off",
+        "type": "note",
+        "category": "note",
+        "path": "facts/testing-threshold-50-with-consensus-off.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T15:35:16.011Z"
       },
       {
         "id": "note:facts/trump-critical-alert-8450",
@@ -6281,6 +7337,61 @@
         "modifiedAt": "2026-02-23T00:24:38.635Z"
       },
       {
+        "id": "note:handoffs/handoff-2026-02-24-0732",
+        "title": "handoff-2026-02-24-0732",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-24-0732.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T07:32:33.170Z"
+      },
+      {
+        "id": "note:handoffs/handoff-2026-02-24-grpo-alignment-and-system-state",
+        "title": "Handoff 2026 02 24 Grpo Alignment And System State",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-24-grpo-alignment-and-system-state.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T16:58:06.446Z"
+      },
+      {
+        "id": "note:handoffs/handoff-2026-02-24-kaggle-hardening",
+        "title": "Handoff 2026 02 24 Kaggle Hardening",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-24-kaggle-hardening.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T17:39:46.835Z"
+      },
+      {
+        "id": "note:handoffs/handoff-2026-02-24-three-venue-matrix-audit",
+        "title": "Handoff 2026 02 24 Three Venue Matrix Audit",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-24-three-venue-matrix-audit.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T18:21:27.134Z"
+      },
+      {
+        "id": "note:handoffs/handoff-2026-02-24-training-mode-free-data-grpo-dataset",
+        "title": "Handoff 2026 02 24 Training Mode Free Data Grpo Dataset",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-24-training-mode-free-data-grpo-dataset.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T17:27:45.448Z"
+      },
+      {
         "id": "note:HEARTBEAT",
         "title": "HEARTBEAT",
         "type": "note",
@@ -6312,6 +7423,61 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-23T18:26:57.252Z"
+      },
+      {
+        "id": "note:inbox/note-1771891046440",
+        "title": "note-1771891046440",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1771891046440.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T23:57:26.441Z"
+      },
+      {
+        "id": "note:inbox/note-1771947880664",
+        "title": "note-1771947880664",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1771947880664.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T15:44:40.665Z"
+      },
+      {
+        "id": "note:inbox/note-1771949310967",
+        "title": "note-1771949310967",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1771949310967.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T16:08:30.967Z"
+      },
+      {
+        "id": "note:inbox/note-1771954787551",
+        "title": "note-1771954787551",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1771954787551.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T17:39:47.551Z"
+      },
+      {
+        "id": "note:inbox/note-1771957288080",
+        "title": "note-1771957288080",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1771957288080.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T18:21:28.080Z"
       },
       {
         "id": "note:inbox/welcome",
@@ -6459,7 +7625,51 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T18:26:51.807Z"
+        "modifiedAt": "2026-02-24T07:32:29.735Z"
+      },
+      {
+        "id": "note:memory/2026-02-23_compact",
+        "title": "2026 02 23 Compact",
+        "type": "note",
+        "category": "note",
+        "path": "memory/2026-02-23_compact.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T07:32:17.498Z"
+      },
+      {
+        "id": "note:memory/2026-02-23-clickhouse",
+        "title": "2026 02 23 Clickhouse",
+        "type": "note",
+        "category": "note",
+        "path": "memory/2026-02-23-clickhouse.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T06:07:07.796Z"
+      },
+      {
+        "id": "note:memory/2026-02-23-PATTERN-LEARNING",
+        "title": "2026 02 23 PATTERN LEARNING",
+        "type": "note",
+        "category": "note",
+        "path": "memory/2026-02-23-PATTERN-LEARNING.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T07:03:22.237Z"
+      },
+      {
+        "id": "note:memory/2026-02-24",
+        "title": "2026 02 24",
+        "type": "note",
+        "category": "note",
+        "path": "memory/2026-02-24.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T18:21:27.623Z"
       },
       {
         "id": "note:memory/COMBO-ANALYSIS-2026-02-15",
@@ -6515,6 +7725,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-20T22:15:03.502Z"
+      },
+      {
+        "id": "note:memory/COMBO-ANALYSIS-2026-02-23",
+        "title": "COMBO ANALYSIS 2026 02 23",
+        "type": "note",
+        "category": "note",
+        "path": "memory/COMBO-ANALYSIS-2026-02-23.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T22:15:05.976Z"
       },
       {
         "id": "note:memory/EVALUATION-REPORT-2026-02-19",
@@ -6581,6 +7802,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-21T07:01:44.224Z"
+      },
+      {
+        "id": "note:memory/LEARNING-REPORT-2026-02-23",
+        "title": "LEARNING REPORT 2026 02 23",
+        "type": "note",
+        "category": "note",
+        "path": "memory/LEARNING-REPORT-2026-02-23.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T22:02:37.218Z"
       },
       {
         "id": "note:memory/OPTIMIZED-RULES-2026-02-17",
@@ -6770,6 +8002,17 @@
         "modifiedAt": "2026-02-20T22:05:04.316Z"
       },
       {
+        "id": "note:memory/SENTIMENT-ACCURACY-2026-02-23",
+        "title": "SENTIMENT ACCURACY 2026 02 23",
+        "type": "note",
+        "category": "note",
+        "path": "memory/SENTIMENT-ACCURACY-2026-02-23.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T22:05:06.291Z"
+      },
+      {
         "id": "note:memory/SOURCE-COMPARISON-2026-02-15",
         "title": "SOURCE COMPARISON 2026 02 15",
         "type": "note",
@@ -6834,6 +8077,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-20T22:10:05.092Z"
+      },
+      {
+        "id": "note:memory/SOURCE-COMPARISON-2026-02-23",
+        "title": "SOURCE COMPARISON 2026 02 23",
+        "type": "note",
+        "category": "note",
+        "path": "memory/SOURCE-COMPARISON-2026-02-23.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T22:10:06.487Z"
       },
       {
         "id": "note:memory/SOURCE-TRACKING-SUMMARY",
@@ -6911,6 +8165,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-23T03:11:45.010Z"
+      },
+      {
+        "id": "note:notes/Trading/TRADING-SYSTEM-GUIDE-FOR-TEENS",
+        "title": "TRADING SYSTEM GUIDE FOR TEENS",
+        "type": "note",
+        "category": "note",
+        "path": "notes/Trading/TRADING-SYSTEM-GUIDE-FOR-TEENS.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-23T18:47:39.005Z"
       },
       {
         "id": "note:PATTERN_CHEATSHEET_BREAKDOWN",
@@ -7209,7 +8474,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T18:03:34.461Z"
+        "modifiedAt": "2026-02-24T01:00:34.973Z"
       },
       {
         "id": "note:SOURCE_TRACKING",
@@ -7253,7 +8518,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T16:24:50.903Z"
+        "modifiedAt": "2026-02-24T01:01:01.285Z"
       },
       {
         "id": "note:SYSTEM-STATUS",
@@ -7473,7 +8738,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-23T05:34:57.940Z"
+        "modifiedAt": "2026-02-24T11:02:35.728Z"
       },
       {
         "id": "note:TRADER-BUILD-PLAN",
@@ -7544,6 +8809,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-22T07:32:32.088Z"
+      },
+      {
+        "id": "note:training/grpo/README",
+        "title": "README",
+        "type": "note",
+        "category": "note",
+        "path": "training/grpo/README.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T17:13:36.159Z"
       },
       {
         "id": "note:USER",
@@ -8469,15 +9745,15 @@
       }
     ],
     "stats": {
-      "generatedAt": "2026-02-23T18:26:57.261Z",
-      "nodeCount": 254,
+      "generatedAt": "2026-02-24T18:21:28.093Z",
+      "nodeCount": 298,
       "edgeCount": 77,
       "nodeTypeCounts": {
-        "note": 196,
+        "note": 234,
         "tag": 34,
         "commitment": 4,
-        "decision": 3,
-        "handoff": 7,
+        "decision": 4,
+        "handoff": 12,
         "unresolved": 4,
         "lesson": 2,
         "project": 4
