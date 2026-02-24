@@ -56,7 +56,7 @@ def pair_trades(orders):
         symbol = order.get('symbol')
         side = order.get('side')
         price = float(order.get('filled_avg_price', 0))
-        qty = int(order.get('filled_qty', 0))
+        qty = float(order.get('filled_qty', 0))
         order_type = order.get('type', 'market')
         
         if symbol not in trades:

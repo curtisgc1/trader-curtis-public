@@ -11,6 +11,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import requests
 
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
 
@@ -27,6 +28,12 @@ def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return cur.fetchone() is not None
+
+
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA table_info({table})")
+    return any((row[1] == column) for row in cur.fetchall())
 
 
 def _clamp(v: float, lo: float, hi: float) -> float:
@@ -50,12 +57,15 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
           market_url TEXT NOT NULL DEFAULT '',
           match_score INTEGER NOT NULL DEFAULT 0,
           implied_prob REAL NOT NULL DEFAULT 0,
+          implied_prob_vamp REAL NOT NULL DEFAULT 0,
           fair_prob REAL NOT NULL DEFAULT 0,
           reservation_price REAL NOT NULL DEFAULT 0,
           bid_price REAL NOT NULL DEFAULT 0,
           ask_price REAL NOT NULL DEFAULT 0,
           spread_bps REAL NOT NULL DEFAULT 0,
           edge_bps REAL NOT NULL DEFAULT 0,
+          order_imbalance REAL NOT NULL DEFAULT 0,
+          microstructure_premium_bps REAL NOT NULL DEFAULT 0,
           inventory_qty REAL NOT NULL DEFAULT 0,
           inventory_util_pct REAL NOT NULL DEFAULT 0,
           toxicity REAL NOT NULL DEFAULT 0,
@@ -68,6 +78,16 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    # Backfill for older DBs.
+    expected = {
+        "implied_prob_vamp": "REAL NOT NULL DEFAULT 0",
+        "order_imbalance": "REAL NOT NULL DEFAULT 0",
+        "microstructure_premium_bps": "REAL NOT NULL DEFAULT 0",
+    }
+    if _table_exists(conn, "polymarket_mm_snapshots"):
+        for col, spec in expected.items():
+            if not _column_exists(conn, "polymarket_mm_snapshots", col):
+                conn.execute(f"ALTER TABLE polymarket_mm_snapshots ADD COLUMN {col} {spec}")
     conn.commit()
 
 
@@ -243,6 +263,102 @@ def _inventory_for_market(conn: sqlite3.Connection, market_id: str) -> float:
     return inv
 
 
+def _book_for_token(token_id: str) -> Dict[str, Any]:
+    t = str(token_id or "").strip()
+    if not t:
+        return {}
+    try:
+        res = requests.get("https://clob.polymarket.com/book", params={"token_id": t}, timeout=8)
+        if res.status_code >= 400:
+            return {}
+        payload = res.json() if res.content else {}
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _parse_levels(levels: Any) -> List[Tuple[float, float]]:
+    out: List[Tuple[float, float]] = []
+    if not isinstance(levels, list):
+        return out
+    for x in levels:
+        if isinstance(x, dict):
+            p = float(x.get("price") or 0.0)
+            s = float(x.get("size") or 0.0)
+        elif isinstance(x, (list, tuple)) and len(x) >= 2:
+            p = float(x[0] or 0.0)
+            s = float(x[1] or 0.0)
+        else:
+            continue
+        if p > 0 and s > 0:
+            out.append((p, s))
+    return out
+
+
+def _walk_vwap(levels: List[Tuple[float, float]], qty_target: float) -> float:
+    if not levels or qty_target <= 0:
+        return 0.0
+    rem = float(qty_target)
+    notional = 0.0
+    qty = 0.0
+    for p, s in levels:
+        take = min(rem, s)
+        notional += take * p
+        qty += take
+        rem -= take
+        if rem <= 1e-9:
+            break
+    if qty <= 0:
+        return 0.0
+    return notional / qty
+
+
+def _micro_from_book(token_id: str, implied_fallback: float, vamp_qty: float = 800.0) -> Dict[str, float]:
+    """
+    Return VAMP/microstructure metrics for a token.
+    Prices are in YES-probability space [0,1].
+    """
+    b = _book_for_token(token_id)
+    bids = _parse_levels(b.get("bids"))
+    asks = _parse_levels(b.get("asks"))
+    if not bids or not asks:
+        p = _clamp(float(implied_fallback or 0.5), 0.01, 0.99)
+        return {
+            "vamp_mid": p,
+            "best_bid": p,
+            "best_ask": p,
+            "imbalance": 0.0,
+            "depth_bid": 0.0,
+            "depth_ask": 0.0,
+            "micro_premium_bps": 0.0,
+        }
+    bid_sorted = sorted(bids, key=lambda x: x[0], reverse=True)
+    ask_sorted = sorted(asks, key=lambda x: x[0])
+    best_bid = float(bid_sorted[0][0])
+    best_ask = float(ask_sorted[0][0])
+    buy_vamp = _walk_vwap(ask_sorted, vamp_qty)
+    sell_vamp = _walk_vwap(bid_sorted, vamp_qty)
+    if buy_vamp <= 0 or sell_vamp <= 0:
+        vamp_mid = _clamp((best_bid + best_ask) / 2.0, 0.01, 0.99)
+    else:
+        vamp_mid = _clamp((buy_vamp + sell_vamp) / 2.0, 0.01, 0.99)
+    depth_bid = sum(s for _, s in bid_sorted[:12])
+    depth_ask = sum(s for _, s in ask_sorted[:12])
+    imbalance = (depth_bid - depth_ask) / max(1.0, depth_bid + depth_ask)
+    spread_bps = max(0.0, (best_ask - best_bid) * 10000.0)
+    thin_depth_penalty = _clamp(1.0 - min(depth_bid, depth_ask) / max(vamp_qty, 1.0), 0.0, 1.0)
+    micro_premium_bps = _clamp(0.35 * spread_bps + 45.0 * abs(imbalance) + 65.0 * thin_depth_penalty, 0.0, 400.0)
+    return {
+        "vamp_mid": vamp_mid,
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+        "imbalance": _clamp(imbalance, -1.0, 1.0),
+        "depth_bid": float(depth_bid),
+        "depth_ask": float(depth_ask),
+        "micro_premium_bps": float(micro_premium_bps),
+    }
+
+
 def _alias_tokens(ticker: str) -> List[str]:
     t = str(ticker or "").upper().strip()
     aliases: Dict[str, List[str]] = {
@@ -266,7 +382,7 @@ def _best_market_match(conn: sqlite3.Connection, ticker: str, direction: str) ->
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT market_id, question, market_url, outcomes_json, outcome_prices_json, liquidity, volume_24h, slug
+        SELECT market_id, question, market_url, outcomes_json, outcome_prices_json, clob_token_ids_json, liquidity, volume_24h, slug
         FROM polymarket_markets
         WHERE active=1 AND closed=0
         ORDER BY liquidity DESC, volume_24h DESC
@@ -275,7 +391,7 @@ def _best_market_match(conn: sqlite3.Connection, ticker: str, direction: str) ->
     )
     sports_noise = ("stanley cup", "nba finals", "world series", "super bowl", "champions league")
     best: Dict[str, Any] = {}
-    for market_id, question, market_url, outcomes_json, prices_json, liquidity, volume_24h, slug in cur.fetchall():
+    for market_id, question, market_url, outcomes_json, prices_json, token_ids_json, liquidity, volume_24h, slug in cur.fetchall():
         q = str(question or "").lower()
         s = str(slug or "").lower()
         if any(x in q for x in sports_noise) and str(ticker or "").upper() not in {"BTC", "ETH"}:
@@ -305,6 +421,14 @@ def _best_market_match(conn: sqlite3.Connection, ticker: str, direction: str) ->
         except Exception:
             implied = 0.5
 
+        token_ids: List[str] = []
+        try:
+            parsed_tokens = json.loads(token_ids_json or "[]")
+            if isinstance(parsed_tokens, list):
+                token_ids = [str(x) for x in parsed_tokens if x is not None]
+        except Exception:
+            token_ids = []
+
         row = {
             "market_id": str(market_id or ""),
             "question": str(question or ""),
@@ -314,6 +438,8 @@ def _best_market_match(conn: sqlite3.Connection, ticker: str, direction: str) ->
             "match_score": int(score),
             "matched_terms": sorted(list(set(hits))),
             "implied_prob": _clamp(float(implied), 0.01, 0.99),
+            "yes_token_id": token_ids[0] if len(token_ids) > 0 else "",
+            "no_token_id": token_ids[1] if len(token_ids) > 1 else "",
         }
         if (not best) or (row["match_score"], row["liquidity"], row["volume_24h"]) > (
             int(best.get("match_score", 0)),
@@ -372,6 +498,12 @@ def build_snapshots(conn: sqlite3.Connection) -> int:
             continue
 
         implied = float(match.get("implied_prob", 0.5))
+        yes_token_id = str(match.get("yes_token_id", ""))
+        micro = _micro_from_book(yes_token_id, implied_fallback=implied, vamp_qty=800.0)
+        implied_vamp = float(micro.get("vamp_mid", implied))
+        imbalance = float(micro.get("imbalance", 0.0))
+        micro_premium_bps = float(micro.get("micro_premium_bps", 0.0))
+
         source_acc = _weighted_source_accuracy([str(x) for x in evidence], source_acc_map)
         score_norm = _clamp((float(score or 50.0) - 50.0) / 50.0, -1.0, 1.0)
         dir_sign = 1.0 if direction_s == "long" else (-1.0 if direction_s == "short" else 0.0)
@@ -380,8 +512,9 @@ def build_snapshots(conn: sqlite3.Connection) -> int:
         source_boost = _clamp((source_acc - 50.0) / 500.0, -0.10, 0.10)
         hist_boost = _clamp(((poly_signal_acc - 50.0) / 500.0) + ((poly_exec_acc - 50.0) / 700.0), -0.10, 0.10)
         score_boost = 0.18 * score_norm * dir_sign
+        imbalance_boost = _clamp(0.06 * imbalance * dir_sign, -0.06, 0.06)
 
-        fair_prob = _clamp(implied + score_boost + consensus_boost + source_boost + hist_boost, 0.01, 0.99)
+        fair_prob = _clamp(implied_vamp + score_boost + consensus_boost + source_boost + hist_boost + imbalance_boost, 0.01, 0.99)
 
         inv_qty = _inventory_for_market(conn, str(match.get("market_id", "")))
         inv_util = _clamp(abs(inv_qty) / max(1.0, inv_limit), 0.0, 3.0)
@@ -390,12 +523,12 @@ def build_snapshots(conn: sqlite3.Connection) -> int:
         # Reservation shifts against current inventory to encourage mean reversion.
         reservation = _clamp(fair_prob - (risk_aversion * inv_util * 0.15 * inv_sign), 0.01, 0.99)
 
-        spread_bps = max(10.0, base_spread_bps * (1.0 + (toxicity * 1.8) + (inv_util * 0.6)))
+        spread_bps = max(10.0, base_spread_bps * (1.0 + (toxicity * 1.8) + (inv_util * 0.6)) + micro_premium_bps)
         spread = spread_bps / 10000.0
         bid = _clamp(reservation - spread / 2.0, 0.01, 0.99)
         ask = _clamp(reservation + spread / 2.0, 0.01, 0.99)
 
-        edge_bps = abs(fair_prob - implied) * 10000.0
+        edge_bps = abs(fair_prob - implied_vamp) * 10000.0
 
         state = "normal"
         if toxicity >= tox_cut:
@@ -406,7 +539,8 @@ def build_snapshots(conn: sqlite3.Connection) -> int:
         execution_ready = 1 if (mm_enabled and state != "killswitch" and edge_bps >= min_edge_bps) else 0
 
         rationale = (
-            f"implied={implied:.4f}, fair={fair_prob:.4f}, edge_bps={edge_bps:.1f}, "
+            f"implied_mid={implied:.4f}, implied_vamp={implied_vamp:.4f}, fair={fair_prob:.4f}, "
+            f"edge_bps={edge_bps:.1f}, imbalance={imbalance:.3f}, micro_prem_bps={micro_premium_bps:.1f}, "
             f"tox={toxicity:.2f}, inv_util={inv_util*100:.1f}%, src_acc={source_acc:.1f}, "
             f"poly_exec_acc={poly_exec_acc:.1f}, poly_signal_acc={poly_signal_acc:.1f}"
         )
@@ -416,10 +550,10 @@ def build_snapshots(conn: sqlite3.Connection) -> int:
             INSERT INTO polymarket_mm_snapshots (
               created_at, ticker, direction, candidate_score, confirmations, sources_total, consensus_ratio,
               market_id, market_question, market_url, match_score,
-              implied_prob, fair_prob, reservation_price, bid_price, ask_price,
-              spread_bps, edge_bps, inventory_qty, inventory_util_pct, toxicity,
+              implied_prob, implied_prob_vamp, fair_prob, reservation_price, bid_price, ask_price,
+              spread_bps, edge_bps, order_imbalance, microstructure_premium_bps, inventory_qty, inventory_util_pct, toxicity,
               source_accuracy, poly_exec_accuracy, state, execution_ready, rationale, evidence_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 now_iso(),
@@ -434,12 +568,15 @@ def build_snapshots(conn: sqlite3.Connection) -> int:
                 str(match.get("market_url", "")),
                 int(match.get("match_score", 0)),
                 float(implied),
+                float(implied_vamp),
                 float(fair_prob),
                 float(reservation),
                 float(bid),
                 float(ask),
                 float(spread_bps),
                 float(edge_bps),
+                float(imbalance),
+                float(micro_premium_bps),
                 float(inv_qty),
                 float(inv_util * 100.0),
                 float(toxicity),

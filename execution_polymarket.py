@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from training_mode import apply_training_mode
+
 try:
     from py_clob_client.client import ClobClient
     from py_clob_client.clob_types import ApiCreds, AssetType, BalanceAllowanceParams, OrderArgs, OrderType
@@ -147,6 +149,7 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         "polymarket_max_notional_usd": "10",
         "polymarket_max_daily_exposure": "20",
         "polymarket_min_edge_pct": "5.0",
+        "polymarket_min_confidence_pct": "60",
         "polymarket_fee_gate_enabled": "1",
         "polymarket_taker_fee_pct": "3.15",
         "polymarket_fee_buffer_pct": "0.50",
@@ -176,7 +179,7 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
 def _load_controls(conn: sqlite3.Connection) -> Dict[str, str]:
     cur = conn.cursor()
     cur.execute("SELECT key, value FROM execution_controls")
-    return {str(k): str(v) for k, v in cur.fetchall()}
+    return apply_training_mode({str(k): str(v) for k, v in cur.fetchall()})
 
 
 def _load_runtime_env() -> Dict[str, str]:
@@ -492,6 +495,8 @@ def _evaluate_candidate(
 ) -> Tuple[bool, float, str, str]:
     strategy = str(candidate.get("strategy_id") or "")
     edge = _as_float(candidate.get("edge"), 0.0)
+    confidence_raw = _as_float(candidate.get("confidence"), 0.0)
+    confidence_pct = confidence_raw * 100.0 if confidence_raw <= 1.0 else confidence_raw
     cid = int(candidate.get("id") or 0)
 
     if not _strategy_allowed(controls, strategy):
@@ -508,6 +513,10 @@ def _evaluate_candidate(
         effective_min = max(min_edge, taker_fee + fee_buf)
     if edge < effective_min:
         return False, 0.0, "blocked_control", f"edge below threshold ({edge:.2f} < {effective_min:.2f})"
+
+    min_conf = _as_float(controls.get("polymarket_min_confidence_pct"), 60.0)
+    if confidence_pct < min_conf:
+        return False, 0.0, "blocked_control", f"confidence below threshold ({confidence_pct:.2f} < {min_conf:.2f})"
 
     manual = _as_bool(controls.get("polymarket_manual_approval"), default=True)
     approval_threshold = _as_int(controls.get("polymarket_approval_threshold"), 10)
