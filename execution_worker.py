@@ -8,6 +8,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from training_mode import apply_training_mode
 from execution_adapters import (
     alpaca_margin_capability,
     alpaca_latest_price,
@@ -116,7 +117,14 @@ def load_controls(conn: sqlite3.Connection) -> dict:
         return {}
     cur = conn.cursor()
     cur.execute("SELECT key, value FROM execution_controls")
-    return {k: v for k, v in cur.fetchall()}
+    return apply_training_mode({k: v for k, v in cur.fetchall()})
+
+
+def _as_float(value: object, default: float) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except Exception:
+        return float(default)
 
 
 def _learning_row(
@@ -221,6 +229,8 @@ def process_queue(limit: int = 20) -> int:
         allow_hl_live = controls.get("allow_hyperliquid_live", "0") == "1"
         hl_test_notional = float(controls.get("hyperliquid_test_notional_usd", "1") or 1.0)
         hl_leverage = float(controls.get("hyperliquid_test_leverage", "1") or 1.0)
+        alpaca_min_score = _as_float(controls.get("alpaca_min_route_score", "60"), 60.0)
+        hyperliquid_min_score = _as_float(controls.get("hyperliquid_min_route_score", "60"), 60.0)
         alp_ok, alp_margin_capable, alp_margin_mult, _alp_reason = alpaca_margin_capability()
         if not alp_ok:
             alp_margin_capable = False
@@ -228,7 +238,7 @@ def process_queue(limit: int = 20) -> int:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, ticker, direction, mode, proposed_notional, decision, source_tag
+            SELECT id, ticker, direction, mode, proposed_notional, decision, source_tag, COALESCE(score, 0), COALESCE(preferred_venue, '')
             FROM signal_routes
             WHERE status='queued'
             ORDER BY routed_at ASC
@@ -239,7 +249,7 @@ def process_queue(limit: int = 20) -> int:
         rows = cur.fetchall()
         processed = 0
 
-        for route_id, ticker, direction, mode, notional, decision, source_tag in rows:
+        for route_id, ticker, direction, mode, notional, decision, source_tag, route_score, preferred_venue in rows:
             if decision != "approved":
                 cur.execute("UPDATE signal_routes SET status='blocked' WHERE id=?", (route_id,))
                 _upsert_route_link(
@@ -307,11 +317,89 @@ def process_queue(limit: int = 20) -> int:
 
             ticker_u = (ticker or "").upper().strip()
             side = "sell" if str(direction).lower() in {"short", "bearish", "sell"} else "buy"
+            score_v = _as_float(route_score, 0.0)
+            venue_pref = str(preferred_venue or "").strip().lower()
+
+            if venue_pref == "prediction":
+                reason = "prediction venue route; handled by execution_polymarket pipeline"
+                cur.execute(
+                    """
+                    INSERT INTO execution_orders
+                    (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'blocked', ?)
+                    """,
+                    (now_iso(), route_id, ticker_u, direction, mode, float(notional), 1.0, 0, reason),
+                )
+                cur.execute("UPDATE signal_routes SET status='blocked', reason=? WHERE id=?", (reason[:200], route_id))
+                _upsert_route_link(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    venue="polymarket",
+                    direction=direction,
+                    mode=mode,
+                    entry_side=side,
+                    entry_order_id="",
+                    entry_status="blocked",
+                    notes=reason,
+                )
+                _learning_row(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    mode=mode,
+                    venue="polymarket",
+                    decision=decision,
+                    order_status="blocked",
+                    reason=reason,
+                )
+                processed += 1
+                continue
+
+            if venue_pref in {"", "crypto"} and enable_hl_test_auto and is_hl_eligible(ticker_u) and score_v < hyperliquid_min_score:
+                reason = f"hyperliquid score below threshold ({score_v:.2f} < {hyperliquid_min_score:.2f})"
+                cur.execute(
+                    """
+                    INSERT INTO execution_orders
+                    (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'blocked', ?)
+                    """,
+                    (now_iso(), route_id, ticker_u, direction, mode, float(notional), float(hl_leverage), 1, reason),
+                )
+                cur.execute("UPDATE signal_routes SET status='blocked', reason=? WHERE id=?", (reason[:200], route_id))
+                _upsert_route_link(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    venue="hyperliquid",
+                    direction=direction,
+                    mode=mode,
+                    entry_side=side,
+                    entry_order_id="",
+                    entry_status="blocked",
+                    notes=reason,
+                )
+                _learning_row(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    mode=mode,
+                    venue="hyperliquid",
+                    decision=decision,
+                    order_status="blocked",
+                    reason=reason,
+                )
+                processed += 1
+                continue
             # Release any pending write transaction before adapter calls that may open their own DB writer.
             conn.commit()
 
             # Crypto path: $1 Hyperliquid test intent when enabled and symbol looks HL-eligible.
-            if enable_hl_test_auto and is_hl_eligible(ticker_u):
+            if venue_pref in {"", "crypto"} and enable_hl_test_auto and is_hl_eligible(ticker_u):
                 if allow_hl_live:
                     ok, reason, details = hyperliquid_submit_notional_live(ticker_u, side, hl_test_notional)
                     intent_id = details.get("intent_id", "")
@@ -371,8 +459,93 @@ def process_queue(limit: int = 20) -> int:
                 processed += 1
                 continue
 
+            if venue_pref == "crypto":
+                reason = "crypto venue selected but HL path unavailable for ticker or disabled"
+                cur.execute(
+                    """
+                    INSERT INTO execution_orders
+                    (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'blocked', ?)
+                    """,
+                    (now_iso(), route_id, ticker_u, direction, mode, float(notional), float(hl_leverage), 1, reason),
+                )
+                cur.execute("UPDATE signal_routes SET status='blocked', reason=? WHERE id=?", (reason[:200], route_id))
+                _upsert_route_link(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    venue="hyperliquid",
+                    direction=direction,
+                    mode=mode,
+                    entry_side=side,
+                    entry_order_id="",
+                    entry_status="blocked",
+                    notes=reason,
+                )
+                _learning_row(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    mode=mode,
+                    venue="hyperliquid",
+                    decision=decision,
+                    order_status="blocked",
+                    reason=reason,
+                )
+                processed += 1
+                continue
+
             # Equity/default path: Alpaca paper order when enabled.
-            if enable_alpaca_paper_auto:
+            if venue_pref in {"", "stocks"} and enable_alpaca_paper_auto:
+                if score_v < alpaca_min_score:
+                    reason = f"alpaca score below threshold ({score_v:.2f} < {alpaca_min_score:.2f})"
+                    cur.execute(
+                        """
+                        INSERT INTO execution_orders
+                        (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'blocked', ?)
+                        """,
+                        (
+                            now_iso(),
+                            route_id,
+                            ticker_u,
+                            direction,
+                            mode,
+                            float(notional),
+                            float(alp_margin_mult if alp_margin_capable else 1.0),
+                            int(1 if alp_margin_capable else 0),
+                            reason,
+                        ),
+                    )
+                    cur.execute("UPDATE signal_routes SET status='blocked', reason=? WHERE id=?", (reason[:200], route_id))
+                    _upsert_route_link(
+                        conn=conn,
+                        route_id=route_id,
+                        ticker=ticker_u,
+                        source_tag=source_tag or "",
+                        venue="alpaca",
+                        direction=direction,
+                        mode=mode,
+                        entry_side=side,
+                        entry_order_id="",
+                        entry_status="blocked",
+                        notes=reason,
+                    )
+                    _learning_row(
+                        conn=conn,
+                        route_id=route_id,
+                        ticker=ticker_u,
+                        source_tag=source_tag or "",
+                        mode=mode,
+                        venue="alpaca",
+                        decision=decision,
+                        order_status="blocked",
+                        reason=reason,
+                    )
+                    processed += 1
+                    continue
                 if side == "sell" and not allow_equity_shorts:
                     ok, reason, data = False, "equity shorting disabled by control", {}
                 elif side == "sell":
@@ -431,6 +604,54 @@ def process_queue(limit: int = 20) -> int:
                     venue="alpaca",
                     decision=decision,
                     order_status=status,
+                    reason=reason,
+                )
+                processed += 1
+                continue
+
+            if venue_pref == "stocks":
+                reason = "stocks venue selected but Alpaca adapter disabled"
+                cur.execute(
+                    """
+                    INSERT INTO execution_orders
+                    (created_at, route_id, ticker, direction, mode, notional, leverage_used, leverage_capable, order_status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'blocked', ?)
+                    """,
+                    (
+                        now_iso(),
+                        route_id,
+                        ticker_u,
+                        direction,
+                        mode,
+                        float(notional),
+                        float(alp_margin_mult if alp_margin_capable else 1.0),
+                        int(1 if alp_margin_capable else 0),
+                        reason,
+                    ),
+                )
+                cur.execute("UPDATE signal_routes SET status='blocked', reason=? WHERE id=?", (reason[:200], route_id))
+                _upsert_route_link(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    venue="alpaca",
+                    direction=direction,
+                    mode=mode,
+                    entry_side=side,
+                    entry_order_id="",
+                    entry_status="blocked",
+                    notes=reason,
+                )
+                _learning_row(
+                    conn=conn,
+                    route_id=route_id,
+                    ticker=ticker_u,
+                    source_tag=source_tag or "",
+                    mode=mode,
+                    venue="alpaca",
+                    decision=decision,
+                    order_status="blocked",
                     reason=reason,
                 )
                 processed += 1

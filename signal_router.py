@@ -4,12 +4,14 @@ Route top trade candidates through execution_guard into a queue table.
 """
 
 import argparse
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
 from execution_guard import evaluate_candidate, init_controls, log_risk_event
+from execution_adapters import is_hl_eligible
 from quant_gate import evaluate_quant_candidate, ensure_tables as ensure_quant_tables
 from allocator_causal import (
     ensure_tables as ensure_allocator_tables,
@@ -74,7 +76,106 @@ def ensure_route_table(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE signal_routes ADD COLUMN allocator_reason TEXT NOT NULL DEFAULT ''")
     if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "allocator_blocked"):
         conn.execute("ALTER TABLE signal_routes ADD COLUMN allocator_blocked INTEGER NOT NULL DEFAULT 0")
+    if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "venue_scores_json"):
+        conn.execute("ALTER TABLE signal_routes ADD COLUMN venue_scores_json TEXT NOT NULL DEFAULT '{}'")
+    if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "venue_decisions_json"):
+        conn.execute("ALTER TABLE signal_routes ADD COLUMN venue_decisions_json TEXT NOT NULL DEFAULT '{}'")
+    if _table_exists(conn, "signal_routes") and not _column_exists(conn, "signal_routes", "preferred_venue"):
+        conn.execute("ALTER TABLE signal_routes ADD COLUMN preferred_venue TEXT NOT NULL DEFAULT ''")
     conn.commit()
+
+
+def ensure_venue_matrix(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS venue_matrix (
+          venue TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          min_score REAL NOT NULL DEFAULT 60,
+          max_notional REAL NOT NULL DEFAULT 100,
+          mode TEXT NOT NULL DEFAULT 'paper',
+          updated_at TEXT NOT NULL
+        )
+        """
+    )
+    cur = conn.cursor()
+    controls = {}
+    if _table_exists(conn, "execution_controls"):
+        cur.execute("SELECT key, value FROM execution_controls")
+        controls = {str(k): str(v) for k, v in cur.fetchall()}
+    rows = [
+        (
+            "stocks",
+            1 if controls.get("enable_alpaca_paper_auto", "1") == "1" else 0,
+            float(controls.get("alpaca_min_route_score", "60") or 60.0),
+            float(controls.get("max_signal_notional_usd", "150") or 150.0),
+            "paper",
+        ),
+        (
+            "crypto",
+            1 if controls.get("enable_hyperliquid_test_auto", "1") == "1" else 0,
+            float(controls.get("hyperliquid_min_route_score", "60") or 60.0),
+            float(controls.get("hyperliquid_test_notional_usd", "10") or 10.0),
+            "paper",
+        ),
+        (
+            "prediction",
+            1 if controls.get("enable_polymarket_auto", "0") == "1" else 0,
+            float(controls.get("polymarket_min_confidence_pct", "60") or 60.0),
+            float(controls.get("polymarket_max_notional_usd", "10") or 10.0),
+            "paper",
+        ),
+    ]
+    for venue, enabled, min_score, max_notional, mode in rows:
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO venue_matrix(venue, enabled, min_score, max_notional, mode, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (venue, int(enabled), float(min_score), float(max_notional), mode, now_iso()),
+        )
+    conn.commit()
+
+
+def _load_venue_matrix(conn: sqlite3.Connection) -> Dict[str, Dict[str, float]]:
+    ensure_venue_matrix(conn)
+    cur = conn.cursor()
+    cur.execute("SELECT venue, enabled, min_score, max_notional, mode FROM venue_matrix")
+    out: Dict[str, Dict[str, float]] = {}
+    for venue, enabled, min_score, max_notional, mode in cur.fetchall():
+        out[str(venue)] = {
+            "enabled": int(enabled or 0),
+            "min_score": float(min_score or 60.0),
+            "max_notional": float(max_notional or 100.0),
+            "mode": str(mode or "paper"),
+        }
+    return out
+
+
+def _clamp(v: float, lo: float = 0.0, hi: float = 100.0) -> float:
+    return max(lo, min(hi, float(v)))
+
+
+def _is_prediction_source(source_tag: str, ticker: str) -> bool:
+    s = str(source_tag or "").upper()
+    t = str(ticker or "").upper()
+    if s.startswith("POLY_") or "POLY" in s:
+        return True
+    if any(x in s for x in ("WEATHER", "EVENT", "BOOKMARK")):
+        return True
+    return t in {"BTC", "ETH", "SOL"} and "EVENT" in s
+
+
+def _compute_venue_scores(base_score: float, ticker: str, source_tag: str) -> Dict[str, float]:
+    t = str(ticker or "").upper()
+    s = str(source_tag or "")
+    is_crypto = is_hl_eligible(t)
+    is_pred = _is_prediction_source(s, t)
+    return {
+        "stocks": _clamp(base_score + (4.0 if not is_crypto else -22.0)),
+        "crypto": _clamp(base_score + (6.0 if is_crypto else -28.0)),
+        "prediction": _clamp(base_score + (6.0 if is_pred else -18.0)),
+    }
 
 
 def fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict]:
@@ -88,7 +189,8 @@ def fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict]:
         where = "WHERE consensus_flag=1" if enforce_consensus else ""
         cur.execute(
             """
-            SELECT ticker, direction, score, source_tag, COALESCE(consensus_flag,0)
+            SELECT ticker, direction, score, source_tag, COALESCE(consensus_flag,0),
+                   COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]')
             FROM trade_candidates
             """ + where + """
             ORDER BY score DESC
@@ -104,6 +206,8 @@ def fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict]:
                 "score": float(row[2] or 0.0),
                 "source": row[3] or "internal",
                 "consensus_flag": int(row[4] or 0),
+                "rationale": str(row[5] or ""),
+                "input_breakdown_json": str(row[6] or "[]"),
             }
             for row in rows
         ]
@@ -147,8 +251,10 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
     try:
         init_controls(conn)
         ensure_route_table(conn)
+        ensure_venue_matrix(conn)
         ensure_quant_tables(conn)
         ensure_allocator_tables(conn)
+        venue_matrix = _load_venue_matrix(conn)
         ctl = conn.cursor()
         ctl.execute("SELECT value FROM execution_controls WHERE key='quant_gate_enforce' LIMIT 1")
         row = ctl.fetchone()
@@ -170,6 +276,7 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
             direction = c.get("direction") or "unknown"
             score = float(c.get("score") or 0.0)
             source = c.get("source") or "internal"
+            candidate_rationale = str(c.get("rationale") or "")
             notional = float(default_notional)
 
             if high_beta_only and (not _is_high_beta_ticker(conn, ticker, min_beta)):
@@ -259,6 +366,43 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                 else:
                     reason = f"quant_gate_warn_only: {q_reason}"
             reason_full = f"{reason} | allocator={alloc.reason}"
+            if candidate_rationale:
+                reason_full = f"{reason_full} | inputs={candidate_rationale[:120]}"
+            venue_scores = _compute_venue_scores(score_adj, ticker, source)
+            venue_decisions: Dict[str, Dict[str, object]] = {}
+            best_venue = ""
+            best_margin = -1e9
+            for venue_name in ("stocks", "crypto", "prediction"):
+                cfg = venue_matrix.get(venue_name, {"enabled": 0, "min_score": 60.0, "max_notional": 100.0, "mode": "paper"})
+                v_score = float(venue_scores.get(venue_name, 0.0))
+                enabled = int(cfg.get("enabled", 0)) == 1
+                min_score = float(cfg.get("min_score", 60.0))
+                approved_v = enabled and (v_score >= min_score)
+                margin = v_score - min_score
+                venue_decisions[venue_name] = {
+                    "enabled": enabled,
+                    "score": round(v_score, 2),
+                    "min_score": round(min_score, 2),
+                    "approved": approved_v,
+                    "margin": round(margin, 2),
+                }
+                if approved_v and margin > best_margin:
+                    best_margin = margin
+                    best_venue = venue_name
+
+            if ok and not best_venue:
+                ok = False
+                reason_full = f"{reason_full} | no venue passed matrix thresholds"
+            if ok and best_venue == "prediction":
+                # Prediction execution runs through execution_polymarket candidate lane.
+                ok = False
+                reason_full = f"{reason_full} | prediction venue routed to polymarket pipeline"
+
+            if ok and best_venue:
+                cfg = venue_matrix.get(best_venue, {})
+                cap = float(cfg.get("max_notional", notional_adj))
+                notional_adj = min(notional_adj, cap)
+
             decision = "approved" if ok else "rejected"
             status = "queued" if ok else "blocked"
             if ok:
@@ -269,8 +413,8 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                 """
                 INSERT INTO signal_routes
                 (routed_at, ticker, direction, score, source_tag, proposed_notional, mode, validation_id, decision, reason, status,
-                 allocator_factor, allocator_regime, allocator_reason, allocator_blocked)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 allocator_factor, allocator_regime, allocator_reason, allocator_blocked, venue_scores_json, venue_decisions_json, preferred_venue)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     now_iso(),
@@ -288,6 +432,9 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                     alloc.regime,
                     alloc.reason[:260],
                     int(allocator_blocked),
+                    json.dumps(venue_scores, separators=(",", ":"), ensure_ascii=True),
+                    json.dumps(venue_decisions, separators=(",", ":"), ensure_ascii=True),
+                    best_venue,
                 ),
             )
             log_risk_event(

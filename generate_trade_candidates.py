@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Build normalized trade candidates from internal + external signal tables.
+Build normalized trade candidates from all signal inputs with configurable weights.
 """
 
 import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, List, Tuple
+
+from training_mode import apply_training_mode
 
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
 
@@ -21,35 +24,6 @@ PATTERN_RELIABILITY = {
     "compression_expansion": 0.65,
 }
 
-COPY_TRADE_SOURCE_BOOSTS = {
-    "NoLimitGains": 0.08,
-    "ZenomTrader": 0.05,
-}
-
-
-def load_tracked_sources(conn: sqlite3.Connection) -> dict:
-    if not table_exists(conn, "tracked_x_sources"):
-        return {}
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT lower(COALESCE(handle,'')), COALESCE(role_copy,1), COALESCE(role_alpha,1), COALESCE(active,1)
-        FROM tracked_x_sources
-        WHERE COALESCE(active,1)=1
-        """
-    )
-    out = {}
-    for handle, role_copy, role_alpha, active in cur.fetchall():
-        h = str(handle or "").strip().lower()
-        if not h:
-            continue
-        out[h] = {
-            "role_copy": int(role_copy or 0) == 1,
-            "role_alpha": int(role_alpha or 0) == 1,
-            "active": int(active or 0) == 1,
-        }
-    return out
-
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -59,6 +33,132 @@ def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return cur.fetchone() is not None
+
+
+def ensure_input_source_controls(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS input_source_controls (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          source_key TEXT NOT NULL UNIQUE,
+          source_label TEXT NOT NULL DEFAULT '',
+          source_class TEXT NOT NULL DEFAULT '',
+          enabled INTEGER NOT NULL DEFAULT 1,
+          manual_weight REAL NOT NULL DEFAULT 1.0,
+          auto_weight REAL NOT NULL DEFAULT 1.0,
+          notes TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_input_source_controls_class ON input_source_controls(source_class)")
+    conn.commit()
+
+
+def seed_input_source_controls(conn: sqlite3.Connection) -> None:
+    ensure_input_source_controls(conn)
+    seeds = [
+        ("family:social", "Social Sentiment", "family"),
+        ("family:pattern", "Pattern Quality", "family"),
+        ("family:external", "External Signals", "family"),
+        ("family:copy", "Copy Signals", "family"),
+        ("family:pipeline", "Pipeline Signals", "family"),
+        ("family:liquidity", "Liquidity Map", "family"),
+    ]
+    for key, label, klass in seeds:
+        conn.execute(
+            """
+            INSERT INTO input_source_controls
+            (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, 1, 1.0, 1.0, '')
+            ON CONFLICT(source_key) DO UPDATE SET
+              source_label=COALESCE(NULLIF(excluded.source_label,''), input_source_controls.source_label),
+              source_class=COALESCE(NULLIF(excluded.source_class,''), input_source_controls.source_class),
+              updated_at=input_source_controls.updated_at
+            """,
+            (key, label, klass),
+        )
+    conn.commit()
+
+
+def load_input_controls(conn: sqlite3.Connection) -> Dict[str, Dict[str, float]]:
+    seed_input_source_controls(conn)
+    out: Dict[str, Dict[str, float]] = {}
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT source_key, enabled, manual_weight, auto_weight
+        FROM input_source_controls
+        """
+    )
+    for key, enabled, manual_weight, auto_weight in cur.fetchall():
+        m = float(manual_weight or 1.0)
+        a = float(auto_weight or 1.0)
+        out[str(key)] = {
+            "enabled": 1.0 if int(enabled or 0) == 1 else 0.0,
+            "manual_weight": max(0.0, m),
+            "auto_weight": max(0.1, a),
+        }
+    return out
+
+
+def add_seen_control(conn: sqlite3.Connection, key: str, label: str, klass: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO input_source_controls
+        (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+        VALUES (datetime('now'), datetime('now'), ?, ?, ?, 1, 1.0, 1.0, '')
+        ON CONFLICT(source_key) DO UPDATE SET
+          source_label=COALESCE(NULLIF(excluded.source_label,''), input_source_controls.source_label),
+          source_class=COALESCE(NULLIF(excluded.source_class,''), input_source_controls.source_class),
+          updated_at=input_source_controls.updated_at
+        """,
+        (key, label, klass),
+    )
+
+
+def weight_for(controls: Dict[str, Dict[str, float]], key: str) -> float:
+    c = controls.get(key)
+    if not c:
+        return 1.0
+    if c.get("enabled", 1.0) <= 0.0:
+        return 0.0
+    return float(c.get("manual_weight", 1.0)) * float(c.get("auto_weight", 1.0))
+
+
+def load_tracked_sources(conn: sqlite3.Connection) -> dict:
+    if not table_exists(conn, "tracked_x_sources"):
+        return {}
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(tracked_x_sources)")
+    cols = {r[1] for r in cur.fetchall()}
+    if "x_api_enabled" not in cols:
+        conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN x_api_enabled INTEGER NOT NULL DEFAULT 1")
+    if "source_weight" not in cols:
+        conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN source_weight REAL NOT NULL DEFAULT 1.0")
+    conn.commit()
+    cur.execute(
+        """
+        SELECT lower(COALESCE(handle,'')), COALESCE(role_copy,1), COALESCE(role_alpha,1), COALESCE(active,1),
+               COALESCE(x_api_enabled,1), COALESCE(source_weight,1.0)
+        FROM tracked_x_sources
+        WHERE COALESCE(active,1)=1
+        """
+    )
+    out = {}
+    for handle, role_copy, role_alpha, active, x_api_enabled, source_weight in cur.fetchall():
+        h = str(handle or "").strip().lower()
+        if not h:
+            continue
+        out[h] = {
+            "role_copy": int(role_copy or 0) == 1,
+            "role_alpha": int(role_alpha or 0) == 1,
+            "active": int(active or 0) == 1,
+            "x_api_enabled": int(x_api_enabled or 0) == 1,
+            "source_weight": float(source_weight or 1.0),
+        }
+    return out
 
 
 def ensure_candidates_table(conn: sqlite3.Connection) -> None:
@@ -79,7 +179,6 @@ def ensure_candidates_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
-    # Backfill additional consensus columns for older DBs.
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(trade_candidates)")
     cols = {r[1] for r in cur.fetchall()}
@@ -89,6 +188,7 @@ def ensure_candidates_table(conn: sqlite3.Connection) -> None:
         "consensus_ratio": "REAL NOT NULL DEFAULT 0",
         "consensus_flag": "INTEGER NOT NULL DEFAULT 0",
         "evidence_json": "TEXT NOT NULL DEFAULT '[]'",
+        "input_breakdown_json": "TEXT NOT NULL DEFAULT '[]'",
     }
     for col, spec in additions.items():
         if col not in cols:
@@ -106,22 +206,37 @@ def latest_map(cur: sqlite3.Cursor, query: str):
     return out
 
 
+def contribution(
+    controls: Dict[str, Dict[str, float]],
+    key: str,
+    base_value: float,
+    default_weight: float = 1.0,
+) -> Tuple[float, float]:
+    w = weight_for(controls, key) * float(default_weight)
+    return base_value * w, w
+
+
 def main() -> int:
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=20.0)
+    conn.execute("PRAGMA busy_timeout=20000")
     try:
         ensure_candidates_table(conn)
+        ensure_input_source_controls(conn)
         cur = conn.cursor()
         tracked_sources = load_tracked_sources(conn)
         controls = {}
         if table_exists(conn, "execution_controls"):
             cur.execute("SELECT key, value FROM execution_controls")
-            controls = {str(k): str(v) for k, v in cur.fetchall()}
+            controls = apply_training_mode({str(k): str(v) for k, v in cur.fetchall()})
+        input_controls = load_input_controls(conn)
+
         min_confirmations = int(float(controls.get("consensus_min_confirmations", "3") or 3))
         min_ratio = float(controls.get("consensus_min_ratio", "0.6") or 0.6)
         min_score = float(controls.get("consensus_min_score", "60") or 60.0)
         liq_boost = float(controls.get("liquidity_high_signal_boost", "0.08") or 0.08)
         liq_min_conf = float(controls.get("liquidity_min_confidence", "0.60") or 0.60)
         liq_min_rr = float(controls.get("liquidity_min_rr", "2.0") or 2.0)
+        x_influence_enabled = str(controls.get("x_influence_enabled", "1")).strip() == "1"
 
         sentiment = {}
         if table_exists(conn, "unified_social_sentiment"):
@@ -205,36 +320,28 @@ def main() -> int:
 
         for ticker in tickers:
             sent_score = float((sentiment.get(ticker) or (50, None))[0] or 50)
-            pattern_type = (patterns.get(ticker) or ("none", "unknown", None))[0] or "none"
+            pattern_type = str((patterns.get(ticker) or ("none", "unknown", None))[0] or "none").lower()
             pattern_direction = (patterns.get(ticker) or ("none", "unknown", None))[1] or "unknown"
             pattern_score = float(PATTERN_RELIABILITY.get(pattern_type, 0.50))
-            source_boost = 0.0
 
             ext_source, ext_direction, ext_conf = "internal", "unknown", 0.50
             if ticker in external:
                 ext_source = external[ticker][0] or "external"
                 ext_direction = external[ticker][1] or "unknown"
                 ext_conf = float(external[ticker][2] or 0.50)
-                ext_lower = str(ext_source).lower()
-                if any(h in ext_lower for h in tracked_sources.keys()):
-                    source_boost += 0.05
 
-            copy_source, copy_direction = None, None
+            copy_source, copy_direction = "", "unknown"
             if ticker in copy_signals:
-                copy_source = copy_signals[ticker][0] or ""
-                copy_direction = copy_signals[ticker][1] or ""
-                source_boost += COPY_TRADE_SOURCE_BOOSTS.get(copy_source, 0.03)
-                if str(copy_source).lower() in tracked_sources:
-                    source_boost += 0.04
+                copy_source = str(copy_signals[ticker][0] or "")
+                copy_direction = str(copy_signals[ticker][1] or "unknown")
 
             pipe_score = 50.0
             pipe_direction = "unknown"
-            pipe_source = None
+            pipe_source = ""
             if ticker in pipeline_signals:
                 pipe_score = float(pipeline_signals[ticker][0] or 50.0)
                 pipe_direction = pipeline_signals[ticker][1] or "unknown"
-                pipe_source = pipeline_signals[ticker][2] or ""
-                source_boost += 0.04
+                pipe_source = str(pipeline_signals[ticker][2] or "")
 
             liq_hit = False
             liq_pattern = ""
@@ -248,27 +355,81 @@ def main() -> int:
                 risk = abs(liq_entry - liq_stop)
                 reward = abs(liq_target - liq_entry)
                 liq_rr = round((reward / risk), 4) if risk > 0 else 0.0
-                if (
+                liq_hit = (
                     liq_conf >= liq_min_conf
                     and liq_rr >= liq_min_rr
                     and any(k in liq_pattern for k in ["liquidity_grab", "stop_hunt", "fakeout"])
-                ):
-                    liq_hit = True
-                    source_boost += liq_boost
+                )
 
-            # Weighted blend + small source boost cap.
-            blended = (
-                (sent_score / 100.0) * 0.25
-                + pattern_score * 0.30
-                + ext_conf * 0.20
-                + (pipe_score / 100.0) * 0.25
-                + min(source_boost, 0.10)
-            )
-            final_score = round(min(blended, 1.0) * 100.0, 2)
+            ext_lower = str(ext_source or "").strip().lower()
+            copy_lower = str(copy_source or "").strip().lower()
+            pipe_upper = str(pipe_source or "").strip().upper()
+            pattern_key = f"pattern:{pattern_type}" if pattern_type and pattern_type != "none" else ""
+            ext_key = f"source:{ext_lower}" if ext_lower else ""
+            copy_key = f"source:{copy_lower}" if copy_lower else ""
+            pipe_key = f"pipeline:{pipe_upper}" if pipe_upper else ""
+            x_key = f"x:{ext_lower}" if ext_lower else ""
+
+            if pattern_key:
+                add_seen_control(conn, pattern_key, f"Pattern {pattern_type}", "pattern")
+            if ext_key:
+                add_seen_control(conn, ext_key, f"Source {ext_source}", "source_tag")
+            if copy_key:
+                add_seen_control(conn, copy_key, f"Source {copy_source}", "source_tag")
+            if pipe_key:
+                add_seen_control(conn, pipe_key, f"Pipeline {pipe_upper}", "pipeline")
+            if x_key and ext_lower in tracked_sources:
+                add_seen_control(conn, x_key, f"X @{ext_lower}", "x_account")
+
+            breakdown: List[Dict[str, object]] = []
+            c_social, w_social = contribution(input_controls, "family:social", (sent_score / 100.0) * 0.25)
+            breakdown.append({"key": "family:social", "base": round((sent_score / 100.0) * 0.25, 6), "weight": round(w_social, 6), "value": round(c_social, 6)})
+
+            c_pattern, w_pattern_family = contribution(input_controls, "family:pattern", pattern_score * 0.30)
+            w_pattern_specific = weight_for(input_controls, pattern_key) if pattern_key else 1.0
+            c_pattern *= w_pattern_specific
+            breakdown.append({"key": "family:pattern", "base": round(pattern_score * 0.30, 6), "weight": round(w_pattern_family * w_pattern_specific, 6), "value": round(c_pattern, 6)})
+
+            c_external, w_ext_family = contribution(input_controls, "family:external", ext_conf * 0.20)
+            w_ext_specific = weight_for(input_controls, ext_key) if ext_key else 1.0
+            c_external *= w_ext_specific
+            breakdown.append({"key": "family:external", "base": round(ext_conf * 0.20, 6), "weight": round(w_ext_family * w_ext_specific, 6), "value": round(c_external, 6)})
+
+            c_pipeline, w_pipe_family = contribution(input_controls, "family:pipeline", (pipe_score / 100.0) * 0.25)
+            w_pipe_specific = weight_for(input_controls, pipe_key) if pipe_key else 1.0
+            c_pipeline *= w_pipe_specific
+            breakdown.append({"key": "family:pipeline", "base": round((pipe_score / 100.0) * 0.25, 6), "weight": round(w_pipe_family * w_pipe_specific, 6), "value": round(c_pipeline, 6)})
+
+            copy_component = 0.0
+            if copy_source:
+                copy_component = 0.08
+                c_copy, w_copy_family = contribution(input_controls, "family:copy", copy_component)
+                w_copy_specific = weight_for(input_controls, copy_key) if copy_key else 1.0
+                c_copy *= w_copy_specific
+                breakdown.append({"key": "family:copy", "base": round(copy_component, 6), "weight": round(w_copy_family * w_copy_specific, 6), "value": round(c_copy, 6)})
+            else:
+                c_copy = 0.0
+
+            c_liq = 0.0
+            if liq_hit:
+                c_liq, w_liq = contribution(input_controls, "family:liquidity", liq_boost)
+                breakdown.append({"key": "family:liquidity", "base": round(liq_boost, 6), "weight": round(w_liq, 6), "value": round(c_liq, 6)})
+
+            x_component = 0.0
+            if x_influence_enabled and ext_lower in tracked_sources:
+                src_cfg = tracked_sources.get(ext_lower, {})
+                if bool(src_cfg.get("x_api_enabled", True)):
+                    x_multiplier = float(src_cfg.get("source_weight", 1.0))
+                    w_x = weight_for(input_controls, x_key) * x_multiplier
+                    x_component = 0.05 * w_x
+                    breakdown.append({"key": x_key, "base": 0.05, "weight": round(w_x, 6), "value": round(x_component, 6)})
+
+            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component
+            final_score = round(min(max(blended, 0.0), 1.0) * 100.0, 2)
 
             direction = pattern_direction
             if direction == "unknown":
-                direction = ext_direction if ext_direction != "unknown" else copy_direction or "unknown"
+                direction = ext_direction if ext_direction != "unknown" else copy_direction
             if direction == "unknown" and pipe_direction != "unknown":
                 direction = pipe_direction
 
@@ -286,21 +447,25 @@ def main() -> int:
                 evidence.append(f"pipeline:{pipe_source or 'unknown'}")
             if liq_hit:
                 evidence.append(f"liquidity_map:{liq_pattern}:rr={liq_rr}")
-            if ticker in tracked_sources and tracked_sources[ticker].get("active"):
-                evidence.append("tracked_source_direct")
+            if x_influence_enabled and ext_lower in tracked_sources:
+                evidence.append(f"x:{ext_lower}")
+
             confirmations = len(set([e.split(":")[0] if ":" in e else e for e in evidence]))
-            # Five source families: social, pattern, external, copy, pipeline.
-            sources_total = 5
+            sources_total = 6
             consensus_ratio = round(min(1.0, confirmations / max(1, sources_total)), 4)
             consensus_flag = 1 if (
                 confirmations >= min_confirmations
                 and consensus_ratio >= min_ratio
                 and final_score >= min_score
             ) else 0
+
+            top_inputs = sorted(breakdown, key=lambda x: float(x.get("value", 0.0)), reverse=True)[:3]
+            top_desc = ", ".join([f"{x.get('key')}={float(x.get('value', 0.0)):.3f}" for x in top_inputs]) or "none"
             rationale = (
-                f"sent={sent_score:.0f}, pattern={pattern_type}, ext={ext_source}:{ext_conf:.2f}, "
-                f"pipe={pipe_source or 'none'}:{pipe_score:.1f}"
+                f"score={final_score:.2f}; top_inputs[{top_desc}]; "
+                f"ext={ext_source}:{ext_conf:.2f}; pipe={pipe_source or 'none'}:{pipe_score:.1f}"
             )
+
             rows.append(
                 (
                     now_iso(),
@@ -317,18 +482,18 @@ def main() -> int:
                     int(sources_total),
                     float(consensus_ratio),
                     int(consensus_flag),
-                    json.dumps(evidence[:12]),
+                    json.dumps(evidence[:20]),
+                    json.dumps(top_inputs[:8]),
                 )
             )
 
-        # Keep only fresh generated set.
         cur.execute("DELETE FROM trade_candidates")
         cur.executemany(
             """
             INSERT INTO trade_candidates
             (generated_at, ticker, direction, score, sentiment_score, pattern_type, pattern_score,
-             external_confidence, source_tag, rationale, confirmations, sources_total, consensus_ratio, consensus_flag, evidence_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             external_confidence, source_tag, rationale, confirmations, sources_total, consensus_ratio, consensus_flag, evidence_json, input_breakdown_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )

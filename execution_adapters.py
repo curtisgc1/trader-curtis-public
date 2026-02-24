@@ -8,6 +8,7 @@ Hyperliquid supports signed market execution when enabled by controls.
 import json
 import os
 import sqlite3
+import subprocess
 import time
 from datetime import datetime, timezone
 from decimal import ROUND_UP, Decimal
@@ -68,6 +69,20 @@ def load_env() -> Dict[str, str]:
     for k, v in os.environ.items():
         if v is not None:
             env[k] = v
+    # Security fallback: load HL signer key from macOS Keychain when omitted from .env.
+    if not str(env.get("HL_AGENT_PRIVATE_KEY", "")).strip():
+        acct = os.environ.get("KEYCHAIN_ACCOUNT", "curtiscorum")
+        try:
+            out = subprocess.check_output(
+                ["security", "find-generic-password", "-a", acct, "-s", "trader-curtis-HL_AGENT_PRIVATE_KEY", "-w"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=4,
+            ).strip()
+            if out:
+                env["HL_AGENT_PRIVATE_KEY"] = out
+        except Exception:
+            pass
     return env
 
 
@@ -365,11 +380,63 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
     except Exception as exc:
         return False, f"invalid HL private key: {exc}", {}
 
+    # Self-heal stale wallet overrides: if configured account doesn't match signer,
+    # force signer address to prevent routing to an old/wrong wallet.
+    signer_address = wallet.address
+    configured_account = str(account_address or "").strip()
+    account_mismatch_corrected = False
+    if configured_account and configured_account.lower() != signer_address.lower():
+        account_mismatch_corrected = True
+        account_address = signer_address
+    elif not configured_account:
+        account_address = signer_address
+
     try:
         info = Info(base_url=api_url, skip_ws=True, timeout=15)
         mids = info.all_mids()
         mid = float(mids.get(symbol, 0) or 0)
         meta = info.meta()
+        perp_state = info.user_state(account_address or wallet.address)
+        perp_withdrawable = 0.0
+        perp_account_value = 0.0
+        if isinstance(perp_state, dict):
+            ms = perp_state.get("marginSummary", {}) if isinstance(perp_state.get("marginSummary"), dict) else {}
+            perp_withdrawable = float(perp_state.get("withdrawable") or 0.0)
+            perp_account_value = float(ms.get("accountValue") or 0.0)
+
+        # Spot/perp are separate on HL. Spot funds do not automatically mean perps collateral exists.
+        spot_usdc_total = 0.0
+        try:
+            spot_state = info.spot_user_state(account_address or wallet.address)
+            if isinstance(spot_state, dict):
+                for b in (spot_state.get("balances") or []):
+                    if not isinstance(b, dict):
+                        continue
+                    coin = str(b.get("coin") or "").upper()
+                    if coin in {"USDC", "USD"}:
+                        spot_usdc_total += float(b.get("total") or 0.0)
+        except Exception:
+            spot_state = {}
+
+        if perp_account_value <= 0.0 and spot_usdc_total > 0.0:
+            details = {
+                "symbol": symbol,
+                "network": network,
+                "notional_usd": notional_usd,
+                "configured_account": configured_account,
+                "effective_account": account_address,
+                "account_mismatch_corrected": account_mismatch_corrected,
+                "perp_account_value": perp_account_value,
+                "perp_withdrawable": perp_withdrawable,
+                "spot_usdc_total": round(spot_usdc_total, 6),
+                "reason": "spot funded but perps collateral empty",
+            }
+            intent_id = record_intent("hyperliquid", symbol, side, 0.0, float(notional_usd), "failed", details)
+            return (
+                False,
+                "HL perps collateral is empty while spot has funds. Transfer Spot -> Perps in Hyperliquid UI.",
+                {"intent_id": intent_id, **details},
+            )
     except Exception as exc:
         details = {"symbol": symbol, "network": network, "notional_usd": notional_usd, "reason": str(exc)}
         intent_id = record_intent("hyperliquid", symbol, side, 0.0, float(notional_usd), "failed", details)
@@ -415,6 +482,9 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
             "symbol": symbol,
             "network": network,
             "notional_usd": notional_usd,
+            "configured_account": configured_account,
+            "effective_account": account_address,
+            "account_mismatch_corrected": account_mismatch_corrected,
             "size": size,
             "mid": mid,
             "sz_decimals": sz_decimals,
@@ -429,6 +499,9 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
             "symbol": symbol,
             "network": network,
             "notional_usd": notional_usd,
+            "configured_account": configured_account,
+            "effective_account": account_address,
+            "account_mismatch_corrected": account_mismatch_corrected,
             "size": size,
             "mid": mid,
             "error": f"unexpected HL response type: {type(order_result).__name__}",
@@ -443,6 +516,9 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
             "symbol": symbol,
             "network": network,
             "notional_usd": notional_usd,
+            "configured_account": configured_account,
+            "effective_account": account_address,
+            "account_mismatch_corrected": account_mismatch_corrected,
             "size": size,
             "mid": mid,
             "error": str((order_result or {}).get("response") or "exchange returned err"),
@@ -466,6 +542,9 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
             "symbol": symbol,
             "network": network,
             "notional_usd": notional_usd,
+            "configured_account": configured_account,
+            "effective_account": account_address,
+            "account_mismatch_corrected": account_mismatch_corrected,
             "size": size,
             "mid": mid,
             "error": "; ".join(embedded_errors),
@@ -482,6 +561,13 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
         qty=size,
         notional=float(notional_usd),
         status="submitted",
-        details={"network": network, "live_order_result": order_result, "mid": mid},
+        details={
+            "network": network,
+            "configured_account": configured_account,
+            "effective_account": account_address,
+            "account_mismatch_corrected": account_mismatch_corrected,
+            "live_order_result": order_result,
+            "mid": mid,
+        },
     )
     return True, "submitted", {"intent_id": intent_id, "network": network, "mid": mid, "size": size, "result": order_result}

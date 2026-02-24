@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Tuple
 
+from training_mode import apply_training_mode
+
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
 
 DEFAULT_CONTROLS = {
@@ -22,14 +24,17 @@ DEFAULT_CONTROLS = {
     "max_daily_new_notional_usd": "1000",
     "max_signal_notional_usd": "150",
     "enable_alpaca_paper_auto": "1",
+    "alpaca_min_route_score": "60",
     "allow_equity_shorts": "1",
     "enable_hyperliquid_test_auto": "1",
+    "hyperliquid_min_route_score": "60",
     "hyperliquid_test_notional_usd": "10",
     "hyperliquid_test_leverage": "1",
     "enable_polymarket_auto": "0",
     "allow_polymarket_live": "0",
     "polymarket_max_notional_usd": "25",
     "polymarket_min_edge_pct": "2.0",
+    "polymarket_min_confidence_pct": "60",
     "polymarket_fee_gate_enabled": "1",
     "polymarket_taker_fee_pct": "3.15",
     "polymarket_fee_buffer_pct": "0.50",
@@ -62,6 +67,22 @@ DEFAULT_CONTROLS = {
     "allocator_block_posterior_floor": "0.35",
     "allocator_max_scale_up": "1.35",
     "allocator_max_scale_down": "0.60",
+    "auto_tuner_apply": "0",
+    "training_mode_enabled": "0",
+    "training_min_candidate_score": "55",
+    "training_consensus_min_confirmations": "2",
+    "training_consensus_min_ratio": "0.55",
+    "training_consensus_min_score": "60",
+    "training_alpaca_min_route_score": "60",
+    "training_hyperliquid_min_route_score": "60",
+    "training_polymarket_min_confidence_pct": "60",
+    "training_max_signal_notional_usd": "10",
+    "training_max_daily_new_notional_usd": "50",
+    "training_hyperliquid_test_notional_usd": "1",
+    "training_polymarket_max_notional_usd": "5",
+    "training_polymarket_max_daily_exposure": "20",
+    "kaggle_auto_pull_enabled": "0",
+    "kaggle_poly_dataset_slug": "",
 }
 
 
@@ -116,7 +137,8 @@ def load_controls(conn: sqlite3.Connection) -> Dict[str, str]:
     init_controls(conn)
     cur = conn.cursor()
     cur.execute("SELECT key, value FROM execution_controls")
-    return {key: value for key, value in cur.fetchall()}
+    base = {key: value for key, value in cur.fetchall()}
+    return apply_training_mode(base)
 
 
 def _count_open_positions(conn: sqlite3.Connection) -> int:
