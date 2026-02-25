@@ -106,12 +106,14 @@ def _iter_rows(path: Path) -> Iterable[Dict[str, Any]]:
     return _rows_from_csv(path)
 
 
-def ingest_file(conn: sqlite3.Connection, path: Path) -> Tuple[int, int]:
+def ingest_file(conn: sqlite3.Connection, path: Path, max_rows_per_file: int = 0) -> Tuple[int, int]:
     cur = conn.cursor()
     inserted = 0
     scanned = 0
     src = str(path)
     for row in _iter_rows(path):
+        if max_rows_per_file > 0 and scanned >= max_rows_per_file:
+            break
         scanned += 1
         # Keep this strict so unrelated Kaggle datasets cannot pollute labels.
         question = _pick(row, "question", "market", "name")
@@ -198,12 +200,18 @@ def main() -> int:
     ap.add_argument("--file", default="", help="single csv/jsonl file path")
     ap.add_argument("--dir", default=str(DATASETS_DIR), help="directory to scan for csv/jsonl")
     ap.add_argument("--kaggle-dataset", default="", help="optional kaggle dataset slug (downloads before ingest)")
+    ap.add_argument("--max-files", type=int, default=0, help="optional max files to ingest per run (0=all)")
+    ap.add_argument("--max-rows-per-file", type=int, default=0, help="optional max rows to scan per file (0=all)")
     args = ap.parse_args()
 
     d = Path(args.dir).expanduser()
     if args.kaggle_dataset:
         status = _download_kaggle(args.kaggle_dataset, d)
         print(f"kaggle_download={status}")
+        if status.startswith("error:"):
+            return 2
+        if status == "skipped:no_kaggle_cli":
+            return 3
 
     files: List[Path] = []
     if args.file:
@@ -212,8 +220,12 @@ def main() -> int:
             files.append(p)
     else:
         if d.exists():
-            files.extend(sorted(d.glob("*.csv")))
-            files.extend(sorted(d.glob("*.jsonl")))
+            csv_files = sorted(d.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+            jsonl_files = sorted(d.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+            files.extend(csv_files)
+            files.extend(jsonl_files)
+    if args.max_files and args.max_files > 0:
+        files = files[: int(args.max_files)]
 
     conn = _connect()
     conn.execute("PRAGMA busy_timeout=15000")
@@ -222,7 +234,7 @@ def main() -> int:
         total_scanned = 0
         total_inserted = 0
         for f in files:
-            scanned, inserted = ingest_file(conn, f)
+            scanned, inserted = ingest_file(conn, f, max_rows_per_file=max(0, int(args.max_rows_per_file or 0)))
             total_scanned += scanned
             total_inserted += inserted
         print(

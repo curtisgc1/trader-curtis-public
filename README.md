@@ -1,56 +1,79 @@
-# trader-curtis
+# Trader Curtis Quant System
 
-An elephant never forgets.
+Event-driven multi-venue quant pipeline for:
+- `stocks` (Alpaca paper/live-gated)
+- `crypto` (Hyperliquid test/live-gated)
+- `prediction markets` (Polymarket)
 
-## Structure
+The system ingests many signal families (bookmarks, event feeds, breakthroughs, free data, tracked X handles), routes candidates through hard controls, executes only when allowed, and runs a separate learning/alignment loop.
 
-### Memory Categories
-- `rules/` — Injectable operational constraints, guardrails, and runbooks
-- `preferences/` — Likes, dislikes, how I want things
-- `decisions/` — Choices made with context and reasoning
-- `patterns/` — Recurring behaviors (→ lessons)
-- `people/` — Relationships, one file per person
-- `projects/` — Active work, ventures, ongoing efforts
-- `goals/` — Long-term and short-term objectives
-- `transcripts/` — Session summaries and logs
-- `inbox/` — Quick capture → process later
-- `lessons/` — What I learned, insights, patterns observed
-- `agents/` — Other agents — capabilities, trust levels, coordination notes
-- `commitments/` — Promises, goals, obligations to fulfill
-- `handoffs/` — Session bridges — what I was doing, what comes next
-- `research/` — Deep dives, analysis, reference material
+## Core Architecture
 
-### Work Tracking
+1. Signal ingestion
+- `pipeline_*.py` jobs write to `pipeline_signals`, `external_signals`, `copy_trades`, and related staging tables.
 
+2. Candidate generation and routing
+- `generate_trade_candidates.py` builds `trade_candidates`.
+- `signal_router.py` applies policy/risk controls and writes `signal_routes`.
 
-### Observational Memory
-- `ledger/raw/` — Raw session transcripts (source of truth)
-- `ledger/observations/` — Compressed observations with importance scores
-- `ledger/reflections/` — Weekly reflection summaries
+3. Execution
+- `execution_worker.py` (stocks/crypto) and `execution_polymarket.py` (prediction markets).
+- Execution is always control-gated via `execution_controls`.
 
-## Quick Reference
+4. Learning feedback
+- `update_learning_feedback.py` refreshes `route_outcomes`, source/strategy stats, and feature stats.
+
+5. GRPO/HGRM alignment lane (shadow-safe by default)
+- `grpo_hgrm_weekly.py` computes hierarchical reward samples and optional weight updates.
+- `training/grpo/build_grpo_dataset.py` creates `datasets/grpo_train.jsonl` and `datasets/grpo_eval.jsonl`.
+
+## Main Entry Points
+
+- Full cycle: `./run-all-scans.sh`
+- Scheduled cycle wrapper: `./scripts/trader_cycle_locked.sh <mode>`
+- Full audit: `./scripts/full_pipeline_audit.sh`
+- Local stack check: `./scripts/check_local_grpo_stack.sh`
+- Kaggle ingest (daily-gated): `./scripts/run_kaggle_ingest.sh`
+
+## Safety Model
+
+- `grpo_apply_weight_updates=0` is the default safe mode.
+- Trading remains blocked unless venue-specific controls are enabled.
+- Policy/alignment logic does not bypass execution guards.
+
+## Kaggle Role
+
+Kaggle is used to complement training/alignment data, not as live execution truth.
+
+Current Kaggle ingest requirements:
+1. `~/.kaggle/kaggle.json` present (API credentials)
+2. `kaggle_poly_dataset_slug` set in `execution_controls`
+3. Daily/min-hour limits respected by `scripts/run_kaggle_ingest.sh`
+
+## Local Runtime Notes
+
+- Mac hardware detected: Apple Silicon (M3 Ultra class)
+- Ollama local model support is active (`qwen2.5:14b` available)
+- MLX/MLX-LM runtime is installed for local training/inference workflows
+
+## Quick Ops Commands
 
 ```bash
-# Capture a thought
-clawvault capture "important insight about X"
+# Health/status
+./scripts/check_local_grpo_stack.sh
+./scripts/full_pipeline_audit.sh
 
-# Store structured memory
-clawvault store --category decisions --title "Choice" --content "We chose X because..."
+# Force one Kaggle ingest attempt (for validation)
+FORCE_KAGGLE_INGEST=1 ./scripts/run_kaggle_ingest.sh
 
-# Search
-clawvault search "query"
-clawvault vsearch "semantic query"    # vector search
-
-# Knowledge graph
-clawvault graph                       # vault stats
-clawvault context "topic"             # graph-aware context retrieval
-
-# Session lifecycle
-clawvault checkpoint --working-on "task"
-clawvault sleep "what I did" --next "what's next"
-clawvault wake                        # restore context on startup
+# Rebuild GRPO datasets from local outcomes
+./training/grpo/build_grpo_dataset.py --include-operational
+./training/grpo/compare_sources.py --file datasets/grpo_train.jsonl
 ```
 
----
+## Important Tables
 
-*Managed by [ClawVault](https://clawvault.dev)*
+- Live flow: `pipeline_signals`, `trade_candidates`, `signal_routes`, `execution_orders`, `polymarket_orders`
+- Learning: `route_outcomes`, `source_learning_stats`, `strategy_learning_stats`, `input_feature_stats`
+- Alignment: `alignment_reward_samples`, `alignment_policy_runs`
+- Kaggle training data: `polymarket_kaggle_markets`

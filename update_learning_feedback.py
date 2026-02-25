@@ -1019,13 +1019,34 @@ def resolve_route_outcomes(conn: sqlite3.Connection) -> int:
     return inserted
 
 
-def refresh_source_learning(conn: sqlite3.Connection) -> int:
+def choose_learning_outcome_scope(conn: sqlite3.Connection) -> str:
+    """
+    Prefer realized outcomes for learning stats.
+    Fall back to all outcomes when realized labels are not available yet.
+    """
     if not table_exists(conn, "route_outcomes"):
-        return 0
-
+        return "none"
     cur = conn.cursor()
     cur.execute(
         """
+        SELECT COUNT(*)
+        FROM route_outcomes
+        WHERE COALESCE(outcome_type, 'realized')='realized'
+        """
+    )
+    realized = int((cur.fetchone() or [0])[0] or 0)
+    return "realized" if realized > 0 else "all"
+
+
+def refresh_source_learning(conn: sqlite3.Connection, outcome_scope: str = "all") -> Tuple[int, str]:
+    if not table_exists(conn, "route_outcomes"):
+        return 0, "none"
+
+    cur = conn.cursor()
+    normalized_scope = "realized" if outcome_scope == "realized" else "all"
+    where_clause = "WHERE COALESCE(outcome_type, 'realized')='realized'" if normalized_scope == "realized" else ""
+    cur.execute(
+        f"""
         SELECT source_tag,
                COUNT(*) AS n,
                SUM(CASE WHEN resolution='win' THEN 1 ELSE 0 END) AS wins,
@@ -1034,6 +1055,7 @@ def refresh_source_learning(conn: sqlite3.Connection) -> int:
                AVG(pnl) AS avg_pnl,
                AVG(pnl_percent) AS avg_pnl_percent
         FROM route_outcomes
+        {where_clause}
         GROUP BY source_tag
         """
     )
@@ -1065,15 +1087,17 @@ def refresh_source_learning(conn: sqlite3.Connection) -> int:
             ),
         )
     conn.commit()
-    return len(rows)
+    return len(rows), normalized_scope
 
 
-def refresh_strategy_learning(conn: sqlite3.Connection) -> int:
+def refresh_strategy_learning(conn: sqlite3.Connection, outcome_scope: str = "all") -> Tuple[int, str]:
     if not table_exists(conn, "route_outcomes") or not table_exists(conn, "signal_routes"):
-        return 0
+        return 0, "none"
     cur = conn.cursor()
+    normalized_scope = "realized" if outcome_scope == "realized" else "all"
+    where_clause = "WHERE COALESCE(o.outcome_type, 'realized')='realized'" if normalized_scope == "realized" else ""
     cur.execute(
-        """
+        f"""
         SELECT COALESCE(r.source_tag, o.source_tag, 'UNSPECIFIED') AS tag,
                COUNT(*) AS n,
                SUM(CASE WHEN o.resolution='win' THEN 1 ELSE 0 END) AS wins,
@@ -1083,6 +1107,7 @@ def refresh_strategy_learning(conn: sqlite3.Connection) -> int:
                AVG(o.pnl_percent) AS avg_pnl_percent
         FROM route_outcomes o
         LEFT JOIN signal_routes r ON r.id = o.route_id
+        {where_clause}
         GROUP BY tag
         """
     )
@@ -1131,7 +1156,7 @@ def refresh_strategy_learning(conn: sqlite3.Connection) -> int:
             ),
         )
     conn.commit()
-    return len(rolled)
+    return len(rolled), normalized_scope
 
 
 def main() -> int:
@@ -1152,14 +1177,17 @@ def main() -> int:
             missed_enabled = bool(rw and str(rw[0]) == "1")
         missed_resolved = resolve_not_taken_opportunities(conn) if missed_enabled else 0
         op_backfilled = backfill_operational_pnl(conn)
-        sources = refresh_source_learning(conn)
-        strategies = refresh_strategy_learning(conn)
+        learning_scope = choose_learning_outcome_scope(conn)
+        sources, source_scope = refresh_source_learning(conn, learning_scope)
+        strategies, strategy_scope = refresh_strategy_learning(conn, learning_scope)
         feature_stats = refresh_input_feature_stats(conn)
         print(
             f"Learning feedback: cleaned {cleaned} placeholders, backfilled {backfilled} route links, "
             f"snapshotted {features} route feature rows, resolved {resolved} new route outcomes, "
-            f"mtm_resolved {mtm_resolved}, missed_resolved {missed_resolved} (enabled={int(missed_enabled)}), operational pnl backfilled {op_backfilled}, refreshed {sources} source stats, "
-            f"{strategies} strategy stats, {feature_stats} feature stats"
+            f"mtm_resolved {mtm_resolved}, missed_resolved {missed_resolved} (enabled={int(missed_enabled)}), "
+            f"operational pnl backfilled {op_backfilled}, learning_scope={learning_scope}, "
+            f"refreshed {sources} source stats (scope={source_scope}), "
+            f"{strategies} strategy stats (scope={strategy_scope}), {feature_stats} feature stats"
         )
         return 0
     finally:

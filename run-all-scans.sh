@@ -32,6 +32,10 @@ echo "🔗 INGESTING BOOKMARK THESES (PIPELINE D)..."
 /Users/Shared/curtis/trader-curtis/pipeline_d_bookmarks.py 2>/dev/null || true
 echo ""
 
+echo "🐦 RUNNING PIPELINE X (TRACKED HANDLE BRIDGE)..."
+/Users/Shared/curtis/trader-curtis/pipeline_x_handle_bridge.py 2>/dev/null || true
+echo ""
+
 echo "⚡ RUNNING PIPELINE A (LIQUIDITY SCALP)..."
 /Users/Shared/curtis/trader-curtis/pipeline_a_liquidity.py 2>/dev/null || true
 echo ""
@@ -72,6 +76,10 @@ echo "🌍 RUNNING PIPELINE C (EVENT ALPHA)..."
 /Users/Shared/curtis/trader-curtis/pipeline_c_event.py 2>/dev/null || true
 echo ""
 
+echo "🧺 RUNNING PIPELINE J (KAGGLE DAILY INGEST GATED)..."
+/Users/Shared/curtis/trader-curtis/scripts/run_kaggle_ingest.sh 2>/dev/null || true
+echo ""
+
 echo "🧠 BUILDING TRADE CANDIDATES..."
 /Users/Shared/curtis/trader-curtis/reweight_input_sources.py 2>/dev/null || true
 /Users/Shared/curtis/trader-curtis/generate_trade_candidates.py 2>/dev/null || true
@@ -99,12 +107,7 @@ echo "📤 EXECUTING APPROVED ROUTES (PAPER WORKER)..."
 echo ""
 
 echo "🗳️ POLYMARKET EXECUTION..."
-PY_BIN="$(command -v python3.11 || command -v python3 || true)"
-if [ -n "$PY_BIN" ]; then
-    /Users/Shared/curtis/trader-curtis/scripts/with_polymarket_keychain.sh "$PY_BIN" /Users/Shared/curtis/trader-curtis/execution_polymarket.py || true
-else
-    echo "WARN: no python3 interpreter available for execution_polymarket.py"
-fi
+/Users/Shared/curtis/trader-curtis/scripts/run_polymarket_exec.sh || true
 echo ""
 
 echo "🔄 SYNCING ALPACA ORDER STATUS..."
@@ -134,6 +137,10 @@ echo ""
 
 echo "🧾 TRADE CLAIM GUARD..."
 /Users/Shared/curtis/trader-curtis/scripts/trade_claim_guard.sh || true
+echo ""
+
+echo "🩺 PIPELINE DIGEST CHECK..."
+/Users/Shared/curtis/trader-curtis/scripts/pipeline_digest_check.sh 2>/dev/null || true
 echo ""
 
 echo "═══════════════════════════════════════════════════"
