@@ -83,6 +83,45 @@ DEFAULT_CONTROLS = {
     "training_polymarket_max_daily_exposure": "20",
     "kaggle_auto_pull_enabled": "0",
     "kaggle_poly_dataset_slug": "",
+    "grpo_mlx_train_enabled": "0",
+    "grpo_mlx_min_hours_between_runs": "24",
+    "grpo_mlx_daily_train_limit": "1",
+    "grpo_mlx_base_model": "mlx-community/Qwen2.5-7B-Instruct-4bit",
+    "grpo_mlx_adapter_path": "models/mlx-grpo-adapter",
+    "grpo_mlx_fine_tune_type": "lora",
+    "grpo_mlx_iters": "120",
+    "grpo_mlx_batch_size": "2",
+    "grpo_mlx_learning_rate": "0.00001",
+    "grpo_mlx_steps_per_report": "10",
+    "grpo_mlx_steps_per_eval": "25",
+    "grpo_mlx_grad_accum_steps": "4",
+    "grpo_mlx_max_seq_length": "1024",
+    "grpo_mlx_num_layers": "16",
+    "grpo_mlx_mask_prompt": "0",
+    "grpo_mlx_min_train_rows": "40",
+    "grpo_mlx_test_after_train": "1",
+    "grpo_mlx_dry_run": "0",
+    "grpo_min_realized_for_live_updates": "100",
+    "grpo_min_kaggle_rows": "1000",
+    "grpo_auto_unlock_live_updates": "0",
+    "learning_resolver_http_timeout_seconds": "5",
+    "mtm_resolver_max_runtime_seconds": "120",
+    "missed_opportunity_resolver_enabled": "0",
+    "missed_opportunity_min_age_hours": "6",
+    "missed_opportunity_max_age_hours": "96",
+    "missed_opportunity_max_candidates": "60",
+    "missed_opportunity_max_price_lookups": "180",
+    "missed_opportunity_max_runtime_seconds": "180",
+    "horizon_resolver_enabled": "0",
+    "horizon_resolver_hours": "6,24,168,720,2160",
+    "horizon_resolver_min_age_hours": "2",
+    "horizon_resolver_max_routes": "320",
+    "horizon_resolver_max_price_lookups": "800",
+    "horizon_resolver_max_runtime_seconds": "600",
+    "polymarket_exec_backend": "pyclob",
+    "polymarket_strict_funding_check": "0",
+    "polymarket_edge_unit_mode": "auto",
+    "threshold_override_unlocked": "0",
 }
 
 
@@ -122,6 +161,34 @@ def init_controls(conn: sqlite3.Connection) -> None:
           approved INTEGER NOT NULL,
           reason TEXT NOT NULL
         )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_lock_threshold_controls
+        BEFORE UPDATE OF value ON execution_controls
+        WHEN NEW.key IN (
+          'min_candidate_score',
+          'alpaca_min_route_score',
+          'hyperliquid_min_route_score',
+          'consensus_min_confirmations',
+          'consensus_min_ratio',
+          'consensus_min_score',
+          'polymarket_min_edge_pct',
+          'polymarket_min_confidence_pct',
+          'training_min_candidate_score',
+          'training_consensus_min_confirmations',
+          'training_consensus_min_ratio',
+          'training_consensus_min_score',
+          'training_alpaca_min_route_score',
+          'training_hyperliquid_min_route_score',
+          'training_polymarket_min_confidence_pct'
+        )
+        AND COALESCE((SELECT value FROM execution_controls WHERE key='threshold_override_unlocked' LIMIT 1),'0') != '1'
+        AND COALESCE(OLD.value,'') <> COALESCE(NEW.value,'')
+        BEGIN
+          SELECT RAISE(ABORT, 'threshold controls locked (set threshold_override_unlocked=1 to allow changes)');
+        END;
         """
     )
     cur = conn.cursor()

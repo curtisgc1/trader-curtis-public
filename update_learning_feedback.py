@@ -5,6 +5,8 @@ This gives the agent a persistent mistakes/wins memory pipeline.
 """
 
 import sqlite3
+import os
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, Tuple
@@ -13,6 +15,7 @@ import requests
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
 ENV_PATH = Path(__file__).parent / ".env"
 STRATEGY_TAGS = {"A_SCALP", "B_LONGTERM", "C_EVENT", "D_BOOKMARKS", "POLY_ALPHA", "POLY_COPY", "POLY_ARB"}
+CRYPTO_TICKERS = {"BTC", "ETH", "SOL", "DOGE", "LTC", "XRP", "ADA", "AVAX", "DOT", "LINK", "MATIC", "BNB"}
 
 
 def now_iso() -> str:
@@ -153,6 +156,48 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS route_outcomes_horizons (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          route_id INTEGER NOT NULL,
+          horizon_hours INTEGER NOT NULL,
+          ticker TEXT NOT NULL,
+          source_tag TEXT NOT NULL,
+          venue TEXT NOT NULL DEFAULT '',
+          direction TEXT NOT NULL DEFAULT '',
+          decision TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT '',
+          outcome_type TEXT NOT NULL DEFAULT 'counterfactual',
+          resolution TEXT NOT NULL DEFAULT 'push',
+          pnl REAL NOT NULL DEFAULT 0,
+          pnl_percent REAL NOT NULL DEFAULT 0,
+          entry_price REAL NOT NULL DEFAULT 0,
+          eval_price REAL NOT NULL DEFAULT 0,
+          routed_at TEXT NOT NULL DEFAULT '',
+          evaluated_at TEXT NOT NULL DEFAULT '',
+          notes TEXT NOT NULL DEFAULT '',
+          UNIQUE(route_id, horizon_hours)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS source_horizon_learning_stats (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          computed_at TEXT NOT NULL,
+          horizon_hours INTEGER NOT NULL,
+          source_tag TEXT NOT NULL,
+          sample_size INTEGER NOT NULL,
+          wins INTEGER NOT NULL,
+          losses INTEGER NOT NULL,
+          pushes INTEGER NOT NULL,
+          win_rate REAL NOT NULL,
+          avg_pnl REAL NOT NULL,
+          avg_pnl_percent REAL NOT NULL
+        )
+        """
+    )
     if table_exists(conn, "route_outcomes") and not column_exists(conn, "route_outcomes", "outcome_type"):
         conn.execute("ALTER TABLE route_outcomes ADD COLUMN outcome_type TEXT NOT NULL DEFAULT 'realized'")
         conn.execute(
@@ -172,6 +217,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_route_features_hour ON route_feedback_features(hour_utc)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_input_feature_dim ON input_feature_stats(dimension, dimension_value)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_input_feature_outcome ON input_feature_stats(outcome_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_route_outcomes_horizon ON route_outcomes_horizons(horizon_hours)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_route_outcomes_h_source ON route_outcomes_horizons(source_tag)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_source_horizon_stats ON source_horizon_learning_stats(horizon_hours, source_tag)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_exec_learning_route ON execution_learning(route_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_route ON trades(route_id)")
     conn.commit()
@@ -318,6 +366,39 @@ def _parse_iso(ts: str) -> datetime:
         return datetime.now(timezone.utc)
 
 
+def _parse_horizon_hours(raw: str) -> list[int]:
+    vals = []
+    for part in str(raw or "").split(","):
+        s = part.strip()
+        if not s:
+            continue
+        try:
+            h = int(float(s))
+        except Exception:
+            continue
+        if 1 <= h <= 24 * 120:
+            vals.append(h)
+    if not vals:
+        return [6, 24, 168, 720, 2160]
+    return sorted(set(vals))
+
+
+def _resolution_from_pct(pnl_pct: float, eps: float = 0.05) -> str:
+    if pnl_pct > eps:
+        return "win"
+    if pnl_pct < -eps:
+        return "loss"
+    return "push"
+
+
+def _looks_crypto(ticker: str, venue_hint: str = "") -> bool:
+    tk = str(ticker or "").upper().strip()
+    if tk in CRYPTO_TICKERS:
+        return True
+    vh = str(venue_hint or "").lower()
+    return "hyperliquid" in vh or "crypto" in vh
+
+
 def _score_bin(score: float) -> str:
     if score < 40:
         return "<40"
@@ -367,7 +448,7 @@ def load_env() -> Dict[str, str]:
     return env
 
 
-def _alpaca_latest_price(ticker: str, env: Dict[str, str]) -> float:
+def _alpaca_latest_price(ticker: str, env: Dict[str, str], timeout_seconds: float = 6.0) -> float:
     api_key = str(env.get("ALPACA_API_KEY", "")).strip()
     secret = str(env.get("ALPACA_SECRET_KEY", "")).strip()
     if not api_key or not secret:
@@ -376,7 +457,7 @@ def _alpaca_latest_price(ticker: str, env: Dict[str, str]) -> float:
     url = f"{base}/v2/stocks/{ticker}/trades/latest"
     headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret}
     try:
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(url, headers=headers, timeout=float(timeout_seconds))
         if res.status_code >= 400:
             return 0.0
         payload = res.json() if res.content else {}
@@ -387,7 +468,35 @@ def _alpaca_latest_price(ticker: str, env: Dict[str, str]) -> float:
         return 0.0
 
 
-def _alpaca_price_at_time(ticker: str, ts_iso: str, env: Dict[str, str]) -> float:
+def _alpaca_crypto_latest_price(symbol: str, env: Dict[str, str], timeout_seconds: float = 6.0) -> float:
+    api_key = str(env.get("ALPACA_API_KEY", "")).strip()
+    secret = str(env.get("ALPACA_SECRET_KEY", "")).strip()
+    if not api_key or not secret:
+        return 0.0
+    base = str(env.get("ALPACA_DATA_BASE_URL", "https://data.alpaca.markets")).strip().rstrip("/")
+    pair = f"{symbol.upper()}/USD"
+    url = f"{base}/v1beta3/crypto/us/latest/trades?symbols={pair}"
+    headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret}
+    try:
+        res = requests.get(url, headers=headers, timeout=float(timeout_seconds))
+        if res.status_code >= 400:
+            return 0.0
+        payload = res.json() if res.content else {}
+        trades = payload.get("trades", {}) if isinstance(payload, dict) else {}
+        t = trades.get(pair, {}) if isinstance(trades, dict) else {}
+        px = float(t.get("p") or 0.0)
+        return px if px > 0 else 0.0
+    except Exception:
+        return 0.0
+
+
+def _alpaca_price_at_time(
+    ticker: str,
+    ts_iso: str,
+    env: Dict[str, str],
+    timeout_seconds: float = 6.0,
+    lookahead_minutes: int = 4320,
+) -> float:
     api_key = str(env.get("ALPACA_API_KEY", "")).strip()
     secret = str(env.get("ALPACA_SECRET_KEY", "")).strip()
     if not api_key or not secret:
@@ -395,15 +504,54 @@ def _alpaca_price_at_time(ticker: str, ts_iso: str, env: Dict[str, str]) -> floa
     base = str(env.get("ALPACA_DATA_BASE_URL", "https://data.alpaca.markets")).strip().rstrip("/")
     dt = _parse_iso(ts_iso).astimezone(timezone.utc)
     start = dt.isoformat().replace("+00:00", "Z")
-    end = (dt + timedelta(minutes=10)).isoformat().replace("+00:00", "Z")
+    lookahead = max(10, min(10080, int(lookahead_minutes)))
+    end = (dt + timedelta(minutes=lookahead)).isoformat().replace("+00:00", "Z")
     url = f"{base}/v2/stocks/{ticker}/bars?timeframe=1Min&start={start}&end={end}&limit=1&adjustment=raw&feed=iex&sort=asc"
     headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret}
     try:
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(url, headers=headers, timeout=float(timeout_seconds))
         if res.status_code >= 400:
             return 0.0
         payload = res.json() if res.content else {}
         bars = payload.get("bars", []) if isinstance(payload, dict) else []
+        if bars:
+            px = float((bars[0] or {}).get("c") or 0.0)
+            if px > 0:
+                return px
+    except Exception:
+        return 0.0
+    return 0.0
+
+
+def _alpaca_crypto_price_at_time(
+    symbol: str,
+    ts_iso: str,
+    env: Dict[str, str],
+    timeout_seconds: float = 6.0,
+    lookahead_minutes: int = 90,
+) -> float:
+    api_key = str(env.get("ALPACA_API_KEY", "")).strip()
+    secret = str(env.get("ALPACA_SECRET_KEY", "")).strip()
+    if not api_key or not secret:
+        return 0.0
+    base = str(env.get("ALPACA_DATA_BASE_URL", "https://data.alpaca.markets")).strip().rstrip("/")
+    dt = _parse_iso(ts_iso).astimezone(timezone.utc)
+    start = dt.isoformat().replace("+00:00", "Z")
+    lookahead = max(10, min(1440, int(lookahead_minutes)))
+    end = (dt + timedelta(minutes=lookahead)).isoformat().replace("+00:00", "Z")
+    pair = f"{symbol.upper()}/USD"
+    url = (
+        f"{base}/v1beta3/crypto/us/bars?"
+        f"symbols={pair}&timeframe=1Min&start={start}&end={end}&limit=1&sort=asc"
+    )
+    headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret}
+    try:
+        res = requests.get(url, headers=headers, timeout=float(timeout_seconds))
+        if res.status_code >= 400:
+            return 0.0
+        payload = res.json() if res.content else {}
+        bars_map = payload.get("bars", {}) if isinstance(payload, dict) else {}
+        bars = bars_map.get(pair, []) if isinstance(bars_map, dict) else []
         if bars:
             px = float((bars[0] or {}).get("c") or 0.0)
             if px > 0:
@@ -419,6 +567,8 @@ def resolve_not_taken_opportunities(
     max_age_hours: int = 72,
     max_candidates: int = 40,
     max_price_lookups: int = 120,
+    request_timeout_seconds: float = 5.0,
+    max_runtime_seconds: int = 300,
 ) -> int:
     """
     Resolve not-approved routes with hypothetical win/loss from routed-time price to current price.
@@ -445,7 +595,10 @@ def resolve_not_taken_opportunities(
     latest_cache: Dict[str, float] = {}
     lookups = 0
     processed = 0
+    started = time.monotonic()
     for route_id, ticker, direction, source_tag, routed_at, proposed_notional in rows:
+        if (time.monotonic() - started) >= float(max_runtime_seconds):
+            break
         if processed >= int(max_candidates) or lookups >= int(max_price_lookups):
             break
         dt = _parse_iso(str(routed_at or ""))
@@ -453,14 +606,35 @@ def resolve_not_taken_opportunities(
         if age_h < float(min_age_hours) or age_h > float(max_age_hours):
             continue
         tk = str(ticker or "").upper().strip()
-        if not tk or not tk.isalpha():
+        if not tk:
             continue
-        entry_px = _alpaca_price_at_time(tk, str(routed_at or ""), env)
+
+        is_crypto = tk in CRYPTO_TICKERS
+        if is_crypto:
+            entry_px = _alpaca_crypto_price_at_time(
+                tk,
+                str(routed_at or ""),
+                env,
+                timeout_seconds=request_timeout_seconds,
+                lookahead_minutes=90,
+            )
+        else:
+            entry_px = _alpaca_price_at_time(
+                tk,
+                str(routed_at or ""),
+                env,
+                timeout_seconds=request_timeout_seconds,
+                lookahead_minutes=4320,
+            )
         lookups += 1
         if tk in latest_cache:
             latest_px = latest_cache[tk]
         else:
-            latest_px = _alpaca_latest_price(tk, env)
+            latest_px = (
+                _alpaca_crypto_latest_price(tk, env, timeout_seconds=request_timeout_seconds)
+                if is_crypto
+                else _alpaca_latest_price(tk, env, timeout_seconds=request_timeout_seconds)
+            )
             latest_cache[tk] = latest_px
             lookups += 1
         if entry_px <= 0 or latest_px <= 0:
@@ -504,7 +678,13 @@ def resolve_not_taken_opportunities(
     return inserted
 
 
-def resolve_mark_to_market_outcomes(conn: sqlite3.Connection, max_age_hours: int = 72, min_age_hours: int = 4) -> int:
+def resolve_mark_to_market_outcomes(
+    conn: sqlite3.Connection,
+    max_age_hours: int = 72,
+    min_age_hours: int = 4,
+    request_timeout_seconds: float = 5.0,
+    max_runtime_seconds: int = 180,
+) -> int:
     """
     Aggressive fallback resolver:
     for older open routes without outcomes, stamp an operational win/loss using live mark price.
@@ -532,7 +712,10 @@ def resolve_mark_to_market_outcomes(conn: sqlite3.Connection, max_age_hours: int
     rows = cur.fetchall()
     inserted = 0
     now = datetime.now(timezone.utc)
+    started = time.monotonic()
     for route_id, ticker, source_tag, entry_side, entry_px, entry_qty, routed_at in rows:
+        if (time.monotonic() - started) >= float(max_runtime_seconds):
+            break
         dt = _parse_iso(str(routed_at or ""))
         age_h = (now - dt).total_seconds() / 3600.0
         if age_h < float(min_age_hours) or age_h > float(max_age_hours):
@@ -541,7 +724,11 @@ def resolve_mark_to_market_outcomes(conn: sqlite3.Connection, max_age_hours: int
         qty = float(entry_qty or 0.0)
         if epx <= 0:
             continue
-        mark = _alpaca_latest_price(str(ticker or "").upper(), env)
+        mark = _alpaca_latest_price(
+            str(ticker or "").upper(),
+            env,
+            timeout_seconds=request_timeout_seconds,
+        )
         if mark <= 0:
             continue
         side = str(entry_side or "buy").lower()
@@ -578,6 +765,245 @@ def resolve_mark_to_market_outcomes(conn: sqlite3.Connection, max_age_hours: int
         inserted += 1
     conn.commit()
     return inserted
+
+
+def resolve_horizon_outcomes(
+    conn: sqlite3.Connection,
+    horizons: list[int],
+    min_age_hours: int = 2,
+    max_routes: int = 160,
+    max_price_lookups: int = 1200,
+    request_timeout_seconds: float = 5.0,
+    max_runtime_seconds: int = 900,
+) -> int:
+    """
+    Multi-timeframe counterfactual resolver.
+    Evaluates each routed signal at multiple horizons without changing realized truth.
+    Writes to route_outcomes_horizons only.
+    """
+    if not table_exists(conn, "signal_routes") or not table_exists(conn, "route_outcomes_horizons"):
+        return 0
+
+    env = load_env()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT r.id, COALESCE(r.routed_at,''), COALESCE(r.ticker,''), COALESCE(r.direction,''),
+               COALESCE(r.source_tag,'internal'), COALESCE(r.proposed_notional,50.0),
+               COALESCE(r.decision,''), COALESCE(r.status,''), COALESCE(r.preferred_venue,''),
+               COALESCE(f.venue,'')
+        FROM signal_routes r
+        LEFT JOIN route_feedback_features f ON f.route_id = r.id
+        ORDER BY r.id DESC
+        LIMIT ?
+        """,
+        (int(max_routes),),
+    )
+    routes = cur.fetchall()
+    if not routes:
+        return 0
+
+    route_ids = [int(r[0]) for r in routes]
+    placeholders = ",".join(["?"] * len(route_ids))
+    cur.execute(
+        f"""
+        SELECT route_id, horizon_hours
+        FROM route_outcomes_horizons
+        WHERE route_id IN ({placeholders})
+        """,
+        tuple(route_ids),
+    )
+    existing = {(int(rid), int(h)) for rid, h in cur.fetchall()}
+
+    now = datetime.now(timezone.utc)
+    inserted = 0
+    lookups = 0
+    entry_cache: Dict[tuple[str, str, bool], float] = {}
+    eval_cache: Dict[tuple[str, str, bool], float] = {}
+    started = time.monotonic()
+
+    for (
+        route_id,
+        routed_at,
+        ticker,
+        direction,
+        source_tag,
+        proposed_notional,
+        decision,
+        status,
+        preferred_venue,
+        feature_venue,
+    ) in routes:
+        tk = str(ticker or "").upper().strip()
+        if not tk:
+            continue
+        venue_hint = str(preferred_venue or feature_venue or "")
+        is_crypto = _looks_crypto(tk, venue_hint)
+
+        dt = _parse_iso(str(routed_at or ""))
+        age_h = (now - dt).total_seconds() / 3600.0
+        if age_h < float(min_age_hours):
+            continue
+
+        route_key = str(int(route_id))
+        notional = float(proposed_notional or 50.0)
+
+        for horizon_h in horizons:
+            if (time.monotonic() - started) >= float(max_runtime_seconds):
+                conn.commit()
+                return inserted
+            if age_h < float(horizon_h):
+                continue
+            if (int(route_id), int(horizon_h)) in existing:
+                continue
+            if lookups >= int(max_price_lookups):
+                conn.commit()
+                return inserted
+
+            entry_ts = dt.isoformat().replace("+00:00", "Z")
+            entry_ck = (tk, entry_ts, is_crypto)
+            entry_px = entry_cache.get(entry_ck)
+            if entry_px is None:
+                if is_crypto:
+                    entry_px = _alpaca_crypto_price_at_time(
+                        tk,
+                        entry_ts,
+                        env,
+                        timeout_seconds=request_timeout_seconds,
+                        lookahead_minutes=90,
+                    )
+                else:
+                    entry_px = _alpaca_price_at_time(
+                        tk,
+                        entry_ts,
+                        env,
+                        timeout_seconds=request_timeout_seconds,
+                        lookahead_minutes=4320,
+                    )
+                entry_cache[entry_ck] = float(entry_px or 0.0)
+                lookups += 1
+
+            eval_dt = dt + timedelta(hours=int(horizon_h))
+            eval_ts = eval_dt.isoformat().replace("+00:00", "Z")
+            eval_ck = (tk, eval_ts, is_crypto)
+            eval_px = eval_cache.get(eval_ck)
+            if eval_px is None:
+                if is_crypto:
+                    eval_px = _alpaca_crypto_price_at_time(
+                        tk,
+                        eval_ts,
+                        env,
+                        timeout_seconds=request_timeout_seconds,
+                        lookahead_minutes=90,
+                    )
+                else:
+                    eval_px = _alpaca_price_at_time(
+                        tk,
+                        eval_ts,
+                        env,
+                        timeout_seconds=request_timeout_seconds,
+                        lookahead_minutes=4320,
+                    )
+                eval_cache[eval_ck] = float(eval_px or 0.0)
+                lookups += 1
+
+            if float(entry_px or 0.0) <= 0 or float(eval_px or 0.0) <= 0:
+                continue
+
+            side = str(direction or "long").lower()
+            if side in {"short", "sell", "bearish"}:
+                pnl_pct = ((float(entry_px) - float(eval_px)) / float(entry_px)) * 100.0
+            else:
+                pnl_pct = ((float(eval_px) - float(entry_px)) / float(entry_px)) * 100.0
+            pnl = notional * (pnl_pct / 100.0)
+            resolution = _resolution_from_pct(float(pnl_pct))
+
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO route_outcomes_horizons
+                (
+                  route_id, horizon_hours, ticker, source_tag, venue, direction, decision, status,
+                  outcome_type, resolution, pnl, pnl_percent, entry_price, eval_price, routed_at,
+                  evaluated_at, notes
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    int(route_id),
+                    int(horizon_h),
+                    tk,
+                    str(source_tag or "internal"),
+                    str(preferred_venue or feature_venue or ""),
+                    str(direction or ""),
+                    str(decision or ""),
+                    str(status or ""),
+                    "counterfactual",
+                    resolution,
+                    round(float(pnl), 6),
+                    round(float(pnl_pct), 6),
+                    round(float(entry_px), 8),
+                    round(float(eval_px), 8),
+                    str(routed_at or ""),
+                    now_iso(),
+                    f"horizon_eval route={route_key} horizon_h={int(horizon_h)}",
+                ),
+            )
+            inserted += 1
+            existing.add((int(route_id), int(horizon_h)))
+
+    conn.commit()
+    return inserted
+
+
+def refresh_source_horizon_learning(conn: sqlite3.Connection) -> int:
+    if not table_exists(conn, "route_outcomes_horizons") or not table_exists(conn, "source_horizon_learning_stats"):
+        return 0
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT horizon_hours, source_tag,
+               COUNT(*) AS n,
+               SUM(CASE WHEN resolution='win' THEN 1 ELSE 0 END) AS wins,
+               SUM(CASE WHEN resolution='loss' THEN 1 ELSE 0 END) AS losses,
+               SUM(CASE WHEN resolution='push' THEN 1 ELSE 0 END) AS pushes,
+               AVG(pnl) AS avg_pnl,
+               AVG(pnl_percent) AS avg_pnl_percent
+        FROM route_outcomes_horizons
+        GROUP BY horizon_hours, source_tag
+        """
+    )
+    rows = cur.fetchall()
+    cur.execute("DELETE FROM source_horizon_learning_stats")
+    now = now_iso()
+    written = 0
+    for h, source_tag, n, wins, losses, pushes, avg_pnl, avg_pnl_pct in rows:
+        n = int(n or 0)
+        wins = int(wins or 0)
+        losses = int(losses or 0)
+        pushes = int(pushes or 0)
+        win_rate = round((wins / n) * 100.0, 2) if n else 0.0
+        cur.execute(
+            """
+            INSERT INTO source_horizon_learning_stats
+            (computed_at, horizon_hours, source_tag, sample_size, wins, losses, pushes, win_rate, avg_pnl, avg_pnl_percent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                now,
+                int(h or 0),
+                str(source_tag or "internal"),
+                n,
+                wins,
+                losses,
+                pushes,
+                win_rate,
+                round(float(avg_pnl or 0.0), 6),
+                round(float(avg_pnl_pct or 0.0), 6),
+            ),
+        )
+        written += 1
+    conn.commit()
+    return written
 
 
 def snapshot_route_features(conn: sqlite3.Connection, limit: int = 3000) -> int:
@@ -1164,18 +1590,123 @@ def main() -> int:
     try:
         conn.execute("PRAGMA busy_timeout=5000")
         ensure_tables(conn)
+        skip_heavy = os.getenv("SKIP_HEAVY_RESOLVERS", "0") == "1"
+        force_missed = os.getenv("MISSED_RESOLVER_FORCE", "0") == "1"
+        force_horizon = os.getenv("HORIZON_RESOLVER_FORCE", "0") == "1"
         cleaned = clean_legacy_placeholder_outcomes(conn)
         backfilled = backfill_route_links(conn)
         features = snapshot_route_features(conn)
         resolved = resolve_route_outcomes(conn)
-        mtm_resolved = resolve_mark_to_market_outcomes(conn)
+        resolver_http_timeout_seconds = 5.0
+        mtm_max_runtime_seconds = 120
         missed_enabled = False
+        missed_min_age = 6
+        missed_max_age = 72
+        missed_max_candidates = 40
+        missed_max_lookups = 120
+        missed_max_runtime_seconds = 180
+        horizon_enabled = True
+        horizon_hours = [6, 24, 168, 720, 2160]
+        horizon_min_age = 2
+        horizon_max_routes = 160
+        horizon_max_lookups = 1200
+        horizon_max_runtime_seconds = 600
         if table_exists(conn, "execution_controls"):
             c = conn.cursor()
+            c.execute("SELECT value FROM execution_controls WHERE key='learning_resolver_http_timeout_seconds' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                resolver_http_timeout_seconds = max(1.0, min(20.0, float(rw[0])))
             c.execute("SELECT value FROM execution_controls WHERE key='missed_opportunity_resolver_enabled' LIMIT 1")
             rw = c.fetchone()
             missed_enabled = bool(rw and str(rw[0]) == "1")
-        missed_resolved = resolve_not_taken_opportunities(conn) if missed_enabled else 0
+            c.execute("SELECT value FROM execution_controls WHERE key='missed_opportunity_min_age_hours' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                missed_min_age = max(1, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='missed_opportunity_max_age_hours' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                missed_max_age = max(missed_min_age + 1, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='missed_opportunity_max_candidates' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                missed_max_candidates = max(10, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='missed_opportunity_max_price_lookups' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                missed_max_lookups = max(20, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='missed_opportunity_max_runtime_seconds' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                missed_max_runtime_seconds = max(30, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='horizon_resolver_enabled' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                horizon_enabled = str(rw[0]) == "1"
+            c.execute("SELECT value FROM execution_controls WHERE key='horizon_resolver_hours' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                horizon_hours = _parse_horizon_hours(str(rw[0]))
+            c.execute("SELECT value FROM execution_controls WHERE key='horizon_resolver_min_age_hours' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                horizon_min_age = max(1, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='horizon_resolver_max_routes' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                horizon_max_routes = max(20, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='horizon_resolver_max_price_lookups' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                horizon_max_lookups = max(50, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='horizon_resolver_max_runtime_seconds' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                horizon_max_runtime_seconds = max(60, int(float(rw[0])))
+            c.execute("SELECT value FROM execution_controls WHERE key='mtm_resolver_max_runtime_seconds' LIMIT 1")
+            rw = c.fetchone()
+            if rw and rw[0] is not None:
+                mtm_max_runtime_seconds = max(30, int(float(rw[0])))
+        if skip_heavy:
+            missed_enabled = False
+            horizon_enabled = False
+        if force_missed:
+            missed_enabled = True
+        if force_horizon:
+            horizon_enabled = True
+        mtm_resolved = resolve_mark_to_market_outcomes(
+            conn,
+            request_timeout_seconds=resolver_http_timeout_seconds,
+            max_runtime_seconds=mtm_max_runtime_seconds,
+        )
+        missed_resolved = (
+            resolve_not_taken_opportunities(
+                conn,
+                min_age_hours=missed_min_age,
+                max_age_hours=missed_max_age,
+                max_candidates=missed_max_candidates,
+                max_price_lookups=missed_max_lookups,
+                request_timeout_seconds=resolver_http_timeout_seconds,
+                max_runtime_seconds=missed_max_runtime_seconds,
+            )
+            if missed_enabled
+            else 0
+        )
+        horizon_resolved = (
+            resolve_horizon_outcomes(
+                conn,
+                horizons=horizon_hours,
+                min_age_hours=horizon_min_age,
+                max_routes=horizon_max_routes,
+                max_price_lookups=horizon_max_lookups,
+                request_timeout_seconds=resolver_http_timeout_seconds,
+                max_runtime_seconds=horizon_max_runtime_seconds,
+            )
+            if horizon_enabled
+            else 0
+        )
+        horizon_stats = refresh_source_horizon_learning(conn)
         op_backfilled = backfill_operational_pnl(conn)
         learning_scope = choose_learning_outcome_scope(conn)
         sources, source_scope = refresh_source_learning(conn, learning_scope)
@@ -1183,12 +1714,18 @@ def main() -> int:
         feature_stats = refresh_input_feature_stats(conn)
         print(
             f"Learning feedback: cleaned {cleaned} placeholders, backfilled {backfilled} route links, "
-            f"snapshotted {features} route feature rows, resolved {resolved} new route outcomes, "
-            f"mtm_resolved {mtm_resolved}, missed_resolved {missed_resolved} (enabled={int(missed_enabled)}), "
-            f"operational pnl backfilled {op_backfilled}, learning_scope={learning_scope}, "
-            f"refreshed {sources} source stats (scope={source_scope}), "
-            f"{strategies} strategy stats (scope={strategy_scope}), {feature_stats} feature stats"
-        )
+                f"snapshotted {features} route feature rows, resolved {resolved} new route outcomes, "
+                f"mtm_resolved {mtm_resolved}, missed_resolved {missed_resolved} (enabled={int(missed_enabled)}), "
+                f"missed_cfg=min_age:{missed_min_age}h max_age:{missed_max_age}h max_candidates:{missed_max_candidates} max_lookups:{missed_max_lookups}, "
+                f"horizon_resolved {horizon_resolved} (enabled={int(horizon_enabled)} horizons={','.join(str(h) for h in horizon_hours)} "
+                f"min_age:{horizon_min_age}h max_routes:{horizon_max_routes} max_lookups:{horizon_max_lookups}), "
+                f"resolver_timeouts=http:{resolver_http_timeout_seconds:.1f}s mtm_max_runtime:{mtm_max_runtime_seconds}s "
+                f"missed_max_runtime:{missed_max_runtime_seconds}s horizon_max_runtime:{horizon_max_runtime_seconds}s, "
+                f"horizon_source_stats={horizon_stats}, skip_heavy={int(skip_heavy)} force_missed={int(force_missed)} force_horizon={int(force_horizon)}, "
+                f"operational pnl backfilled {op_backfilled}, learning_scope={learning_scope}, "
+                f"refreshed {sources} source stats (scope={source_scope}), "
+                f"{strategies} strategy stats (scope={strategy_scope}), {feature_stats} feature stats"
+            )
         return 0
     finally:
         conn.close()

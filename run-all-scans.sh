@@ -76,10 +76,6 @@ echo "🌍 RUNNING PIPELINE C (EVENT ALPHA)..."
 /Users/Shared/curtis/trader-curtis/pipeline_c_event.py 2>/dev/null || true
 echo ""
 
-echo "🧺 RUNNING PIPELINE J (KAGGLE DAILY INGEST GATED)..."
-/Users/Shared/curtis/trader-curtis/scripts/run_kaggle_ingest.sh 2>/dev/null || true
-echo ""
-
 echo "🧠 BUILDING TRADE CANDIDATES..."
 /Users/Shared/curtis/trader-curtis/reweight_input_sources.py 2>/dev/null || true
 /Users/Shared/curtis/trader-curtis/generate_trade_candidates.py 2>/dev/null || true
@@ -111,7 +107,11 @@ echo "🗳️ POLYMARKET EXECUTION..."
 echo ""
 
 echo "🔄 SYNCING ALPACA ORDER STATUS..."
-/Users/Shared/curtis/trader-curtis/sync_alpaca_order_status.py 2>/dev/null || true
+if command -v python3.11 >/dev/null 2>&1; then
+  python3.11 /Users/Shared/curtis/trader-curtis/sync_alpaca_order_status.py 2>/dev/null || true
+else
+  python3 /Users/Shared/curtis/trader-curtis/sync_alpaca_order_status.py 2>/dev/null || true
+fi
 echo ""
 
 echo "📊 RANKING SOURCES..."
@@ -128,7 +128,7 @@ echo "🔐 SYNCING WALLET CONFIG..."
 echo ""
 
 echo "📚 UPDATING LEARNING FEEDBACK..."
-/Users/Shared/curtis/trader-curtis/update_learning_feedback.py 2>/dev/null || true
+SKIP_HEAVY_RESOLVERS=1 /Users/Shared/curtis/trader-curtis/update_learning_feedback.py 2>/dev/null || true
 echo ""
 
 echo "🛠️ RUNNING AUTO-TUNER..."

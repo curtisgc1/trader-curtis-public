@@ -33,22 +33,50 @@ The system ingests many signal families (bookmarks, event feeds, breakthroughs, 
 - Scheduled cycle wrapper: `./scripts/trader_cycle_locked.sh <mode>`
 - Full audit: `./scripts/full_pipeline_audit.sh`
 - Local stack check: `./scripts/check_local_grpo_stack.sh`
+- GRPO readiness gate: `./scripts/grpo_readiness_gate.sh`
 - Kaggle ingest (daily-gated): `./scripts/run_kaggle_ingest.sh`
+  - isolated daily job (separate from OpenClaw trading cycle)
+- MLX training (daily-gated): `./scripts/run_mlx_grpo_train.sh`
+  - isolated daily job, intentionally decoupled from `run-all-scans.sh` / OpenClaw execution path
+- Learning heavy resolver pass (daily-gated): `./scripts/run_learning_feedback_daily.sh`
+  - runs missed-opportunity + multi-horizon counterfactual evaluation in isolated daily lane
 
 ## Safety Model
 
 - `grpo_apply_weight_updates=0` is the default safe mode.
 - Trading remains blocked unless venue-specific controls are enabled.
 - Policy/alignment logic does not bypass execution guards.
+- Realized outcome truth is isolated: use `route_outcomes` with `outcome_type='realized'`.
+- Counterfactual/multi-horizon outcomes are stored separately in `route_outcomes_horizons`.
+
+## Outcome Truth + Timeframes
+
+- Source of truth for realized performance: closed/finalized trades linked into `route_outcomes` (`outcome_type='realized'`).
+- Operational quality lane (fills/blocks/missed proxies): `route_outcomes` (`outcome_type='operational'`).
+- Multi-timeframe counterfactual lane (scalp/1d/1w/1m+): `route_outcomes_horizons`.
+- Learning stats by timeframe/source: `source_horizon_learning_stats`.
+- Runtime guardrails for resolver jobs are control-driven via:
+  - `learning_resolver_http_timeout_seconds`
+  - `mtm_resolver_max_runtime_seconds`
+  - `missed_opportunity_max_runtime_seconds`
+  - `horizon_resolver_max_runtime_seconds`
 
 ## Kaggle Role
 
 Kaggle is used to complement training/alignment data, not as live execution truth.
 
 Current Kaggle ingest requirements:
-1. `~/.kaggle/kaggle.json` present (API credentials)
+1. Kaggle auth via either:
+   - `~/.kaggle/kaggle.json`, or
+   - `KAGGLE_API_TOKEN` (env or keychain service `kaggle_api_token`)
 2. `kaggle_poly_dataset_slug` set in `execution_controls`
 3. Daily/min-hour limits respected by `scripts/run_kaggle_ingest.sh`
+
+MLX training requirements:
+1. `grpo_mlx_train_enabled=1` in `execution_controls`
+2. `mlx` + `mlx_lm` installed for Python runtime
+3. Base model set in `grpo_mlx_base_model` (default: `mlx-community/Qwen2.5-7B-Instruct-4bit`)
+4. Daily/min-hour limits respected by `scripts/run_mlx_grpo_train.sh`
 
 ## Local Runtime Notes
 
@@ -62,6 +90,7 @@ Current Kaggle ingest requirements:
 # Health/status
 ./scripts/check_local_grpo_stack.sh
 ./scripts/full_pipeline_audit.sh
+./scripts/grpo_readiness_gate.sh
 
 # Force one Kaggle ingest attempt (for validation)
 FORCE_KAGGLE_INGEST=1 ./scripts/run_kaggle_ingest.sh
@@ -69,6 +98,10 @@ FORCE_KAGGLE_INGEST=1 ./scripts/run_kaggle_ingest.sh
 # Rebuild GRPO datasets from local outcomes
 ./training/grpo/build_grpo_dataset.py --include-operational
 ./training/grpo/compare_sources.py --file datasets/grpo_train.jsonl
+./training/grpo/build_mlx_lora_dataset.py
+
+# Force one MLX train attempt (bypass daily/hourly gate)
+FORCE_MLX_GRPO_TRAIN=1 ./scripts/run_mlx_grpo_train.sh
 ```
 
 ## Important Tables
