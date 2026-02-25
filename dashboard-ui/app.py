@@ -14,6 +14,7 @@ from data import (
     get_execution_learning,
     get_external_signals,
     get_learning_health,
+    get_learning_monitor,
     get_patterns,
     get_polymarket_candidates,
     get_polymarket_aligned_setups,
@@ -42,6 +43,10 @@ from data import (
     get_portfolio_snapshot,
     get_recent_trade_decisions,
     get_performance_curve,
+    get_pnl_breakdown,
+    get_trade_explain,
+    submit_trade_feedback,
+    apply_weekly_trade_feedback,
     get_quant_validations,
     run_system_action,
     set_execution_controls,
@@ -49,6 +54,7 @@ from data import (
     get_signal_routes,
     get_source_ratings,
     get_input_source_controls,
+    get_ticker_trade_profiles,
     get_summary,
     get_agent_awareness,
     get_trade_candidates,
@@ -59,10 +65,20 @@ from data import (
     get_polymarket_wallet_scores,
     upsert_tracked_source,
     upsert_input_source_control,
+    upsert_ticker_trade_profile,
     upsert_tracked_polymarket_wallet,
 )
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
+
+@app.after_request
+def add_no_cache_headers(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.get("/")
@@ -121,6 +137,11 @@ def api_learning_health():
     return jsonify(get_learning_health())
 
 
+@app.get("/api/learning-monitor")
+def api_learning_monitor():
+    return jsonify(get_learning_monitor())
+
+
 @app.get("/api/trades")
 def api_trades():
     return jsonify(get_trades())
@@ -168,7 +189,8 @@ def api_portfolio_snapshot():
 
 @app.get("/api/recent-trade-decisions")
 def api_recent_trade_decisions():
-    return jsonify(get_recent_trade_decisions())
+    limit = int(request.args.get("limit", 20))
+    return jsonify(get_recent_trade_decisions(limit=limit))
 
 
 @app.get("/api/agent-awareness")
@@ -179,6 +201,31 @@ def api_agent_awareness():
 @app.get("/api/performance-curve")
 def api_performance_curve():
     return jsonify(get_performance_curve())
+
+
+@app.get("/api/pnl-breakdown")
+def api_pnl_breakdown():
+    limit = int(request.args.get("limit", 120))
+    return jsonify(get_pnl_breakdown(limit=limit))
+
+
+@app.get("/api/trade-explain")
+def api_trade_explain():
+    identifier = str(request.args.get("identifier", "") or "").strip()
+    return jsonify(get_trade_explain(identifier))
+
+
+@app.post("/api/trade-feedback")
+def api_trade_feedback():
+    payload = request.get_json(silent=True) or {}
+    return jsonify(submit_trade_feedback(payload))
+
+
+@app.post("/api/trade-feedback/apply-weekly")
+def api_trade_feedback_apply_weekly():
+    payload = request.get_json(silent=True) or {}
+    max_reviews = int(payload.get("max_reviews", 300) or 300)
+    return jsonify(apply_weekly_trade_feedback(max_reviews=max_reviews))
 
 
 @app.post("/api/risk-controls")
@@ -229,7 +276,8 @@ def api_pipeline_signals():
 
 @app.get("/api/execution-orders")
 def api_execution_orders():
-    return jsonify(get_execution_orders())
+    limit = int(request.args.get("limit", 120))
+    return jsonify(get_execution_orders(limit=limit))
 
 
 @app.get("/api/source-scores")
@@ -321,7 +369,8 @@ def api_polymarket_aligned_setups():
 
 @app.get("/api/polymarket-orders")
 def api_polymarket_orders():
-    return jsonify(get_polymarket_orders())
+    limit = int(request.args.get("limit", 120))
+    return jsonify(get_polymarket_orders(limit=limit))
 
 
 @app.get("/api/polymarket-overview")
@@ -372,6 +421,17 @@ def api_input_sources():
 def api_input_sources_upsert():
     payload = request.get_json(silent=True) or {}
     return jsonify(upsert_input_source_control(payload))
+
+
+@app.get("/api/ticker-trade-profiles")
+def api_ticker_trade_profiles():
+    return jsonify(get_ticker_trade_profiles())
+
+
+@app.post("/api/ticker-trade-profiles")
+def api_ticker_trade_profiles_upsert():
+    payload = request.get_json(silent=True) or {}
+    return jsonify(upsert_ticker_trade_profile(payload))
 
 
 @app.get("/api/tracked-poly-wallets")

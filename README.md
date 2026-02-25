@@ -40,6 +40,8 @@ The system ingests many signal families (bookmarks, event feeds, breakthroughs, 
   - isolated daily job, intentionally decoupled from `run-all-scans.sh` / OpenClaw execution path
 - Learning heavy resolver pass (daily-gated): `./scripts/run_learning_feedback_daily.sh`
   - runs missed-opportunity + multi-horizon counterfactual evaluation in isolated daily lane
+- Realized close/settle reconciler (daily-gated): `./scripts/run_realized_reconciler.sh`
+  - runs Alpaca sync + Polymarket settlement reconciliation + realized feedback refresh
 
 ## Safety Model
 
@@ -48,6 +50,66 @@ The system ingests many signal families (bookmarks, event feeds, breakthroughs, 
 - Policy/alignment logic does not bypass execution guards.
 - Realized outcome truth is isolated: use `route_outcomes` with `outcome_type='realized'`.
 - Counterfactual/multi-horizon outcomes are stored separately in `route_outcomes_horizons`.
+
+## Input Weighting + Overrides
+
+Candidate scoring is assembled in `generate_trade_candidates.py` with this effective pattern:
+
+- family contribution:
+  - `base_component * family_weight`
+- source/pipeline/pattern contribution:
+  - `base_component * family_weight * specific_key_weight`
+- strategy-aware family contribution:
+  - `base_component * family_weight * strategy_family_weight`
+- X handle contribution:
+  - `0.05 * weight_for('x:<handle>') * tracked_x_sources.source_weight`
+
+All of these weights are in `input_source_controls`:
+
+- global family keys: `family:social`, `family:pattern`, `family:external`, `family:copy`, `family:pipeline`, `family:liquidity`
+- source keys: `source:<source_tag>`
+- pipeline keys: `pipeline:<PIPELINE_ID>`
+- X keys: `x:<handle>`
+- strategy family keys: `strategy:<PIPELINE_ID>:family:<family>`
+
+Example DB overrides:
+
+```sql
+-- Heavier liquidity for scalp profile, moderate for long-term.
+UPDATE input_source_controls SET manual_weight=1.35 WHERE source_key='family:liquidity';
+UPDATE input_source_controls SET manual_weight=2.40 WHERE source_key='strategy:CHART_LIQUIDITY:family:liquidity';
+UPDATE input_source_controls SET manual_weight=1.15 WHERE source_key='strategy:B_LONGTERM:family:liquidity';
+```
+
+## Ticker-Specific Routing Profiles
+
+Ticker-level route controls are in `ticker_trade_profiles` and enforced in `signal_router.py` before route approval.
+
+Main fields:
+- `ticker` (e.g., `BTC`)
+- `preferred_venue` (`stocks` | `crypto` | `prediction` | empty)
+- `allowed_venues_json` (list)
+- `required_inputs_json` (list of candidate input keys, e.g. `family:liquidity`)
+- `min_score`
+- `notional_override`
+
+Example profile for BTC scalp routing on HL:
+
+```sql
+INSERT INTO ticker_trade_profiles
+(created_at, updated_at, ticker, active, preferred_venue, allowed_venues_json, required_inputs_json, min_score, notional_override, notes)
+VALUES
+(datetime('now'), datetime('now'), 'BTC', 1, 'crypto', '["crypto"]', '["family:liquidity","family:pipeline"]', 60, 10, 'BTC scalp profile')
+ON CONFLICT(ticker) DO UPDATE SET
+  updated_at=excluded.updated_at,
+  active=excluded.active,
+  preferred_venue=excluded.preferred_venue,
+  allowed_venues_json=excluded.allowed_venues_json,
+  required_inputs_json=excluded.required_inputs_json,
+  min_score=excluded.min_score,
+  notional_override=excluded.notional_override,
+  notes=excluded.notes;
+```
 
 ## Outcome Truth + Timeframes
 

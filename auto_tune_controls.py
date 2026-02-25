@@ -254,6 +254,9 @@ def main() -> int:
         ensure_tables(conn)
         controls = _get_controls(conn)
         apply_now = str(controls.get("auto_tuner_apply", "0")).strip() == "1"
+        thresholds_unlocked = str(controls.get("threshold_override_unlocked", "0")).strip() == "1"
+        if apply_now and not thresholds_unlocked:
+            apply_now = False
         min_samples = _i(controls.get("allocator_min_source_samples"), 12)
 
         control_changes = 0
@@ -276,4 +279,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "vaultPath": "/Users/Shared/curtis/trader-curtis",
-  "generatedAt": "2026-02-24T18:21:28.093Z",
+  "generatedAt": "2026-02-25T20:00:39.298Z",
   "files": {
     "AGENTS.md": {
       "relativePath": "AGENTS.md",
@@ -1101,6 +1101,258 @@
       ],
       "edges": []
     },
+    "alerts/political-CRITICAL-20260224-105044.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-105044.md",
+      "mtimeMs": 1771959044763.6306,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-105044",
+          "title": "Political CRITICAL 20260224 105044",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-105044.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T18:50:44.763Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-105108.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-105108.md",
+      "mtimeMs": 1771959068543.3044,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-105108",
+          "title": "Political CRITICAL 20260224 105108",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-105108.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T18:51:08.543Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-105604.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-105604.md",
+      "mtimeMs": 1771959364288.4539,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-105604",
+          "title": "Political CRITICAL 20260224 105604",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-105604.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T18:56:04.288Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-105622.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-105622.md",
+      "mtimeMs": 1771959382623.233,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-105622",
+          "title": "Political CRITICAL 20260224 105622",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-105622.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T18:56:22.623Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-125029.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-125029.md",
+      "mtimeMs": 1771966229493.4612,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-125029",
+          "title": "Political CRITICAL 20260224 125029",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-125029.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T20:50:29.493Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-125052.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-125052.md",
+      "mtimeMs": 1771966252623.456,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-125052",
+          "title": "Political CRITICAL 20260224 125052",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-125052.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T20:50:52.623Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-134544.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-134544.md",
+      "mtimeMs": 1771969544972.927,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-134544",
+          "title": "Political CRITICAL 20260224 134544",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-134544.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T21:45:44.972Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260224-134556.md": {
+      "relativePath": "alerts/political-CRITICAL-20260224-134556.md",
+      "mtimeMs": 1771969556962.486,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260224-134556",
+          "title": "Political CRITICAL 20260224 134556",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260224-134556.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T21:45:56.962Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260225-055025.md": {
+      "relativePath": "alerts/political-CRITICAL-20260225-055025.md",
+      "mtimeMs": 1772027425530.5068,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260225-055025",
+          "title": "Political CRITICAL 20260225 055025",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260225-055025.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T13:50:25.530Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260225-055035.md": {
+      "relativePath": "alerts/political-CRITICAL-20260225-055035.md",
+      "mtimeMs": 1772027435836.658,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260225-055035",
+          "title": "Political CRITICAL 20260225 055035",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260225-055035.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T13:50:35.836Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260225-075024.md": {
+      "relativePath": "alerts/political-CRITICAL-20260225-075024.md",
+      "mtimeMs": 1772034624999.667,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260225-075024",
+          "title": "Political CRITICAL 20260225 075024",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260225-075024.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T15:50:24.999Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260225-075034.md": {
+      "relativePath": "alerts/political-CRITICAL-20260225-075034.md",
+      "mtimeMs": 1772034634876.5815,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260225-075034",
+          "title": "Political CRITICAL 20260225 075034",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260225-075034.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T15:50:34.876Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260225-105025.md": {
+      "relativePath": "alerts/political-CRITICAL-20260225-105025.md",
+      "mtimeMs": 1772045425399.9065,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260225-105025",
+          "title": "Political CRITICAL 20260225 105025",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260225-105025.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T18:50:25.399Z"
+        }
+      ],
+      "edges": []
+    },
+    "alerts/political-CRITICAL-20260225-105035.md": {
+      "relativePath": "alerts/political-CRITICAL-20260225-105035.md",
+      "mtimeMs": 1772045435509.7058,
+      "nodes": [
+        {
+          "id": "note:alerts/political-CRITICAL-20260225-105035",
+          "title": "Political CRITICAL 20260225 105035",
+          "type": "note",
+          "category": "note",
+          "path": "alerts/political-CRITICAL-20260225-105035.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T18:50:35.509Z"
+        }
+      ],
+      "edges": []
+    },
     "archive/memory/2026-02-01.md": {
       "relativePath": "archive/memory/2026-02-01.md",
       "mtimeMs": 1771399940786.0547,
@@ -1809,7 +2061,7 @@
     },
     "docs/FREE-TRAINING-STACK-ROADMAP.md": {
       "relativePath": "docs/FREE-TRAINING-STACK-ROADMAP.md",
-      "mtimeMs": 1771954764083.9487,
+      "mtimeMs": 1772003060697.1218,
       "nodes": [
         {
           "id": "note:docs/FREE-TRAINING-STACK-ROADMAP",
@@ -1820,7 +2072,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-24T17:39:24.083Z"
+          "modifiedAt": "2026-02-25T07:04:20.697Z"
         }
       ],
       "edges": []
@@ -1857,6 +2109,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-24T17:05:50.893Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/KAGGLE-DATA-FIT-GUIDE.md": {
+      "relativePath": "docs/KAGGLE-DATA-FIT-GUIDE.md",
+      "mtimeMs": 1771993854123.1829,
+      "nodes": [
+        {
+          "id": "note:docs/KAGGLE-DATA-FIT-GUIDE",
+          "title": "KAGGLE DATA FIT GUIDE",
+          "type": "note",
+          "category": "note",
+          "path": "docs/KAGGLE-DATA-FIT-GUIDE.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T04:30:54.123Z"
         }
       ],
       "edges": []
@@ -1911,6 +2181,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-22T21:00:52.709Z"
+        }
+      ],
+      "edges": []
+    },
+    "docs/POLY-CLI-INTEGRATION.md": {
+      "relativePath": "docs/POLY-CLI-INTEGRATION.md",
+      "mtimeMs": 1771972816752.7695,
+      "nodes": [
+        {
+          "id": "note:docs/POLY-CLI-INTEGRATION",
+          "title": "POLY CLI INTEGRATION",
+          "type": "note",
+          "category": "note",
+          "path": "docs/POLY-CLI-INTEGRATION.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T22:40:16.752Z"
         }
       ],
       "edges": []
@@ -2491,6 +2779,24 @@
       ],
       "edges": []
     },
+    "handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes.md": {
+      "relativePath": "handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes.md",
+      "mtimeMs": 1771972835298.28,
+      "nodes": [
+        {
+          "id": "note:handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes",
+          "title": "Handoff 2026 02 24 Polymarket Cli Wallet Edge Status Fixes",
+          "type": "handoff",
+          "category": "handoff",
+          "path": "handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T22:40:35.298Z"
+        }
+      ],
+      "edges": []
+    },
     "handoffs/handoff-2026-02-24-three-venue-matrix-audit.md": {
       "relativePath": "handoffs/handoff-2026-02-24-three-venue-matrix-audit.md",
       "mtimeMs": 1771957287134.9827,
@@ -2671,6 +2977,42 @@
       ],
       "edges": []
     },
+    "inbox/note-1771972835776.md": {
+      "relativePath": "inbox/note-1771972835776.md",
+      "mtimeMs": 1771972835777.1526,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1771972835776",
+          "title": "note-1771972835776",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1771972835776.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T22:40:35.777Z"
+        }
+      ],
+      "edges": []
+    },
+    "inbox/note-1772035931150.md": {
+      "relativePath": "inbox/note-1772035931150.md",
+      "mtimeMs": 1772035931151.1973,
+      "nodes": [
+        {
+          "id": "note:inbox/note-1772035931150",
+          "title": "note-1772035931150",
+          "type": "note",
+          "category": "note",
+          "path": "inbox/note-1772035931150.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T16:12:11.151Z"
+        }
+      ],
+      "edges": []
+    },
     "inbox/welcome.md": {
       "relativePath": "inbox/welcome.md",
       "mtimeMs": 1771203107835.3982,
@@ -2776,6 +3118,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-17T01:50:54.421Z"
+        }
+      ],
+      "edges": []
+    },
+    "logs/clickhouse_migration_report_2026-02-24.md": {
+      "relativePath": "logs/clickhouse_migration_report_2026-02-24.md",
+      "mtimeMs": 1771999529771.8625,
+      "nodes": [
+        {
+          "id": "note:logs/clickhouse_migration_report_2026-02-24",
+          "title": "Clickhouse Migration Report 2026 02 24",
+          "type": "note",
+          "category": "note",
+          "path": "logs/clickhouse_migration_report_2026-02-24.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T06:05:29.771Z"
         }
       ],
       "edges": []
@@ -3036,7 +3396,7 @@
     },
     "memory/2026-02-24.md": {
       "relativePath": "memory/2026-02-24.md",
-      "mtimeMs": 1771957287623.8484,
+      "mtimeMs": 1771999543066.6074,
       "nodes": [
         {
           "id": "note:memory/2026-02-24",
@@ -3047,7 +3407,25 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-24T18:21:27.623Z"
+          "modifiedAt": "2026-02-25T06:05:43.066Z"
+        }
+      ],
+      "edges": []
+    },
+    "memory/2026-02-25.md": {
+      "relativePath": "memory/2026-02-25.md",
+      "mtimeMs": 1772036030901.8022,
+      "nodes": [
+        {
+          "id": "note:memory/2026-02-25",
+          "title": "2026 02 25",
+          "type": "note",
+          "category": "note",
+          "path": "memory/2026-02-25.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-25T16:13:50.901Z"
         }
       ],
       "edges": []
@@ -4310,7 +4688,7 @@
     },
     "README.md": {
       "relativePath": "README.md",
-      "mtimeMs": 1771203107834.3958,
+      "mtimeMs": 1772040252601.7974,
       "nodes": [
         {
           "id": "note:README",
@@ -4321,7 +4699,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-16T00:51:47.834Z"
+          "modifiedAt": "2026-02-25T17:24:12.601Z"
         }
       ],
       "edges": []
@@ -5863,7 +6241,7 @@
     },
     "training/grpo/README.md": {
       "relativePath": "training/grpo/README.md",
-      "mtimeMs": 1771953216159.2507,
+      "mtimeMs": 1772033913348.85,
       "nodes": [
         {
           "id": "note:training/grpo/README",
@@ -5874,7 +6252,7 @@
           "tags": [],
           "missing": false,
           "degree": 0,
-          "modifiedAt": "2026-02-24T17:13:36.159Z"
+          "modifiedAt": "2026-02-25T15:38:33.348Z"
         }
       ],
       "edges": []
@@ -5893,6 +6271,24 @@
           "missing": false,
           "degree": 0,
           "modifiedAt": "2026-02-02T01:45:09.217Z"
+        }
+      ],
+      "edges": []
+    },
+    "vendor/polymarket-cli/README.md": {
+      "relativePath": "vendor/polymarket-cli/README.md",
+      "mtimeMs": 1771972575544.7268,
+      "nodes": [
+        {
+          "id": "note:vendor/polymarket-cli/README",
+          "title": "README",
+          "type": "note",
+          "category": "note",
+          "path": "vendor/polymarket-cli/README.md",
+          "tags": [],
+          "missing": false,
+          "degree": 0,
+          "modifiedAt": "2026-02-24T22:36:15.544Z"
         }
       ],
       "edges": []
@@ -6591,6 +6987,160 @@
         "modifiedAt": "2026-02-24T16:42:56.392Z"
       },
       {
+        "id": "note:alerts/political-CRITICAL-20260224-105044",
+        "title": "Political CRITICAL 20260224 105044",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-105044.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T18:50:44.763Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-105108",
+        "title": "Political CRITICAL 20260224 105108",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-105108.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T18:51:08.543Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-105604",
+        "title": "Political CRITICAL 20260224 105604",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-105604.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T18:56:04.288Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-105622",
+        "title": "Political CRITICAL 20260224 105622",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-105622.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T18:56:22.623Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-125029",
+        "title": "Political CRITICAL 20260224 125029",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-125029.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T20:50:29.493Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-125052",
+        "title": "Political CRITICAL 20260224 125052",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-125052.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T20:50:52.623Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-134544",
+        "title": "Political CRITICAL 20260224 134544",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-134544.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T21:45:44.972Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260224-134556",
+        "title": "Political CRITICAL 20260224 134556",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260224-134556.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T21:45:56.962Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260225-055025",
+        "title": "Political CRITICAL 20260225 055025",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260225-055025.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T13:50:25.530Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260225-055035",
+        "title": "Political CRITICAL 20260225 055035",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260225-055035.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T13:50:35.836Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260225-075024",
+        "title": "Political CRITICAL 20260225 075024",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260225-075024.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T15:50:24.999Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260225-075034",
+        "title": "Political CRITICAL 20260225 075034",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260225-075034.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T15:50:34.876Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260225-105025",
+        "title": "Political CRITICAL 20260225 105025",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260225-105025.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T18:50:25.399Z"
+      },
+      {
+        "id": "note:alerts/political-CRITICAL-20260225-105035",
+        "title": "Political CRITICAL 20260225 105035",
+        "type": "note",
+        "category": "note",
+        "path": "alerts/political-CRITICAL-20260225-105035.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T18:50:35.509Z"
+      },
+      {
         "id": "note:archive/memory/2026-02-01",
         "title": "2026 02 01",
         "type": "note",
@@ -6960,7 +7510,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-24T17:39:24.083Z"
+        "modifiedAt": "2026-02-25T07:04:20.697Z"
       },
       {
         "id": "note:docs/HYPERLIQUID-AUTO-TRADER-SETUP",
@@ -6983,6 +7533,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-24T17:05:50.893Z"
+      },
+      {
+        "id": "note:docs/KAGGLE-DATA-FIT-GUIDE",
+        "title": "KAGGLE DATA FIT GUIDE",
+        "type": "note",
+        "category": "note",
+        "path": "docs/KAGGLE-DATA-FIT-GUIDE.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T04:30:54.123Z"
       },
       {
         "id": "note:docs/KYLE-WILLIAMS-STRATEGY",
@@ -7016,6 +7577,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-22T21:00:52.709Z"
+      },
+      {
+        "id": "note:docs/POLY-CLI-INTEGRATION",
+        "title": "POLY CLI INTEGRATION",
+        "type": "note",
+        "category": "note",
+        "path": "docs/POLY-CLI-INTEGRATION.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T22:40:16.752Z"
       },
       {
         "id": "note:docs/polymarket-integration-plan",
@@ -7370,6 +7942,17 @@
         "modifiedAt": "2026-02-24T17:39:46.835Z"
       },
       {
+        "id": "note:handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes",
+        "title": "Handoff 2026 02 24 Polymarket Cli Wallet Edge Status Fixes",
+        "type": "handoff",
+        "category": "handoff",
+        "path": "handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T22:40:35.298Z"
+      },
+      {
         "id": "note:handoffs/handoff-2026-02-24-three-venue-matrix-audit",
         "title": "Handoff 2026 02 24 Three Venue Matrix Audit",
         "type": "handoff",
@@ -7480,6 +8063,28 @@
         "modifiedAt": "2026-02-24T18:21:28.080Z"
       },
       {
+        "id": "note:inbox/note-1771972835776",
+        "title": "note-1771972835776",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1771972835776.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T22:40:35.777Z"
+      },
+      {
+        "id": "note:inbox/note-1772035931150",
+        "title": "note-1772035931150",
+        "type": "note",
+        "category": "note",
+        "path": "inbox/note-1772035931150.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T16:12:11.151Z"
+      },
+      {
         "id": "note:inbox/welcome",
         "title": "Welcome to trader-curtis",
         "type": "note",
@@ -7514,6 +8119,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-17T01:50:54.421Z"
+      },
+      {
+        "id": "note:logs/clickhouse_migration_report_2026-02-24",
+        "title": "Clickhouse Migration Report 2026 02 24",
+        "type": "note",
+        "category": "note",
+        "path": "logs/clickhouse_migration_report_2026-02-24.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T06:05:29.771Z"
       },
       {
         "id": "note:MEMORY",
@@ -7669,7 +8285,18 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-24T18:21:27.623Z"
+        "modifiedAt": "2026-02-25T06:05:43.066Z"
+      },
+      {
+        "id": "note:memory/2026-02-25",
+        "title": "2026 02 25",
+        "type": "note",
+        "category": "note",
+        "path": "memory/2026-02-25.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-25T16:13:50.901Z"
       },
       {
         "id": "note:memory/COMBO-ANALYSIS-2026-02-15",
@@ -8298,7 +8925,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-16T00:51:47.834Z"
+        "modifiedAt": "2026-02-25T17:24:12.601Z"
       },
       {
         "id": "note:reports/clickhouse_analytics_2026-02-19",
@@ -8819,7 +9446,7 @@
         "tags": [],
         "missing": false,
         "degree": 0,
-        "modifiedAt": "2026-02-24T17:13:36.159Z"
+        "modifiedAt": "2026-02-25T15:38:33.348Z"
       },
       {
         "id": "note:USER",
@@ -8831,6 +9458,17 @@
         "missing": false,
         "degree": 0,
         "modifiedAt": "2026-02-02T01:45:09.217Z"
+      },
+      {
+        "id": "note:vendor/polymarket-cli/README",
+        "title": "README",
+        "type": "note",
+        "category": "note",
+        "path": "vendor/polymarket-cli/README.md",
+        "tags": [],
+        "missing": false,
+        "degree": 0,
+        "modifiedAt": "2026-02-24T22:36:15.544Z"
       },
       {
         "id": "note:wash_trade_solution",
@@ -9745,15 +10383,15 @@
       }
     ],
     "stats": {
-      "generatedAt": "2026-02-24T18:21:28.093Z",
-      "nodeCount": 298,
+      "generatedAt": "2026-02-25T20:00:39.298Z",
+      "nodeCount": 320,
       "edgeCount": 77,
       "nodeTypeCounts": {
-        "note": 234,
+        "note": 255,
         "tag": 34,
         "commitment": 4,
         "decision": 4,
-        "handoff": 12,
+        "handoff": 13,
         "unresolved": 4,
         "lesson": 2,
         "project": 4

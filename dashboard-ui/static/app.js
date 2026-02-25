@@ -4,12 +4,22 @@ async function fetchJson(url) {
   return res.json();
 }
 
+const UI_BUILD = "20260225j";
+
 async function fetchJsonSafe(url, fallback) {
   try {
     return await fetchJson(url);
   } catch (err) {
     console.error(`safe fetch fallback for ${url}:`, err);
     return fallback;
+  }
+}
+
+function runUiStep(name, fn) {
+  try {
+    fn();
+  } catch (err) {
+    console.error(`ui step failed: ${name}`, err);
   }
 }
 
@@ -23,7 +33,70 @@ async function postJson(url, body) {
   return res.json();
 }
 
+function normalizeXHandle(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const token = raw.split(/[?#\s]/, 1)[0].trim();
+  if (!token) return "";
+
+  let candidate = token;
+  let urlText = token;
+  if (/^(?:www\.)?(?:x\.com|twitter\.com)\//i.test(token)) {
+    urlText = `https://${token.replace(/^\/+/, "")}`;
+  }
+  try {
+    const u = new URL(urlText);
+    const host = String(u.hostname || "").toLowerCase().replace(/^www\./, "");
+    if (host === "x.com" || host === "twitter.com") {
+      candidate = String(u.pathname || "").replace(/^\/+/, "").split("/", 1)[0] || "";
+    }
+  } catch (_) {
+    // Keep raw token fallback for plain handles.
+  }
+
+  return candidate.replace(/^@+/, "").replace(/[^A-Za-z0-9_]/g, "").toLowerCase();
+}
+
+function resolveHandleInput(preferredIds, btnId) {
+  const direct = (preferredIds || [])
+    .map((id) => document.getElementById(id))
+    .filter(Boolean)
+    .map((el) => String(el.value || "").trim())
+    .find((v) => !!v);
+  if (direct) return direct;
+
+  const btn = document.getElementById(btnId || "");
+  const scope = btn?.closest(".card") || document;
+  const fields = Array.from(scope.querySelectorAll("input[type='text'],input[type='url'],input:not([type])"));
+  const handleLike = fields.filter((el) => {
+    const meta = `${el.id || ""} ${el.name || ""} ${el.placeholder || ""} ${el.getAttribute("aria-label") || ""}`.toLowerCase();
+    return /handle|x\.com|twitter|@/.test(meta);
+  });
+  const scoped = handleLike
+    .map((el) => String(el.value || "").trim())
+    .find((v) => !!v);
+  if (scoped) return scoped;
+
+  const active = document.activeElement;
+  if (active && active.tagName === "INPUT") {
+    const t = String(active.type || "").toLowerCase();
+    if (!t || t === "text" || t === "url") {
+      const v = String(active.value || "").trim();
+      if (v) return v;
+    }
+  }
+
+  const anyTextValues = fields
+    .map((el) => String(el.value || "").trim())
+    .filter((v) => !!v);
+  if (anyTextValues.length === 1) return anyTextValues[0];
+  return "";
+}
+
 let curveMode = localStorage.getItem("curveMode") || "time";
+let autoRefreshTimer = null;
+let pnlBreakdownCache = null;
+let tradeReviewExplain = null;
 
 function setStatus(text, cls = "") {
   const el = document.getElementById("status-pill");
@@ -36,6 +109,49 @@ function fmtCurrency(v) {
   const n = Number(v || 0);
   if (!Number.isFinite(n)) return "$0";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+}
+
+function fmtMinutes(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return "n/a";
+  if (n < 60) return `${n.toFixed(1)}m`;
+  const h = n / 60;
+  if (h < 48) return `${h.toFixed(1)}h`;
+  return `${(h / 24).toFixed(1)}d`;
+}
+
+function friendlyInputName(key) {
+  const k = String(key || "").trim();
+  if (!k) return "Unknown input";
+  const lower = k.toLowerCase();
+  if (lower === "family:liquidity") return "Liquidity setup quality";
+  if (lower === "family:pipeline") return "Strategy model score";
+  if (lower === "family:pattern") return "Chart/pattern reliability";
+  if (lower === "family:social") return "Social sentiment";
+  if (lower === "family:external") return "External news/event signals";
+  if (lower === "family:copy") return "Copy-trade style signals";
+  if (lower.startsWith("strategy:")) return `Strategy-specific input (${k.split(":")[1] || "custom"})`;
+  if (lower.startsWith("pipeline:")) return `Pipeline source (${k.split(":")[1] || "custom"})`;
+  if (lower.startsWith("source:")) return `Source feed (${k.split(":")[1] || "custom"})`;
+  if (lower.startsWith("x:")) return `Tracked X handle (${k.split(":")[1] || "custom"})`;
+  return k.replace(/[:_]/g, " ");
+}
+
+function inputHelpText(key) {
+  const k = String(key || "").toLowerCase();
+  if (!k) return "Pick an input to see what it controls.";
+  if (k === "family:liquidity") return "Emphasizes entries where stop/target structure and liquidity sweeps look high quality. Best for timing entries.";
+  if (k === "family:pipeline") return "Controls weight of your strategy engine scores. Higher means strategy score drives decisions more.";
+  if (k === "family:pattern") return "Controls chart-pattern confidence impact (flags, reversals, liquidity grabs, etc.).";
+  if (k === "family:social") return "Controls sentiment influence from social inputs.";
+  if (k === "family:external") return "Controls external signal impact (news/events/free feeds).";
+  if (k === "family:copy") return "Controls copy/call style source impact.";
+  if (k.startsWith("strategy:") && k.includes(":family:liquidity")) return "Liquidity weight only for this strategy profile. Useful for scalp-vs-swing tuning.";
+  if (k.startsWith("strategy:")) return "Strategy-specific override. Lets one strategy use different weight than global defaults.";
+  if (k.startsWith("source:")) return "Source-level override. Use this when one feed is consistently strong/weak.";
+  if (k.startsWith("pipeline:")) return "Pipeline-level override. Use to boost or reduce one strategy lane.";
+  if (k.startsWith("x:")) return "X-account-level override. Use to tune one handle without changing others.";
+  return "This is a tunable input weight. Start near 1.0 and adjust gradually using results.";
 }
 
 function controlMap(rows) {
@@ -147,6 +263,38 @@ function renderAlerts(systemHealth, readiness, awareness, tradeClaimGuard) {
   }).join("");
 }
 
+function renderHealthOverview(systemHealth, readiness, learningMonitor, masterOverview) {
+  const el = document.getElementById("health-overview");
+  if (!el) return;
+  const lh = learningMonitor?.learning_health || {};
+  const out = learningMonitor?.outcomes || {};
+  const venue = masterOverview?.venue_24h || {};
+  const missed = masterOverview?.missed_opportunities || {};
+
+  const alp = venue?.alpaca || {};
+  const hl = venue?.hyperliquid || {};
+  const poly = venue?.polymarket || {};
+  const made = Number(alp.filled || 0) + Number(hl.filled || 0) + Number(poly.filled || 0);
+  const submitted = Number(alp.submitted || 0) + Number(hl.submitted || 0) + Number(poly.submitted || 0);
+
+  const freshPipeline = (systemHealth?.checks || []).find((c) => c.name === "Pipeline Freshness")?.detail || "n/a";
+  const freshRoute = (systemHealth?.checks || []).find((c) => c.name === "Routing Freshness")?.detail || "n/a";
+  const readyScore = Number(readiness?.score || 0).toFixed(0);
+  const cov = Number(lh.coverage_pct || 0).toFixed(1);
+  const trackedCov = Number(lh.tracked_coverage_pct || 0).toFixed(1);
+  const realized = Number(out.realized_total || 0);
+  const op = Number(out.operational_total || 0);
+
+  el.innerHTML = [
+    ["Overall", `${systemHealth?.overall || "unknown"} | readiness ${readiness?.state || "unknown"} (${readyScore})`],
+    ["Freshness", `pipeline ${freshPipeline} | routing ${freshRoute}`],
+    ["24h Trades Made", `${made} filled | ${submitted} submitted`],
+    ["Truth Coverage (7d)", `${cov}% resolved | ${trackedCov}% tracked`],
+    ["Outcome Layer", `realized ${realized} | operational ${op}`],
+    ["Not Taken (7d)", `${Number(missed.not_taken_total || 0)} checked | ${Number(missed.not_taken_wins || 0)} winners`],
+  ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+}
+
 function renderAwareness(awareness) {
   const brief = document.getElementById("awareness-brief");
   if (brief) {
@@ -202,11 +350,17 @@ function renderWallet(rows) {
 function renderFlow(exOrders, polyOrders) {
   const exEl = document.getElementById("list-exec");
   const poEl = document.getElementById("list-poly");
+  const isMade = (status) => {
+    const st = String(status || "").toLowerCase();
+    if (!st) return false;
+    if (st.includes("block") || st.includes("reject") || st.includes("fail") || st.includes("queued")) return false;
+    return st.includes("submit") || st.includes("fill") || st.includes("execut") || st.includes("open") || st.includes("accept");
+  };
 
   if (exEl) {
-    const rows = (exOrders || []).slice(0, 8);
+    const rows = (exOrders || []).filter((r) => isMade(r.order_status)).slice(0, 8);
     exEl.innerHTML = rows.length === 0
-      ? `<div class="empty">No execution orders</div>`
+      ? `<div class="empty">No made execution trades yet</div>`
       : rows.map((r) => {
           const st = String(r.order_status || "").toLowerCase();
           const cls = st.includes("block") || st.includes("fail") ? "bad" : (st.includes("submit") || st.includes("fill") ? "good" : "warn");
@@ -215,12 +369,12 @@ function renderFlow(exOrders, polyOrders) {
   }
 
   if (poEl) {
-    const rows = (polyOrders || []).slice(0, 8);
+    const rows = (polyOrders || []).filter((r) => isMade(r.status)).slice(0, 8);
     poEl.innerHTML = rows.length === 0
-      ? `<div class="empty">No polymarket orders</div>`
+      ? `<div class="empty">No made polymarket trades yet</div>`
       : rows.map((r) => {
-          const st = String(r.status || "").toLowerCase();
-          const cls = st.includes("block") || st.includes("fail") ? "bad" : (st.includes("submit") || st.includes("fill") ? "good" : "warn");
+        const st = String(r.status || "").toLowerCase();
+        const cls = st.includes("block") || st.includes("fail") ? "bad" : (st.includes("submit") || st.includes("fill") ? "good" : "warn");
           return `<div class="flow-item"><div><strong>${r.strategy_id || ""}</strong> ${r.outcome || ""}</div><div>${r.mode || ""} • ${fmtCurrency(r.notional || 0)}</div><div class="${cls}">${r.status || ""}</div></div>`;
         }).join("");
   }
@@ -230,9 +384,11 @@ function renderPortfolio(snapshot) {
   const brief = document.getElementById("portfolio-brief");
   const alpEl = document.getElementById("alpaca-positions");
   const hlEl = document.getElementById("hl-positions");
+  const polyEl = document.getElementById("poly-positions");
 
   const alp = snapshot?.alpaca || {};
   const hl = snapshot?.hyperliquid || {};
+  const poly = snapshot?.polymarket || {};
 
   if (brief) {
     const rows = [
@@ -242,6 +398,8 @@ function renderPortfolio(snapshot) {
       ["HL Network", hl.network || "unknown"],
       ["HL Account Value", fmtCurrency(hl.account_value || 0)],
       ["HL Withdrawable", fmtCurrency(hl.withdrawable || 0)],
+      ["Poly Filled Live", String(poly.filled_live_count || 0)],
+      ["Poly Net Exposure", fmtCurrency(poly.net_exposure_usd || 0)],
     ];
     brief.innerHTML = rows
       .map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`)
@@ -260,14 +418,39 @@ function renderPortfolio(snapshot) {
   }
 
   if (hlEl) {
-    const rows = hl.positions || [];
-    hlEl.innerHTML = rows.length
-      ? rows.slice(0, 8).map((p) => {
+    const perpRows = hl.positions || [];
+    const spotRows = (hl.spot_balances || []).filter((b) => Number(b.total || 0) > 0);
+    const perpHtml = perpRows.length
+      ? `<div class="flow-item"><strong>Perps: ${perpRows.length}</strong></div>` +
+        perpRows.slice(0, 24).map((p) => {
           const pl = Number(p.unrealized_pnl || 0);
           const cls = pl >= 0 ? "good" : "bad";
           return `<div class="flow-item"><div><strong>${p.coin || ""}</strong> ${p.szi || ""}</div><div>Value ${fmtCurrency(p.position_value || 0)}</div><div class="${cls}">uPnL ${fmtCurrency(pl)}</div></div>`;
+        }).join("") +
+        (perpRows.length > 24 ? `<div class="flow-item">...and ${perpRows.length - 24} more perp positions</div>` : "")
+      : `<div class="empty">No HL perp positions</div>`;
+    const spotHtml = spotRows.length
+      ? `<div class="flow-item"><strong>Spot Balances: ${spotRows.length}</strong></div>` +
+        spotRows.slice(0, 24).map((b) => {
+          return `<div class="flow-item"><div><strong>${b.coin || ""}</strong> ${Number(b.total || 0).toFixed(6)}</div><div>Hold ${Number(b.hold || 0).toFixed(6)}</div></div>`;
+        }).join("") +
+        (spotRows.length > 24 ? `<div class="flow-item">...and ${spotRows.length - 24} more spot balances</div>` : "")
+      : `<div class="empty">No HL spot balances</div>`;
+    hlEl.innerHTML = `${perpHtml}${spotHtml}`;
+    if (!perpRows.length && !spotRows.length && hl.error) {
+      hlEl.innerHTML = `<div class="empty">HL: ${hl.error}</div>`;
+    }
+  }
+
+  if (polyEl) {
+    const rows = poly.positions || [];
+    polyEl.innerHTML = rows.length
+      ? rows.slice(0, 24).map((p) => {
+          const n = Number(p.net_notional || 0);
+          const cls = n >= 0 ? "good" : "bad";
+          return `<div class="flow-item"><div><strong>${p.market_id || ""}</strong> ${p.outcome || ""}</div><div class="${cls}">Net ${fmtCurrency(n)}</div><div>Trades ${Number(p.trades || 0)}</div></div>`;
         }).join("")
-      : `<div class="empty">${hl.error ? `HL: ${hl.error}` : "No HL positions"}</div>`;
+      : `<div class="empty">${poly.error ? `Poly: ${poly.error}` : "No Polymarket positions"}</div>`;
   }
 }
 
@@ -287,12 +470,18 @@ function renderTradeDecisions(rows) {
     try {
       const parsed = JSON.parse(r.candidate_inputs || "[]");
       if (Array.isArray(parsed) && parsed.length) {
-        inputSummary = parsed.map((x) => `${x.key || "input"}:${Number(x.value || 0).toFixed(3)}`).slice(0, 3).join(" | ");
+        inputSummary = parsed
+          .map((x) => ({ key: String(x.key || "input"), value: Number(x.value || 0), weight: Number(x.weight || 0) }))
+          .filter((x) => Number.isFinite(x.value) && x.value > 0)
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5)
+          .map((x) => `${x.key}:${x.value.toFixed(3)} (w=${x.weight.toFixed(2)})`)
+          .join(" | ");
       }
     } catch (_) {
       inputSummary = "";
     }
-    return `<details class="flow-item"><summary><strong>${r.ticker || ""}</strong> ${r.direction || ""} • ${fmtCurrency(r.notional || 0)} • <span class="${cls}">${r.order_status || ""}</span></summary><div>source: ${r.source_tag || "n/a"} | score: ${r.score || ""} | mode: ${r.mode || ""}</div><div>reason: ${why}</div><div>candidate: ${candidateWhy || "n/a"}</div><div>inputs: ${inputSummary || "n/a"}</div><div>notes: ${r.notes || ""}</div></details>`;
+    return `<details class="flow-item"><summary><strong>${r.ticker || ""}</strong> ${r.direction || ""} • ${fmtCurrency(r.notional || 0)} • <span class="${cls}">${r.order_status || ""}</span></summary><div>source: ${r.source_tag || "n/a"} | score: ${r.score || ""} | mode: ${r.mode || ""}</div><div>route reason: ${why}</div><div>candidate synopsis: ${candidateWhy || "n/a"}</div><div>input hits: ${inputSummary || "n/a"}</div><div>notes: ${r.notes || ""}</div></details>`;
   }).join("");
 }
 
@@ -318,6 +507,58 @@ function renderVenueAndMissed(master) {
     ["Missed Win Rate", `${Number(m.not_taken_win_rate || 0).toFixed(2)}%`],
     ["Avg PnL %", `${Number(m.not_taken_avg_pnl_pct || 0).toFixed(2)}%`],
   ].map(([k, val]) => `<div class="item"><span class="label">${k}</span><span>${val}</span></div>`).join("");
+}
+
+function renderLearningMonitor(monitor) {
+  const brief = document.getElementById("learning-monitor-brief");
+  const horizonEl = document.getElementById("learning-monitor-horizons");
+  if (!brief || !horizonEl) return;
+
+  const lh = monitor?.learning_health || {};
+  const out = monitor?.outcomes || {};
+  const hz = monitor?.horizons || {};
+  const rd = monitor?.readiness || {};
+  const rc = monitor?.reconciler || {};
+  const tr = monitor?.trades || {};
+
+  const realized = Number(out.realized_total || 0);
+  const operational = Number(out.operational_total || 0);
+  const resolved = Number(lh.resolved_routes || 0);
+  const eligible = Number(lh.eligible_routes || 0);
+  const realized24 = Number(out.realized_24h || 0);
+  const op24 = Number(out.operational_24h || 0);
+  const coverage = Number(lh.coverage_pct || 0).toFixed(2);
+  const trackedCoverage = Number(lh.tracked_coverage_pct || 0).toFixed(2);
+  const realizedWin = Number(lh.realized_win_rate || 0).toFixed(2);
+  const avgPnl = Number(lh.realized_avg_pnl_pct || 0).toFixed(2);
+
+  brief.innerHTML = [
+    ["Route Outcomes", `realized ${realized} | operational ${operational}`],
+    ["24h Outcome Adds", `realized ${realized24} | operational ${op24}`],
+    ["Coverage (7d)", `${coverage}% (${resolved}/${eligible}) | tracked ${trackedCoverage}%`],
+    ["Realized Quality (7d)", `win ${realizedWin}% | avg ${avgPnl}%`],
+    ["Trades", `open ${Number(tr.open_total || 0)} | closed ${Number(tr.closed_total || 0)} | route-linked closed ${Number(tr.closed_with_route || 0)}`],
+    ["Last Outcome Write", `${fmtMinutes(out.last_resolved_age_min)} ago`],
+    ["GRPO Readiness", `${rd.state || "unknown"} ${rd.reasons ? `(${rd.reasons})` : ""}`],
+    ["Live Weight Updates", String(rd.apply_live_updates || "0") === "1" ? "enabled" : "disabled"],
+    ["Reconciler", `${rc.last_status || "n/a"} | last success ${rc.last_success_utc || "n/a"}`],
+  ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+
+  const byH = Array.isArray(hz.by_horizon) ? hz.by_horizon : [];
+  if (!byH.length) {
+    horizonEl.innerHTML = `<div class="item"><span class="label">Horizon Rows</span><span>0</span></div>`;
+    return;
+  }
+  horizonEl.innerHTML = [
+    `<div class="item"><span class="label">Total Horizon Rows</span><span>${Number(hz.rows_total || 0)}</span></div>`,
+    ...byH.slice(0, 8).map((row) => {
+      const h = Number(row.horizon_hours || 0);
+      const n = Number(row.count || 0);
+      const avg = Number(row.avg_pnl_pct || 0).toFixed(3);
+      const label = h >= 24 ? `${(h / 24).toFixed(h % 24 === 0 ? 0 : 1)}d` : `${h}h`;
+      return `<div class="item"><span class="label">${label}</span><span>${n} rows | avg ${avg}%</span></div>`;
+    }),
+  ].join("");
 }
 
 function buildLinePath(points, width, height, pad) {
@@ -407,6 +648,97 @@ function bindCurveButtons(curve) {
   }
 }
 
+function renderPnlBreakdown(data) {
+  const wrap = document.getElementById("pnl-drilldown-wrap");
+  const summaryEl = document.getElementById("pnl-drilldown-summary");
+  const winnersEl = document.getElementById("pnl-top-winners");
+  const losersEl = document.getElementById("pnl-top-losers");
+  const recentEl = document.getElementById("pnl-recent-table");
+  if (!wrap || !summaryEl || !winnersEl || !losersEl || !recentEl) return;
+
+  const rows = data || {};
+  summaryEl.innerHTML = [
+    ["Closed Trades", String(rows.closed_count || 0)],
+    ["Wins / Losses", `${Number(rows.wins || 0)} / ${Number(rows.losses || 0)}`],
+    ["Win Rate", `${Number(rows.win_rate || 0).toFixed(2)}%`],
+    ["Total PnL", fmtCurrency(rows.total_pnl || 0)],
+    ["Avg Per Trade", fmtCurrency(rows.avg_pnl || 0)],
+  ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+
+  const renderTradeRow = (r) => {
+    const pnl = Number(r.pnl || 0);
+    const cls = pnl >= 0 ? "good" : "bad";
+    return `<div class="flow-item"><div><strong>${r.ticker || ""}</strong> ${r.trade_id || ""}</div><div>${r.closed_at || ""}</div><div class="${cls}">${fmtCurrency(pnl)} (${Number(r.pnl_percent || 0).toFixed(2)}%)</div><div>src: ${r.source_tag || "n/a"}</div></div>`;
+  };
+
+  winnersEl.innerHTML = (rows.top_winners || []).length
+    ? (rows.top_winners || []).map(renderTradeRow).join("")
+    : `<div class="empty">No winning closed trades yet</div>`;
+  losersEl.innerHTML = (rows.top_losers || []).length
+    ? (rows.top_losers || []).map(renderTradeRow).join("")
+    : `<div class="empty">No losing closed trades yet</div>`;
+
+  renderTable(
+    "pnl-recent-table",
+    rows.recent_closed || [],
+    ["Closed", "Ticker", "PnL", "PnL %", "Source", "Score"],
+    ["closed_at", "ticker", "pnl", "pnl_percent", "source_tag", "route_score"]
+  );
+}
+
+function setupRefreshControls() {
+  const btn = document.getElementById("btn-dashboard-refresh");
+  const auto = document.getElementById("auto-refresh-toggle");
+
+  if (btn && !btn.dataset.wired) {
+    btn.dataset.wired = "1";
+    btn.onclick = async () => {
+      await boot();
+    };
+  }
+
+  if (auto && !auto.dataset.wired) {
+    auto.dataset.wired = "1";
+    const saved = localStorage.getItem("dashboardAutoRefresh") === "1";
+    auto.checked = saved;
+    const apply = () => {
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+      }
+      if (auto.checked) {
+        autoRefreshTimer = setInterval(() => {
+          boot();
+        }, 60000);
+        localStorage.setItem("dashboardAutoRefresh", "1");
+      } else {
+        localStorage.setItem("dashboardAutoRefresh", "0");
+      }
+    };
+    auto.onchange = apply;
+    apply();
+  }
+}
+
+function bindPnlDrilldown() {
+  const btn = document.getElementById("metric-pnl-toggle");
+  const wrap = document.getElementById("pnl-drilldown-wrap");
+  if (!btn || !wrap || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  btn.onclick = async () => {
+    const isOpen = wrap.style.display !== "none";
+    if (isOpen) {
+      wrap.style.display = "none";
+      return;
+    }
+    wrap.style.display = "";
+    if (!pnlBreakdownCache) {
+      pnlBreakdownCache = await fetchJsonSafe("/api/pnl-breakdown?limit=160", {});
+    }
+    renderPnlBreakdown(pnlBreakdownCache || {});
+  };
+}
+
 async function updateControls(updates) {
   await postJson("/api/risk-controls", { updates });
 }
@@ -428,6 +760,7 @@ function bindControls(controls) {
   const hlMinScore = document.getElementById("ctl-hl-min-score");
   const polyMinConf = document.getElementById("ctl-poly-min-conf");
   const routeLimit = document.getElementById("ctl-route-limit");
+  const thresholdUnlock = document.getElementById("ctl-threshold-unlock");
 
   if (hlNotional) hlNotional.value = c.hyperliquid_test_notional_usd || "10";
   if (hlLev) hlLev.value = c.hyperliquid_test_leverage || "1";
@@ -437,6 +770,7 @@ function bindControls(controls) {
   if (hlMinScore) hlMinScore.value = c.hyperliquid_min_route_score || "60";
   if (polyMinConf) polyMinConf.value = c.polymarket_min_confidence_pct || "60";
   if (routeLimit) routeLimit.value = c.auto_route_limit || "24";
+  if (thresholdUnlock) thresholdUnlock.value = c.threshold_override_unlocked || "0";
 
   const status = document.getElementById("master-control-status");
   const setMsg = (m) => { if (status) status.textContent = m; };
@@ -452,6 +786,7 @@ function bindControls(controls) {
       hyperliquid_min_route_score: (hlMinScore?.value || "60").toString(),
       polymarket_min_confidence_pct: (polyMinConf?.value || "60").toString(),
       auto_route_limit: (routeLimit?.value || "24").toString(),
+      threshold_override_unlocked: (thresholdUnlock?.value || "0").toString(),
     });
     setMsg("Saved limits");
     await boot();
@@ -493,42 +828,463 @@ function bindControls(controls) {
   if (btnAware) btnAware.onclick = async () => { await runAction("check_awareness"); await boot(); };
 }
 
+function renderTrackedSources(rows) {
+  const el = document.getElementById("x-sources-list");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No tracked X handles yet</div>`;
+    return;
+  }
+  el.innerHTML = rows.slice(0, 50).map((r) => {
+    const h = `@${String(r.handle || "").replace(/^@+/, "")}`;
+    const copy = String(r.role_copy || "0") === "1" ? "copy:on" : "copy:off";
+    const alpha = String(r.role_alpha || "0") === "1" ? "alpha:on" : "alpha:off";
+    const active = String(r.active || "0") === "1" ? "active" : "inactive";
+    const xapi = String(r.x_api_enabled || "0") === "1" ? "xapi:on" : "xapi:off";
+    const weight = Number(r.source_weight || 1).toFixed(2);
+    const notes = String(r.notes || "").trim();
+    return `<div class="flow-item"><div><strong>${h}</strong> ${active}</div><div>${copy} | ${alpha} | ${xapi} | w=${weight}</div>${notes ? `<div>${notes}</div>` : ""}</div>`;
+  }).join("");
+}
+
+function renderMainInputSources(rows) {
+  const el = document.getElementById("input-sources-list-main");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No input source controls yet</div>`;
+    return;
+  }
+  const filtered = rows
+    .filter((r) => {
+      const key = String(r.source_key || "");
+      return key.startsWith("family:") || key.startsWith("strategy:") || key.startsWith("source:") || key.startsWith("pipeline:");
+    })
+    .sort((a, b) => {
+      const ak = String(a.source_key || "");
+      const bk = String(b.source_key || "");
+      return ak.localeCompare(bk);
+    })
+    .slice(0, 60);
+  const grid = "210px 150px 60px 70px 70px 80px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Input</div><div>Class</div><div>On</div><div>Manual</div><div>Auto</div><div>Effective</div></div>`;
+  const body = filtered.map((r) => {
+    const key = String(r.source_key || "");
+    const name = friendlyInputName(key);
+    const tip = inputHelpText(key);
+    return `<div class="row" style="grid-template-columns:${grid}"><div title="${tip.replace(/\"/g, "&quot;")}">${name}<br/><span class="sub">${key}</span></div><div>${r.source_class || ""}</div><div>${Number(r.enabled || 0) === 1 ? "yes" : "no"}</div><div>${Number(r.manual_weight || 1).toFixed(2)}</div><div>${Number(r.auto_weight || 1).toFixed(2)}</div><div>${Number(r.effective_weight || 1).toFixed(2)}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function populateTradeReviewInputChoices(explain, allInputSources) {
+  const select = document.getElementById("trade-review-input-key-select");
+  if (!select) return;
+  const fromExplain = ((explain?.candidate?.input_breakdown || []).map((x) => String(x.key || "").trim()).filter((x) => !!x));
+  const fromAll = (allInputSources || [])
+    .map((r) => String(r.source_key || "").trim())
+    .filter((k) => k.startsWith("family:") || k.startsWith("strategy:") || k.startsWith("source:") || k.startsWith("pipeline:") || k.startsWith("x:"));
+  const merged = Array.from(new Set([...fromExplain, ...fromAll])).sort((a, b) => a.localeCompare(b));
+  const opts = [`<option value=\"\">Select input...</option>`].concat(
+    merged.map((k) => `<option value="${k}">${friendlyInputName(k)} (${k})</option>`)
+  );
+  select.innerHTML = opts.join("");
+  if (fromExplain.length > 0) {
+    select.value = fromExplain[0];
+  }
+}
+
+function renderTradeReplayExplain(explain) {
+  const status = document.getElementById("trade-review-status");
+  const explainEl = document.getElementById("trade-review-explain");
+  const inputsEl = document.getElementById("trade-review-inputs");
+  if (!status || !explainEl || !inputsEl) return;
+  if (!explain || !explain.ok) {
+    const err = explain?.error || "Trade not found";
+    status.textContent = err;
+    explainEl.innerHTML = "";
+    inputsEl.innerHTML = "";
+    return;
+  }
+  status.textContent = `Loaded ${explain.trade?.ticker || ""} (${explain.identifier || ""})`;
+  explainEl.innerHTML = [
+    ["Trade", `${explain.trade?.trade_id || ""} | route ${explain.trade?.route_id || 0}`],
+    ["Outcome", `${Number(explain.outcome?.pnl || 0).toFixed(2)} USD | ${Number(explain.outcome?.pnl_percent || 0).toFixed(2)}% | ${explain.outcome?.resolution || "n/a"}`],
+    ["Why (simple)", explain.simple_explanation || "n/a"],
+  ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+
+  const rows = (explain?.candidate?.input_breakdown || []).slice(0, 10).map((x) => ({
+    input: `${friendlyInputName(x.key)} (${x.key})`,
+    value: Number(x.value || 0).toFixed(3),
+    weight: Number(x.weight || 0).toFixed(2),
+    help: x.help || inputHelpText(x.key),
+  }));
+  if (!rows.length) {
+    inputsEl.innerHTML = `<div class="empty">No candidate input breakdown found for this trade</div>`;
+    return;
+  }
+  const grid = "280px 70px 70px 1fr";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Input</div><div>Value</div><div>Weight</div><div>What it means</div></div>`;
+  const body = rows
+    .map((r) => `<div class="row" style="grid-template-columns:${grid}"><div>${r.input}</div><div>${r.value}</div><div>${r.weight}</div><div>${r.help}</div></div>`)
+    .join("");
+  inputsEl.innerHTML = head + body;
+}
+
+function bindTradeReplayFeedback(allInputSources) {
+  const idEl = document.getElementById("trade-review-identifier");
+  const btnLoad = document.getElementById("btn-trade-review-load");
+  const btnSubmit = document.getElementById("btn-trade-review-submit");
+  const btnWeekly = document.getElementById("btn-trade-review-weekly");
+  const status = document.getElementById("trade-review-status");
+  const actionEl = document.getElementById("trade-review-action");
+  const applyEl = document.getElementById("trade-review-apply-now");
+  const notesEl = document.getElementById("trade-review-notes");
+  const inputKeyEl = document.getElementById("trade-review-input-key-select");
+  if (!idEl || !btnLoad || !btnSubmit || !btnWeekly || !status || !actionEl || !applyEl || !notesEl || !inputKeyEl) return;
+
+  if (!btnLoad.dataset.wired) {
+    btnLoad.dataset.wired = "1";
+    btnLoad.onclick = async () => {
+      const identifier = String(idEl.value || "").trim();
+      if (!identifier) {
+        status.textContent = "Enter a trade identifier first";
+        return;
+      }
+      status.textContent = "Loading trade...";
+      tradeReviewExplain = await fetchJsonSafe(`/api/trade-explain?identifier=${encodeURIComponent(identifier)}`, { ok: false, error: "load failed" });
+      renderTradeReplayExplain(tradeReviewExplain);
+      populateTradeReviewInputChoices(tradeReviewExplain, allInputSources || []);
+    };
+  }
+
+  if (!btnSubmit.dataset.wired) {
+    btnSubmit.dataset.wired = "1";
+    btnSubmit.onclick = async () => {
+      const identifier = String(idEl.value || "").trim();
+      if (!identifier) {
+        status.textContent = "Enter a trade identifier first";
+        return;
+      }
+      const selectedKey = String(inputKeyEl.value || "").trim();
+      if (!selectedKey) {
+        status.textContent = "Choose an input to adjust";
+        return;
+      }
+      status.textContent = "Saving feedback...";
+      const payload = {
+        identifier,
+        feedback_action: String(actionEl.value || "neutral"),
+        apply_now: String(applyEl.value || "1") === "1",
+        notes: String(notesEl.value || "").trim(),
+        selected_input_key: selectedKey,
+      };
+      const out = await postJson("/api/trade-feedback", payload);
+      if (!out || !out.ok) {
+        status.textContent = `Feedback failed: ${(out && out.error) || "unknown"}`;
+        return;
+      }
+      const applied = out.applied?.updated || 0;
+      status.textContent = out.apply_now
+        ? `Saved feedback. Updated ${applied} input weight(s).`
+        : `Saved feedback for weekly batch.`;
+      if (out.apply_now) {
+        await boot();
+      }
+    };
+  }
+
+  if (!btnWeekly.dataset.wired) {
+    btnWeekly.dataset.wired = "1";
+    btnWeekly.onclick = async () => {
+      status.textContent = "Running weekly apply...";
+      const out = await postJson("/api/trade-feedback/apply-weekly", { max_reviews: 400 });
+      if (!out || !out.ok) {
+        status.textContent = `Weekly apply failed: ${(out && out.error) || "unknown"}`;
+        return;
+      }
+      status.textContent = `Weekly apply done: ${Number(out.applied_reviews || 0)} reviews, ${Number(out.updated_inputs || 0)} inputs updated.`;
+      await boot();
+    };
+  }
+}
+
+function renderTickerProfiles(rows) {
+  const el = document.getElementById("ticker-profiles-list");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No ticker profiles configured</div>`;
+    return;
+  }
+  const grid = "90px 70px 90px 170px 180px 70px 90px 180px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Ticker</div><div>On</div><div>Pref Venue</div><div>Allowed</div><div>Required Inputs</div><div>Min</div><div>Notional</div><div>Notes</div></div>`;
+  const body = rows.slice(0, 50).map((r) => {
+    const allowed = Array.isArray(r.allowed_venues) ? r.allowed_venues.join(",") : String(r.allowed_venues_json || "");
+    const req = Array.isArray(r.required_inputs) ? r.required_inputs.join(",") : String(r.required_inputs_json || "");
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${r.ticker || ""}</div><div>${Number(r.active || 0) === 1 ? "yes" : "no"}</div><div>${r.preferred_venue || "best"}</div><div>${allowed || "all"}</div><div>${req || "-"}</div><div>${Number(r.min_score || 0).toFixed(0)}</div><div>${Number(r.notional_override || 0).toFixed(2)}</div><div>${r.notes || ""}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function bindTickerProfileControls(rows) {
+  const btn = document.getElementById("btn-ticker-profile-save");
+  if (!btn) return;
+  const tickerEl = document.getElementById("ticker-profile-ticker");
+  const prefEl = document.getElementById("ticker-profile-pref-venue");
+  const allowedEl = document.getElementById("ticker-profile-allowed");
+  const reqEl = document.getElementById("ticker-profile-inputs");
+  const minEl = document.getElementById("ticker-profile-min-score");
+  const notionalEl = document.getElementById("ticker-profile-notional");
+  const activeEl = document.getElementById("ticker-profile-active");
+  const notesEl = document.getElementById("ticker-profile-notes");
+  const status = document.getElementById("ticker-profile-status");
+
+  btn.onclick = async () => {
+    const ticker = String(tickerEl?.value || "").trim().toUpperCase();
+    if (!ticker) {
+      if (status) status.textContent = "ticker is required";
+      return;
+    }
+    try {
+      const allowed = String(allowedEl?.value || "")
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter((x) => !!x);
+      const requiredInputs = String(reqEl?.value || "")
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter((x) => !!x);
+      const payload = {
+        ticker,
+        active: String(activeEl?.value || "1") === "1",
+        preferred_venue: String(prefEl?.value || "").trim().toLowerCase(),
+        allowed_venues: allowed,
+        required_inputs: requiredInputs,
+        min_score: Number(minEl?.value || 0),
+        notional_override: Number(notionalEl?.value || 0),
+        notes: String(notesEl?.value || "").trim(),
+      };
+      const out = await postJson("/api/ticker-trade-profiles", payload);
+      if (!out || !out.ok) throw new Error((out && out.error) || "save failed");
+      if (status) status.textContent = `Saved ticker profile ${out.ticker}`;
+      await boot();
+    } catch (err) {
+      if (status) status.textContent = `Save failed: ${(err && err.message) || err || "request error"}`;
+    }
+  };
+
+  if (Array.isArray(rows) && rows.length > 0 && tickerEl && !String(tickerEl.value || "").trim()) {
+    const first = rows[0];
+    tickerEl.value = String(first.ticker || "");
+    if (prefEl) prefEl.value = String(first.preferred_venue || "");
+    if (allowedEl) {
+      const allowed = Array.isArray(first.allowed_venues) ? first.allowed_venues.join(",") : String(first.allowed_venues_json || "");
+      allowedEl.value = allowed || "stocks,crypto,prediction";
+    }
+    if (reqEl) {
+      const req = Array.isArray(first.required_inputs) ? first.required_inputs.join(",") : String(first.required_inputs_json || "");
+      reqEl.value = req || "";
+    }
+    if (minEl) minEl.value = String(first.min_score ?? 0);
+    if (notionalEl) notionalEl.value = String(first.notional_override ?? 0);
+    if (activeEl) activeEl.value = String(first.active ?? 1);
+    if (notesEl) notesEl.value = String(first.notes || "");
+  }
+}
+
+function bindMainInputSourceControls(rows) {
+  const btn = document.getElementById("btn-input-source-save-main");
+  if (!btn) return;
+  const keyEl = document.getElementById("input-source-key-select-main");
+  const wEl = document.getElementById("input-source-weight-main");
+  const enEl = document.getElementById("input-source-enabled-main");
+  const status = document.getElementById("input-source-status-main");
+  const helpEl = document.getElementById("input-source-help-main");
+
+  const options = (rows || [])
+    .filter((r) => {
+      const key = String(r.source_key || "");
+      return key.startsWith("family:") || key.startsWith("strategy:") || key.startsWith("source:") || key.startsWith("pipeline:") || key.startsWith("x:");
+    })
+    .sort((a, b) => String(a.source_key || "").localeCompare(String(b.source_key || "")));
+
+  if (keyEl) {
+    const current = String(keyEl.value || "");
+    const opts = ['<option value="">Select an input...</option>'].concat(
+      options.map((r) => {
+        const key = String(r.source_key || "");
+        const label = friendlyInputName(key);
+        return `<option value="${key}">${label} (${key})</option>`;
+      })
+    );
+    keyEl.innerHTML = opts.join("");
+    if (current && options.some((r) => String(r.source_key || "") === current)) {
+      keyEl.value = current;
+    }
+  }
+
+  const applySelected = () => {
+    const selectedKey = String(keyEl?.value || "").trim();
+    const selected = options.find((r) => String(r.source_key || "") === selectedKey);
+    if (selected) {
+      if (wEl) wEl.value = String(selected.manual_weight ?? 1.0);
+      if (enEl) enEl.value = String(selected.enabled ?? 1);
+    }
+    if (helpEl) {
+      const text = inputHelpText(selectedKey);
+      helpEl.innerHTML = `<div class="item"><span class="label">${friendlyInputName(selectedKey || "Input")}</span><span>${text}</span></div>`;
+    }
+  };
+
+  if (keyEl && !keyEl.dataset.wired) {
+    keyEl.dataset.wired = "1";
+    keyEl.addEventListener("change", applySelected);
+  }
+
+  btn.onclick = async () => {
+    const sourceKey = String(keyEl?.value || "").trim();
+    if (!sourceKey) {
+      if (status) status.textContent = "Select an input first";
+      return;
+    }
+    try {
+      const selected = options.find((r) => String(r.source_key || "") === sourceKey);
+      const payload = {
+        source_key: sourceKey,
+        source_label: selected?.source_label || friendlyInputName(sourceKey),
+        source_class: selected?.source_class || (sourceKey.includes(":") ? sourceKey.split(":", 1)[0] : "custom"),
+        manual_weight: Number(wEl?.value || 1),
+        enabled: String(enEl?.value || "1") === "1",
+      };
+      const out = await postJson("/api/input-sources", payload);
+      if (!out || !out.ok) throw new Error((out && out.error) || "save failed");
+      if (status) status.textContent = `Saved ${sourceKey}`;
+      await boot();
+    } catch (err) {
+      if (status) status.textContent = `Save failed: ${(err && err.message) || err || "request error"}`;
+    }
+  };
+
+  if (Array.isArray(options) && options.length > 0 && keyEl && !String(keyEl.value || "").trim()) {
+    const seed = options.find((r) => String(r.source_key || "").startsWith("family:liquidity")) || options[0];
+    if (seed) {
+      keyEl.value = String(seed.source_key || "");
+    }
+  }
+  applySelected();
+}
+
+function bindTrackedSources(rows) {
+  const btn = document.getElementById("btn-x-save");
+  const status = document.getElementById("x-source-status");
+  const handle = document.getElementById("x-handle");
+  const weight = document.getElementById("x-weight");
+  const copy = document.getElementById("x-copy");
+  const alpha = document.getElementById("x-alpha");
+  const active = document.getElementById("x-active");
+  const xapi = document.getElementById("x-api-enabled");
+  const notes = document.getElementById("x-notes");
+  if (!btn || !handle) return;
+  btn.onclick = async () => {
+    try {
+      const rawHandle = resolveHandleInput(["x-handle", "src-handle", "polyw-handle"], "btn-x-save");
+      const normalizedHandle = normalizeXHandle(rawHandle);
+      const payload = {
+        handle: normalizedHandle || rawHandle,
+        x_handle: rawHandle,
+        source_weight: Number(weight?.value || 1),
+        role_copy: String(copy?.value || "1") === "1",
+        role_alpha: String(alpha?.value || "1") === "1",
+        active: String(active?.value || "1") === "1",
+        x_api_enabled: String(xapi?.value || "1") === "1",
+        notes: (notes?.value || "").trim(),
+      };
+      if (!rawHandle) {
+        if (status) status.textContent = `Handle is required (example: @NoLimitGains or x.com/NoLimitGains) [build ${UI_BUILD}]`;
+        console.error("x-handle missing at submit", {
+          build: UI_BUILD,
+          xHandle: document.getElementById("x-handle")?.value || "",
+          srcHandle: document.getElementById("src-handle")?.value || "",
+          polywHandle: document.getElementById("polyw-handle")?.value || "",
+        });
+        return;
+      }
+      const out = await postJson("/api/tracked-sources", payload);
+      if (out && out.ok) {
+        if (status) status.textContent = `Saved @${payload.handle} to DB`;
+        renderTrackedSources(out.sources || []);
+        await boot();
+      } else {
+        if (status) status.textContent = `Save failed: ${(out && out.error) || "unknown"}`;
+      }
+    } catch (err) {
+      if (status) status.textContent = `Save failed: ${(err && err.message) || err || "request error"}`;
+    }
+  };
+  if (Array.isArray(rows) && rows.length > 0 && !handle.value) {
+    const first = rows[0];
+    if (weight) weight.value = String(first.source_weight ?? 1);
+    if (copy) copy.value = String(first.role_copy ?? 1);
+    if (alpha) alpha.value = String(first.role_alpha ?? 1);
+    if (active) active.value = String(first.active ?? 1);
+    if (xapi) xapi.value = String(first.x_api_enabled ?? 1);
+  }
+}
+
 let booting = false;
 async function boot() {
   if (booting) return;
   booting = true;
   try {
     setStatus("loading");
-    const [summary, systemHealth, readiness, controls, walletConfig, exOrders, polyOrders, portfolioSnapshot, tradeDecisions, awareness, performanceCurve, tradeClaimGuard, masterOverview] = await Promise.all([
+    pnlBreakdownCache = null;
+    setupRefreshControls();
+    bindPnlDrilldown();
+    const [summary, systemHealth, readiness, controls, walletConfig, exOrders, polyOrders, portfolioSnapshot, tradeDecisions, awareness, performanceCurve, tradeClaimGuard, masterOverview, trackedSources, learningMonitor, inputSources, tickerProfiles] = await Promise.all([
       fetchJsonSafe("/api/summary", {}),
       fetchJsonSafe("/api/system-health", { overall: "warn", checks: [] }),
       fetchJsonSafe("/api/signal-readiness", { score: 0, checks: [], blockers: [] }),
       fetchJsonSafe("/api/risk-controls", []),
       fetchJsonSafe("/api/wallet-config", []),
-      fetchJsonSafe("/api/execution-orders", []),
-      fetchJsonSafe("/api/polymarket-orders", []),
+      fetchJsonSafe("/api/execution-orders?limit=80", []),
+      fetchJsonSafe("/api/polymarket-orders?limit=80", []),
       fetchJsonSafe("/api/portfolio-snapshot", {}),
-      fetchJsonSafe("/api/recent-trade-decisions", []),
+      fetchJsonSafe("/api/recent-trade-decisions?limit=30", []),
       fetchJsonSafe("/api/agent-awareness", { overall: "warn", checks: [], blockers: [], warnings: [] }),
       fetchJsonSafe("/api/performance-curve", { by_time: [], by_trade: [] }),
       fetchJsonSafe("/api/trade-claim-guard", { state: "bad", trade_ready: false, checks: [], blockers: ["endpoint unavailable"], warnings: [] }),
       fetchJsonSafe("/api/master-overview", {}),
+      fetchJsonSafe("/api/tracked-sources", []),
+      fetchJsonSafe("/api/learning-monitor", {}),
+      fetchJsonSafe("/api/input-sources", []),
+      fetchJsonSafe("/api/ticker-trade-profiles", []),
     ]);
 
-    renderHero(summary, controls);
-    renderPulse(systemHealth, readiness, controls);
-    renderAlerts(systemHealth, readiness, awareness, tradeClaimGuard);
-    renderWallet(walletConfig);
-    renderAwareness(awareness);
-    renderTradeClaimGuard(tradeClaimGuard);
-    renderFlow(exOrders, polyOrders);
-    renderPortfolio(portfolioSnapshot);
-    renderTradeDecisions(tradeDecisions);
-    renderVenueAndMissed(masterOverview || {});
-    renderPerformanceCurve(performanceCurve || {});
-    bindCurveButtons(performanceCurve || {});
-    renderTable("risk-controls", controls, ["Key", "Value", "Updated"], ["key", "value", "updated_at"]);
-    bindControls(controls);
+    runUiStep("bindControls", () => bindControls(controls));
+    runUiStep("bindTrackedSources", () => bindTrackedSources(trackedSources || []));
+    runUiStep("bindMainInputSourceControls", () => bindMainInputSourceControls(inputSources || []));
+    runUiStep("bindTradeReplayFeedback", () => bindTradeReplayFeedback(inputSources || []));
+    runUiStep("bindTickerProfileControls", () => bindTickerProfileControls(tickerProfiles || []));
+    runUiStep("bindCurveButtons", () => bindCurveButtons(performanceCurve || {}));
+
+    runUiStep("renderHero", () => renderHero(summary, controls));
+    runUiStep("renderPulse", () => renderPulse(systemHealth, readiness, controls));
+    runUiStep("renderHealthOverview", () => renderHealthOverview(systemHealth, readiness, learningMonitor || {}, masterOverview || {}));
+    runUiStep("renderAlerts", () => renderAlerts(systemHealth, readiness, awareness, tradeClaimGuard));
+    runUiStep("renderWallet", () => renderWallet(walletConfig));
+    runUiStep("renderAwareness", () => renderAwareness(awareness));
+    runUiStep("renderTradeClaimGuard", () => renderTradeClaimGuard(tradeClaimGuard));
+    runUiStep("renderFlow", () => renderFlow(exOrders, polyOrders));
+    runUiStep("renderPortfolio", () => renderPortfolio(portfolioSnapshot));
+    runUiStep("renderTradeDecisions", () => renderTradeDecisions(tradeDecisions));
+    runUiStep("renderVenueAndMissed", () => renderVenueAndMissed(masterOverview || {}));
+    runUiStep("renderLearningMonitor", () => renderLearningMonitor(learningMonitor || {}));
+    runUiStep("renderPerformanceCurve", () => renderPerformanceCurve(performanceCurve || {}));
+    runUiStep("renderRiskControls", () => {
+      renderTable("risk-controls", controls, ["Key", "Value", "Updated"], ["key", "value", "updated_at"]);
+    });
+    runUiStep("renderTrackedSources", () => renderTrackedSources(trackedSources || []));
+    runUiStep("renderMainInputSources", () => renderMainInputSources(inputSources || []));
+    runUiStep("renderTickerProfiles", () => renderTickerProfiles(tickerProfiles || []));
 
     const topState = (systemHealth && systemHealth.overall) || "warn";
     const awareState = (awareness && awareness.overall) || "warn";
@@ -546,6 +1302,3 @@ async function boot() {
 }
 
 boot();
-setInterval(() => {
-  boot();
-}, 15000);

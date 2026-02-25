@@ -52,6 +52,7 @@ if ! python3.11 -m py_compile \
   execution_worker.py execution_polymarket.py pipeline_polymarket.py \
   pipeline_chart_liquidity.py pipeline_g_weather.py polymarket_mm_engine.py \
   pipeline_x_handle_bridge.py update_learning_feedback.py \
+  training/grpo/build_mlx_lora_dataset.py \
   dashboard-ui/data.py dashboard-ui/app.py; then
   bad "py_compile failed"
 else
@@ -102,7 +103,8 @@ sql "SELECT key||'='||value FROM execution_controls WHERE key IN (
 'agent_master_enabled','consensus_enforce','consensus_min_confirmations','consensus_min_ratio','consensus_min_score',
 'high_beta_only','high_beta_min_beta','weather_strict_station_required','mm_enabled','mm_toxicity_threshold',
 'x_bridge_enabled','x_bridge_posts_per_handle','x_bridge_max_signals_per_cycle','x_bridge_max_handles',
-'kaggle_auto_pull_enabled','kaggle_daily_download_limit','kaggle_min_hours_between_runs','kaggle_poly_dataset_slug'
+'kaggle_auto_pull_enabled','kaggle_daily_download_limit','kaggle_min_hours_between_runs','kaggle_poly_dataset_slug',
+'grpo_mlx_train_enabled','grpo_mlx_base_model','grpo_mlx_min_hours_between_runs','grpo_mlx_daily_train_limit'
 ) ORDER BY key;"
 
 printf "\n-- 7) Recent blocked reasons --\n"
@@ -158,6 +160,8 @@ fi
 printf "\n-- 10) Kaggle ingest posture --\n"
 kaggle_enabled="$(one "SELECT COALESCE(value,'0') FROM execution_controls WHERE key='kaggle_auto_pull_enabled' LIMIT 1;")"
 kaggle_slug="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='kaggle_poly_dataset_slug' LIMIT 1;")"
+kaggle_last_status="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='runtime:kaggle_last_status' LIMIT 1;")"
+kaggle_last_success_utc="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='runtime:kaggle_last_success_utc' LIMIT 1;")"
 kaggle_rows="0"
 if table_exists "polymarket_kaggle_markets"; then
   kaggle_rows="$(count_table polymarket_kaggle_markets)"
@@ -165,11 +169,58 @@ fi
 echo "kaggle.auto_pull_enabled=${kaggle_enabled:-0}"
 echo "kaggle.dataset_slug=${kaggle_slug:-}"
 echo "kaggle.polymarket_rows=$kaggle_rows"
+echo "kaggle.last_status=${kaggle_last_status:-}"
+echo "kaggle.last_success_utc=${kaggle_last_success_utc:-}"
 if [ "${kaggle_enabled:-0}" = "1" ] && [ -z "${kaggle_slug:-}" ]; then
   warn "kaggle_auto_pull_enabled=1 but kaggle_poly_dataset_slug is empty"
 fi
 if [ "${kaggle_enabled:-0}" = "1" ] && [ "$kaggle_rows" -eq 0 ]; then
   warn "kaggle auto pull enabled but polymarket_kaggle_markets has no rows"
+fi
+if [ "${kaggle_enabled:-0}" = "1" ] && printf "%s" "${kaggle_last_status:-}" | grep -Eiq '^(blocked|failed)'; then
+  warn "kaggle ingest is enabled but last_status=${kaggle_last_status}"
+fi
+
+printf "\n-- 11) MLX training posture --\n"
+mlx_enabled="$(one "SELECT COALESCE(value,'0') FROM execution_controls WHERE key='grpo_mlx_train_enabled' LIMIT 1;")"
+mlx_model="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='grpo_mlx_base_model' LIMIT 1;")"
+mlx_last_utc="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='runtime:grpo_mlx_last_train_utc' LIMIT 1;")"
+mlx_last_status="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='runtime:grpo_mlx_last_status' LIMIT 1;")"
+mlx_last_test_loss="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='runtime:grpo_mlx_last_test_loss' LIMIT 1;")"
+mlx_last_duration_sec="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='runtime:grpo_mlx_last_duration_sec' LIMIT 1;")"
+echo "mlx.enabled=${mlx_enabled:-0}"
+echo "mlx.base_model=${mlx_model:-}"
+echo "mlx.last_train_utc=${mlx_last_utc:-}"
+echo "mlx.last_status=${mlx_last_status:-}"
+echo "mlx.last_test_loss=${mlx_last_test_loss:-}"
+echo "mlx.last_duration_sec=${mlx_last_duration_sec:-}"
+if [ "${mlx_enabled:-0}" = "1" ] && [ -z "${mlx_last_utc:-}" ]; then
+  warn "grpo_mlx_train_enabled=1 but no runtime:grpo_mlx_last_train_utc yet"
+fi
+if [ "${mlx_enabled:-0}" = "1" ] && printf "%s" "${mlx_last_status:-}" | grep -Eiq '^failed'; then
+  warn "mlx training enabled but last_status=${mlx_last_status}"
+fi
+
+printf "\n-- 12) GRPO readiness gate --\n"
+if [ -x "$ROOT/scripts/grpo_readiness_gate.sh" ]; then
+  if ! "$ROOT/scripts/grpo_readiness_gate.sh"; then
+    warn "grpo readiness gate is not green"
+  fi
+else
+  warn "missing script: scripts/grpo_readiness_gate.sh"
+fi
+
+printf "\n-- 13) Horizon resolver posture --\n"
+h_enabled="$(one "SELECT COALESCE(value,'0') FROM execution_controls WHERE key='horizon_resolver_enabled' LIMIT 1;")"
+h_hours="$(sql "SELECT COALESCE(value,'') FROM execution_controls WHERE key='horizon_resolver_hours' LIMIT 1;")"
+echo "horizon.enabled=${h_enabled:-0}"
+echo "horizon.hours=${h_hours:-}"
+if table_exists "route_outcomes_horizons"; then
+  echo "horizon.rows=$(count_table route_outcomes_horizons)"
+  echo "horizon.by_horizon:"
+  sql "SELECT horizon_hours, COUNT(*) AS n, ROUND(AVG(pnl_percent),4) AS avg_pnl_pct FROM route_outcomes_horizons GROUP BY horizon_hours ORDER BY horizon_hours;"
+else
+  warn "missing table: route_outcomes_horizons"
 fi
 
 if [ "$rc" -eq 0 ]; then

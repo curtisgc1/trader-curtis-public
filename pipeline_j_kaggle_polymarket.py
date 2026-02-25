@@ -100,9 +100,27 @@ def _rows_from_csv(path: Path) -> Iterable[Dict[str, Any]]:
             yield dict(row)
 
 
+def _rows_from_parquet(path: Path) -> Iterable[Dict[str, Any]]:
+    try:
+        import pandas as pd
+    except Exception:
+        return []
+    try:
+        df = pd.read_parquet(path)
+    except Exception:
+        return []
+    if df is None or df.empty:
+        return []
+    for row in df.to_dict(orient="records"):
+        if isinstance(row, dict):
+            yield row
+
+
 def _iter_rows(path: Path) -> Iterable[Dict[str, Any]]:
     if path.suffix.lower() == ".jsonl":
         return _rows_from_jsonl(path)
+    if path.suffix.lower() == ".parquet":
+        return _rows_from_parquet(path)
     return _rows_from_csv(path)
 
 
@@ -197,8 +215,8 @@ def _download_kaggle(slug: str, out_dir: Path) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Ingest Kaggle Polymarket resolved datasets into local DB")
-    ap.add_argument("--file", default="", help="single csv/jsonl file path")
-    ap.add_argument("--dir", default=str(DATASETS_DIR), help="directory to scan for csv/jsonl")
+    ap.add_argument("--file", default="", help="single csv/jsonl/parquet file path")
+    ap.add_argument("--dir", default=str(DATASETS_DIR), help="directory to scan for csv/jsonl/parquet")
     ap.add_argument("--kaggle-dataset", default="", help="optional kaggle dataset slug (downloads before ingest)")
     ap.add_argument("--max-files", type=int, default=0, help="optional max files to ingest per run (0=all)")
     ap.add_argument("--max-rows-per-file", type=int, default=0, help="optional max rows to scan per file (0=all)")
@@ -216,14 +234,19 @@ def main() -> int:
     files: List[Path] = []
     if args.file:
         p = Path(args.file).expanduser()
-        if p.exists() and p.suffix.lower() in {".csv", ".jsonl"}:
+        if p.exists() and p.suffix.lower() in {".csv", ".jsonl", ".parquet"}:
             files.append(p)
     else:
         if d.exists():
-            csv_files = sorted(d.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
-            jsonl_files = sorted(d.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
-            files.extend(csv_files)
-            files.extend(jsonl_files)
+            supported = {".csv", ".jsonl", ".parquet"}
+            discovered = [
+                p
+                for p in d.rglob("*")
+                if p.is_file()
+                and p.suffix.lower() in supported
+                and not any(part.startswith("_archive") for part in p.parts)
+            ]
+            files = sorted(discovered, key=lambda p: p.stat().st_mtime, reverse=True)
     if args.max_files and args.max_files > 0:
         files = files[: int(args.max_files)]
 

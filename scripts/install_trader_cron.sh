@@ -30,6 +30,16 @@ CRON_TZ=America/New_York
 35 15 * * 1-5 $ROOT/scripts/trader_cycle_locked.sh power_hour
 # Post-close learning + cleanup (Mon-Fri)
 20 16 * * 1-5 $ROOT/scripts/trader_cycle_locked.sh post_close
+# Daily Kaggle ingest (all days, gated inside script)
+20 18 * * * $ROOT/scripts/run_kaggle_ingest.sh
+# Daily MLX training pass (all days, gated inside script)
+40 18 * * * $ROOT/scripts/run_mlx_grpo_train.sh
+# Daily realized close/settle reconciler (all days, Alpaca + Polymarket settle path)
+0 19 * * * $ROOT/scripts/run_realized_reconciler.sh
+# Daily GRPO readiness gate (all days)
+10 19 * * * $ROOT/scripts/grpo_readiness_gate.sh
+# Daily heavy learning resolver pass (all days, counterfactual + horizons)
+20 19 * * * $ROOT/scripts/run_learning_feedback_daily.sh
 $CRON_END
 EOF
 
@@ -38,4 +48,3 @@ rm -f "$TMP" "$EXISTING"
 
 echo "Installed Trader Curtis cron schedule (ET market sessions)."
 crontab -l | sed -n "/$CRON_BEGIN/,/$CRON_END/p"
-

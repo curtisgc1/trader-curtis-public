@@ -11,16 +11,27 @@
       <header class="top">
         <div>
           <h1>Trader Curtis Mission Control</h1>
-          <p class="sub">Fast signal view with live execution pulse</p>
+          <p class="sub">Condensed health view with manual refresh by default</p>
           <p class="sub"><a href="/consensus">Consensus</a> • <a href="/signals">Signals</a> • <a href="/polymarket">Polymarket</a> • <a href="/learning">Learning</a></p>
         </div>
-        <div class="status" id="status-pill">loading</div>
+        <div class="toolbar-right">
+          <div class="status" id="status-pill">loading</div>
+          <div class="toolbar-actions">
+            <button id="btn-dashboard-refresh">Refresh</button>
+            <label class="toolbar-toggle" for="auto-refresh-toggle" title="Optional lightweight auto refresh every 60 seconds.">
+              <input id="auto-refresh-toggle" type="checkbox" />
+              Auto 60s
+            </label>
+          </div>
+        </div>
       </header>
 
       <section class="grid hero-grid">
-        <div class="card hero-card">
+        <div class="card hero-card" id="metric-pnl-card">
           <label>Total PnL</label>
-          <div id="metric-pnl" class="hero-value">--</div>
+          <button id="metric-pnl-toggle" class="hero-link" title="Open closed-trade winners/losers and recent outcomes.">
+            <span id="metric-pnl" class="hero-value">--</span>
+          </button>
         </div>
         <div class="card hero-card">
           <label>Win Rate</label>
@@ -36,10 +47,40 @@
         </div>
       </section>
 
+      <section class="grid" id="pnl-drilldown-wrap" style="display:none;">
+        <div class="card span-2">
+          <h2>Closed Trade Drilldown</h2>
+          <div id="pnl-drilldown-summary" class="health"></div>
+          <div class="split-flow" style="margin-top:10px;">
+            <div>
+              <h3>Top Winners</h3>
+              <div id="pnl-top-winners" class="flow-list"></div>
+            </div>
+            <div>
+              <h3>Top Losers</h3>
+              <div id="pnl-top-losers" class="flow-list"></div>
+            </div>
+          </div>
+          <details style="margin-top:10px;">
+            <summary>Recent Closed Trades</summary>
+            <div id="pnl-recent-table" class="table"></div>
+          </details>
+        </div>
+        <div class="card">
+          <h2>Quick Links</h2>
+          <div class="links">
+            <a href="/signals">Signal Diagnostics</a>
+            <a href="/consensus">Consensus Control</a>
+            <a href="/polymarket">Polymarket Markets and Orders</a>
+            <a href="/learning">Learning and Truth Layer</a>
+          </div>
+        </div>
+      </section>
+
       <section class="grid">
         <div class="card span-2">
-          <h2>System Pulse</h2>
-          <div class="pulse-grid">
+          <h2>Pipeline Health</h2>
+          <div class="pulse-grid compact-rings">
             <div class="ring-wrap">
               <div id="ring-health" class="ring" style="--p:0"></div>
               <div id="ring-health-text" class="ring-text">Health</div>
@@ -53,76 +94,87 @@
               <div id="ring-automation-text" class="ring-text">Automation</div>
             </div>
           </div>
-          <div id="alerts" class="health"></div>
-        </div>
+          <div id="health-overview" class="health"></div>
+          <div id="alerts" class="health" style="margin-top:8px;"></div>
 
-        <div class="card">
-          <h2>Wallet & Awareness</h2>
-          <div id="wallet-brief" class="health"></div>
-          <div id="awareness-brief" class="health" style="margin-top:10px;"></div>
-          <div id="trade-claim-brief" class="health" style="margin-top:10px;"></div>
           <details style="margin-top:10px;">
-            <summary>Agent awareness checks</summary>
-            <div id="awareness-checks" class="table"></div>
+            <summary>Live Flow (Trades Made)</summary>
+            <div class="split-flow" style="margin-top:8px;">
+              <div>
+                <h3>Execution Orders</h3>
+                <div id="list-exec" class="flow-list"></div>
+              </div>
+              <div>
+                <h3>Polymarket Orders</h3>
+                <div id="list-poly" class="flow-list"></div>
+              </div>
+            </div>
           </details>
-          <details style="margin-top:10px;">
-            <summary>Trade claim guard checks</summary>
-            <div id="trade-claim-checks" class="table"></div>
-          </details>
-          <div class="controls compact">
-            <a class="expand-link" href="/polymarket">Open Polymarket details</a>
-          </div>
-        </div>
-      </section>
 
-      <section class="grid">
-        <div class="card span-2">
-          <h2>Live Flow</h2>
-          <div class="split-flow">
-            <div>
-              <h3>Execution Orders</h3>
-              <div id="list-exec" class="flow-list"></div>
-            </div>
-            <div>
-              <h3>Polymarket Orders</h3>
-              <div id="list-poly" class="flow-list"></div>
-            </div>
-          </div>
+          <details style="margin-top:10px;">
+            <summary>Wallet and Awareness</summary>
+            <div id="wallet-brief" class="health" style="margin-top:8px;"></div>
+            <div id="awareness-brief" class="health" style="margin-top:8px;"></div>
+            <div id="trade-claim-brief" class="health" style="margin-top:8px;"></div>
+            <details style="margin-top:8px;">
+              <summary>Agent awareness checks</summary>
+              <div id="awareness-checks" class="table"></div>
+            </details>
+            <details style="margin-top:8px;">
+              <summary>Trade claim guard checks</summary>
+              <div id="trade-claim-checks" class="table"></div>
+            </details>
+          </details>
+
+          <details style="margin-top:10px;">
+            <summary>Truth Layer and Missed Outcomes</summary>
+            <div id="learning-monitor-brief" class="health" style="margin-top:8px;"></div>
+            <div id="learning-monitor-horizons" class="health" style="margin-top:8px;"></div>
+            <div id="venue-summary" class="health" style="margin-top:8px;"></div>
+            <div id="missed-summary" class="health" style="margin-top:8px;"></div>
+          </details>
         </div>
 
         <div class="card">
           <h2>Master Controls</h2>
           <div class="control-row">
-            <label for="ctl-hl-notional">HL $</label>
+            <label for="ctl-hl-notional" title="Per-order crypto notional used by Hyperliquid test/live adapter. This caps the per-intent dollar size before execution_worker submits.">HL $</label>
             <input id="ctl-hl-notional" type="number" step="0.1" min="0.1" value="10" />
           </div>
           <div class="control-row">
-            <label for="ctl-hl-lev">HL Lev</label>
+            <label for="ctl-hl-lev" title="Paper/test leverage hint for HL intents. Execution path records this and uses it for risk accounting and route reasoning.">HL Lev</label>
             <input id="ctl-hl-lev" type="number" step="0.1" min="1" value="1" />
           </div>
           <div class="control-row">
-            <label for="ctl-max-signal">Max Signal $</label>
+            <label for="ctl-max-signal" title="Global per-signal notional cap used by execution guards before order submission.">Max Signal $</label>
             <input id="ctl-max-signal" type="number" step="1" min="1" value="150" />
           </div>
           <div class="control-row">
-            <label for="ctl-min-score">Min Score</label>
+            <label for="ctl-min-score" title="Base candidate threshold. Candidates below this are typically rejected before routing approval.">Min Score</label>
             <input id="ctl-min-score" type="number" step="1" min="0" max="100" value="50" />
           </div>
           <div class="control-row">
-            <label for="ctl-alpaca-min-score">Alpaca Min</label>
+            <label for="ctl-alpaca-min-score" title="Venue threshold for stocks in route matrix. Candidate venue score must exceed this for Alpaca preference.">Alpaca Min</label>
             <input id="ctl-alpaca-min-score" type="number" step="1" min="0" max="100" value="60" />
           </div>
           <div class="control-row">
-            <label for="ctl-hl-min-score">HL Min</label>
+            <label for="ctl-hl-min-score" title="Venue threshold for crypto in route matrix. Candidate venue score must exceed this for HL preference.">HL Min</label>
             <input id="ctl-hl-min-score" type="number" step="1" min="0" max="100" value="60" />
           </div>
           <div class="control-row">
-            <label for="ctl-poly-min-conf">Poly Min %</label>
+            <label for="ctl-poly-min-conf" title="Minimum confidence for Polymarket candidate approval lane before execution_polymarket.">Poly Min %</label>
             <input id="ctl-poly-min-conf" type="number" step="1" min="0" max="100" value="60" />
           </div>
           <div class="control-row">
-            <label for="ctl-route-limit">Route Limit</label>
+            <label for="ctl-route-limit" title="Maximum number of candidate routes considered per routing pass.">Route Limit</label>
             <input id="ctl-route-limit" type="number" step="1" min="1" value="24" />
+          </div>
+          <div class="control-row">
+            <label for="ctl-threshold-unlock" title="When locked, threshold edits are constrained by safety controls. Unlock only for deliberate testing.">Threshold Edit</label>
+            <select id="ctl-threshold-unlock">
+              <option value="0">Locked</option>
+              <option value="1">Unlocked</option>
+            </select>
           </div>
           <div class="control-actions">
             <button id="btn-master-save">Save Limits</button>
@@ -131,7 +183,7 @@
             <button id="btn-master-quant-soft">Quant Soft</button>
           </div>
           <div id="master-control-status" class="control-warning"></div>
-          <div class="control-actions" style="margin-top:10px;">
+          <div class="control-actions" style="margin-top:6px;">
             <button id="btn-run-cycle">Run Full Cycle</button>
             <button id="btn-run-scan">Run Scan</button>
             <button id="btn-sync-broker">Sync Broker</button>
@@ -139,35 +191,129 @@
             <button id="btn-check-awareness">Check Awareness</button>
           </div>
           <div id="action-status" class="control-warning"></div>
+          <details style="margin-top:8px;">
+            <summary>Raw Risk Controls</summary>
+            <div id="risk-controls" class="table"></div>
+          </details>
         </div>
       </section>
 
       <section class="grid">
         <div class="card span-2">
-          <h2>Positions & Balances</h2>
+          <h2>Positions and Balances</h2>
           <div id="portfolio-brief" class="health"></div>
-          <div class="split-flow" style="margin-top:10px;">
-            <div>
-              <h3>Alpaca Positions</h3>
-              <div id="alpaca-positions" class="flow-list"></div>
-            </div>
-            <div>
-              <h3>Hyperliquid Positions</h3>
-              <div id="hl-positions" class="flow-list"></div>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Quick Links</h2>
-          <div class="links">
-            <a href="/signals">Signal Diagnostics</a>
-            <a href="/consensus">Consensus Control</a>
-            <a href="/polymarket">Polymarket Markets and Orders</a>
-            <a href="/learning">Memory and Learning Stats</a>
-          </div>
           <details style="margin-top:10px;">
-            <summary>Show raw risk controls</summary>
-            <div id="risk-controls" class="table"></div>
+            <summary>Open Position Details</summary>
+            <div class="split-flow" style="margin-top:8px;">
+              <div>
+                <h3>Alpaca Positions</h3>
+                <div id="alpaca-positions" class="flow-list"></div>
+              </div>
+              <div>
+                <h3>Hyperliquid Positions</h3>
+                <div id="hl-positions" class="flow-list"></div>
+              </div>
+              <div>
+                <h3>Polymarket Positions</h3>
+                <div id="poly-positions" class="flow-list"></div>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div class="card">
+          <h2>Signal Controls</h2>
+          <details>
+            <summary>X Sources</summary>
+            <div class="control-row" style="margin-top:8px;">
+              <label for="x-handle" title="X account you want to track for ideas. You can paste @handle or full x.com URL.">Handle</label>
+              <input id="x-handle" type="text" placeholder="@NoLimitGains" />
+            </div>
+            <div class="control-row">
+              <label for="x-weight" title="How much this X account influences scoring. 1.0 = normal, above 1.0 = stronger, below 1.0 = weaker.">Weight</label>
+              <input id="x-weight" type="number" step="0.1" min="0" max="3" value="1.0" />
+            </div>
+            <div class="control-row"><label for="x-copy" title="If On, this account can feed copy-style trade ideas into the pipeline.">Copy Role</label><select id="x-copy"><option value="1">On</option><option value="0">Off</option></select></div>
+            <div class="control-row"><label for="x-alpha" title="If On, this account can feed alpha/sentiment ideas (not just copy calls).">Alpha Role</label><select id="x-alpha"><option value="1">On</option><option value="0">Off</option></select></div>
+            <div class="control-row"><label for="x-active" title="Master switch for this account. Off means ignore this source entirely.">Active</label><select id="x-active"><option value="1">On</option><option value="0">Off</option></select></div>
+            <div class="control-row"><label for="x-api-enabled" title="Turns X fetching for this handle on or off. Useful when testing without deleting it.">X API Read</label><select id="x-api-enabled"><option value="1">On</option><option value="0">Off</option></select></div>
+            <div class="control-row"><label for="x-notes" title="Personal notes about this source (style, reliability, caveats).">Notes</label><input id="x-notes" type="text" placeholder="optional notes" /></div>
+            <div class="control-actions"><button id="btn-x-save">Add / Update</button></div>
+            <div id="x-source-status" class="control-warning"></div>
+            <div id="x-sources-list" class="flow-list" style="margin-top:8px;"></div>
+          </details>
+
+          <details style="margin-top:8px;">
+            <summary>Input Weight Overrides</summary>
+            <div class="sub">Pick the input you want to tune. Keep most at 1.0 and only increase/decrease where you have evidence.</div>
+            <div class="control-row" style="margin-top:8px;">
+              <label for="input-source-key-select-main" title="Choose which input stream you want to tune. These are pulled from your live system.">Input To Tune</label>
+              <select id="input-source-key-select-main" class="wide"></select>
+            </div>
+            <div id="input-source-help-main" class="health compact-help" style="margin-top:4px;"></div>
+            <div class="control-row"><label for="input-source-weight-main" title="How strong this input should count in scoring. 1.0 = normal. 1.5 = 50% stronger. 0.7 = weaker.">Manual Weight</label><input id="input-source-weight-main" type="number" step="0.05" min="0" max="5" value="1.0" /></div>
+            <div class="control-row"><label for="input-source-enabled-main" title="Quick on/off switch for this input. Off removes its effect without deleting setup.">Enabled</label><select id="input-source-enabled-main"><option value="1">On</option><option value="0">Off</option></select></div>
+            <div class="control-actions"><button id="btn-input-source-save-main">Save Weight</button></div>
+            <div id="input-source-status-main" class="control-warning"></div>
+            <div id="input-sources-list-main" class="table" style="margin-top:8px;"></div>
+          </details>
+
+          <details style="margin-top:8px;">
+            <summary>Trade Replay + Feedback</summary>
+            <div class="sub">Enter a trade identifier, get a plain-English breakdown, then choose exactly which input to boost/downrank.</div>
+            <div class="control-row" style="margin-top:8px;">
+              <label for="trade-review-identifier" title="Use route ID or trade ID (for example: 1099 or route_1099).">Trade Identifier</label>
+              <input id="trade-review-identifier" type="text" placeholder="1099 or route_1099" class="wide" />
+            </div>
+            <div class="control-actions">
+              <button id="btn-trade-review-load">Load Trade</button>
+            </div>
+            <div id="trade-review-status" class="control-warning"></div>
+            <div id="trade-review-explain" class="health compact-help" style="margin-top:6px;"></div>
+            <div id="trade-review-inputs" class="table" style="margin-top:8px;"></div>
+            <div class="control-row" style="margin-top:8px;">
+              <label for="trade-review-input-key-select" title="Pick the specific input you want this feedback to change.">Input To Adjust</label>
+              <select id="trade-review-input-key-select" class="wide"></select>
+            </div>
+            <div class="control-row">
+              <label for="trade-review-action" title="Boost doubles weight, Downrank halves weight, Neutral stores feedback without changing weight.">Feedback Action</label>
+              <select id="trade-review-action">
+                <option value="boost">Boost (2x)</option>
+                <option value="downrank">Downrank (0.5x)</option>
+                <option value="neutral">Neutral (store only)</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label for="trade-review-apply-now" title="Apply immediately updates weight now. Off means store for weekly batch update.">Apply Now</label>
+              <select id="trade-review-apply-now">
+                <option value="1">Yes</option>
+                <option value="0">No (weekly batch)</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label for="trade-review-notes" title="Short note on why you rated this trade this way.">Notes</label>
+              <input id="trade-review-notes" type="text" class="wide" placeholder="why this should be boosted/downranked" />
+            </div>
+            <div class="control-actions">
+              <button id="btn-trade-review-submit">Save Feedback</button>
+              <button id="btn-trade-review-weekly">Run Weekly Apply Now</button>
+            </div>
+          </details>
+
+          <details style="margin-top:8px;">
+            <summary>Ticker Trade Profiles</summary>
+            <div class="sub">Example: BTC -> crypto only + required <code>family:liquidity,family:pipeline</code>.</div>
+            <div class="control-row" style="margin-top:8px;"><label for="ticker-profile-ticker" title="Symbol to apply special routing rules to, for example BTC, ETH, NVDA.">Ticker</label><input id="ticker-profile-ticker" type="text" placeholder="BTC" /></div>
+            <div class="control-row"><label for="ticker-profile-pref-venue" title="Try this venue first for this ticker. If it fails checks, route can still be blocked.">Preferred Venue</label><select id="ticker-profile-pref-venue"><option value="">Best of allowed</option><option value="stocks">Stocks</option><option value="crypto">Crypto (HL)</option><option value="prediction">Prediction</option></select></div>
+            <div class="control-row"><label for="ticker-profile-allowed" title="Comma-separated venues this ticker is allowed to use. Example: crypto or stocks,crypto.">Allowed Venues</label><input id="ticker-profile-allowed" type="text" value="crypto" placeholder="stocks,crypto,prediction" /></div>
+            <div class="control-row"><label for="ticker-profile-inputs" title="Inputs that must be present to approve this ticker. Example: family:liquidity,family:pipeline.">Required Inputs</label><input id="ticker-profile-inputs" type="text" value="family:liquidity,family:pipeline" placeholder="family:liquidity,family:pipeline" /></div>
+            <div class="control-row"><label for="ticker-profile-min-score" title="Minimum route score this ticker must have before approval.">Min Score</label><input id="ticker-profile-min-score" type="number" step="1" min="0" max="100" value="60" /></div>
+            <div class="control-row"><label for="ticker-profile-notional" title="Ticker-specific max size per trade. Useful for controlling risk on volatile names.">Max Notional ($)</label><input id="ticker-profile-notional" type="number" step="1" min="0" value="10" /></div>
+            <div class="control-row"><label for="ticker-profile-active" title="Turns this ticker profile on or off without deleting it.">Active</label><select id="ticker-profile-active"><option value="1">On</option><option value="0">Off</option></select></div>
+            <div class="control-row"><label for="ticker-profile-notes" title="Notes about why this profile exists and when to revisit it.">Notes</label><input id="ticker-profile-notes" type="text" placeholder="optional notes" /></div>
+            <div class="control-actions"><button id="btn-ticker-profile-save">Save Ticker Profile</button></div>
+            <div id="ticker-profile-status" class="control-warning"></div>
+            <div id="ticker-profiles-list" class="table" style="margin-top:8px;"></div>
           </details>
         </div>
       </section>
@@ -184,28 +330,12 @@
           <div id="perf-stats" class="health" style="margin-top:10px;"></div>
         </div>
         <div class="card">
-          <h2>Manual Actions</h2>
-          <div class="health" id="manual-actions-help">
-            <div class="item"><span class="label">Run Full Cycle</span><span>all pipelines + routing + execution + learning</span></div>
-            <div class="item"><span class="label">Run Scan</span><span>signal scan and routing pass</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="grid">
-        <div class="card span-2">
           <h2>Why Agent Took Trades</h2>
           <div id="trade-decisions" class="flow-list"></div>
-        </div>
-        <div class="card">
-          <h2>3-Venue Summary</h2>
-          <div id="venue-summary" class="health"></div>
-          <h3 style="margin-top:10px;">Missed Flow (Not Taken)</h3>
-          <div id="missed-summary" class="health"></div>
         </div>
       </section>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260225j"></script>
   </body>
 </html>

@@ -108,7 +108,7 @@ def load_tracked_sources(conn: sqlite3.Connection) -> dict:
     )
     out = {}
     for handle, role_copy, role_alpha, active in cur.fetchall():
-        h = str(handle or "").strip()
+        h = normalize_x_handle(handle)
         if not h:
             continue
         out[h] = {
@@ -117,6 +117,26 @@ def load_tracked_sources(conn: sqlite3.Connection) -> dict:
             "active": int(active or 0) == 1,
         }
     return out
+
+
+def normalize_x_handle(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    raw = re.split(r"[?#\s]", raw, maxsplit=1)[0].strip()
+    if re.match(r"^(?:www\.)?(?:x\.com|twitter\.com)/", raw, flags=re.IGNORECASE):
+        raw = "https://" + raw.lstrip("/")
+    parsed = urlparse(raw)
+    host = (parsed.netloc or "").lower().replace("www.", "")
+    candidate = raw
+    if host:
+        if host in {"x.com", "twitter.com"}:
+            candidate = parsed.path.strip("/").split("/", 1)[0]
+        else:
+            candidate = parsed.path.strip("/").split("/", 1)[0] or parsed.netloc
+    candidate = candidate.strip().lstrip("@")
+    candidate = re.sub(r"[^A-Za-z0-9_]", "", candidate)
+    return candidate.lower()
 
 
 def classify_handle(handle: str) -> tuple[str, str, float]:
@@ -164,7 +184,9 @@ def parse_handle(url: str) -> str:
     path = parsed.path.strip("/")
     if not path:
         return "unknown"
-    return re.split(r"/", path)[0] or "unknown"
+    handle = re.split(r"/", path)[0] or ""
+    normalized = normalize_x_handle(handle)
+    return normalized or "unknown"
 
 
 def load_urls() -> list[str]:

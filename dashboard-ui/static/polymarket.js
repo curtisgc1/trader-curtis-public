@@ -4,6 +4,25 @@ async function fetchJson(url) {
   return res.json();
 }
 
+const UI_BUILD = "20260225e";
+
+async function fetchJsonSafe(url, fallback) {
+  try {
+    return await fetchJson(url);
+  } catch (err) {
+    console.error(`safe fetch fallback for ${url}:`, err);
+    return fallback;
+  }
+}
+
+function runUiStep(name, fn) {
+  try {
+    fn();
+  } catch (err) {
+    console.error(`ui step failed: ${name}`, err);
+  }
+}
+
 async function postJson(url, body) {
   const res = await fetch(url, {
     method: "POST",
@@ -12,6 +31,66 @@ async function postJson(url, body) {
   });
   if (!res.ok) throw new Error(`${url} failed: ${res.status}`);
   return res.json();
+}
+
+function normalizeXHandle(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const token = raw.split(/[?#\s]/, 1)[0].trim();
+  if (!token) return "";
+
+  let candidate = token;
+  let urlText = token;
+  if (/^(?:www\.)?(?:x\.com|twitter\.com)\//i.test(token)) {
+    urlText = `https://${token.replace(/^\/+/, "")}`;
+  }
+  try {
+    const u = new URL(urlText);
+    const host = String(u.hostname || "").toLowerCase().replace(/^www\./, "");
+    if (host === "x.com" || host === "twitter.com") {
+      candidate = String(u.pathname || "").replace(/^\/+/, "").split("/", 1)[0] || "";
+    }
+  } catch (_) {
+    // Keep raw token fallback for plain handles.
+  }
+
+  return candidate.replace(/^@+/, "").replace(/[^A-Za-z0-9_]/g, "").toLowerCase();
+}
+
+function resolveHandleInput(preferredIds, btnId) {
+  const direct = (preferredIds || [])
+    .map((id) => document.getElementById(id))
+    .filter(Boolean)
+    .map((el) => String(el.value || "").trim())
+    .find((v) => !!v);
+  if (direct) return direct;
+
+  const btn = document.getElementById(btnId || "");
+  const scope = btn?.closest(".card") || document;
+  const fields = Array.from(scope.querySelectorAll("input[type='text'],input[type='url'],input:not([type])"));
+  const handleLike = fields.filter((el) => {
+    const meta = `${el.id || ""} ${el.name || ""} ${el.placeholder || ""} ${el.getAttribute("aria-label") || ""}`.toLowerCase();
+    return /handle|x\.com|twitter|@/.test(meta);
+  });
+  const scoped = handleLike
+    .map((el) => String(el.value || "").trim())
+    .find((v) => !!v);
+  if (scoped) return scoped;
+
+  const active = document.activeElement;
+  if (active && active.tagName === "INPUT") {
+    const t = String(active.type || "").toLowerCase();
+    if (!t || t === "text" || t === "url") {
+      const v = String(active.value || "").trim();
+      if (v) return v;
+    }
+  }
+
+  const anyTextValues = fields
+    .map((el) => String(el.value || "").trim())
+    .filter((v) => !!v);
+  if (anyTextValues.length === 1) return anyTextValues[0];
+  return "";
 }
 
 function fmtUsd(v) {
@@ -463,14 +542,22 @@ function wireSourceActions() {
   if (!btn || btn.dataset.wired) return;
   btn.dataset.wired = "1";
   btn.addEventListener("click", async () => {
-    const handle = (document.getElementById("src-handle")?.value || "").trim();
-    if (!handle) {
-      setSourceStatus("Handle is required", "bad");
+    const rawHandle = resolveHandleInput(["src-handle", "x-handle", "polyw-handle"], "btn-source-save");
+    const handle = normalizeXHandle(rawHandle);
+    if (!rawHandle) {
+      setSourceStatus(`Handle is required (example: @NoLimitGains or x.com/NoLimitGains) [build ${UI_BUILD}]`, "bad");
+      console.error("source handle missing at submit", {
+        build: UI_BUILD,
+        srcHandle: document.getElementById("src-handle")?.value || "",
+        xHandle: document.getElementById("x-handle")?.value || "",
+        polywHandle: document.getElementById("polyw-handle")?.value || "",
+      });
       return;
     }
     try {
       const payload = {
-        handle,
+        handle: handle || rawHandle,
+        x_handle: rawHandle,
         role_copy: !!document.getElementById("src-copy")?.checked,
         role_alpha: !!document.getElementById("src-alpha")?.checked,
         active: !!document.getElementById("src-active")?.checked,
@@ -549,9 +636,16 @@ function wirePolyWalletActions() {
   if (!btn || btn.dataset.wired) return;
   btn.dataset.wired = "1";
   btn.addEventListener("click", async () => {
-    const handle = (document.getElementById("polyw-handle")?.value || "").trim();
+    const rawHandle = resolveHandleInput(["polyw-handle", "src-handle", "x-handle"], "btn-polyw-save");
+    const handle = normalizeXHandle(rawHandle) || rawHandle;
     if (!handle) {
-      setPolyWalletStatus("Handle is required", "bad");
+      setPolyWalletStatus(`Handle is required [build ${UI_BUILD}]`, "bad");
+      console.error("wallet handle missing at submit", {
+        build: UI_BUILD,
+        polywHandle: document.getElementById("polyw-handle")?.value || "",
+        srcHandle: document.getElementById("src-handle")?.value || "",
+        xHandle: document.getElementById("x-handle")?.value || "",
+      });
       return;
     }
     try {
@@ -595,43 +689,51 @@ async function boot() {
       polyWalletScores,
       trustPanel,
     ] = await Promise.all([
-      fetchJson("/api/system-health"),
-      fetchJson("/api/polymarket-overview"),
-      fetchJson("/api/polymarket-mm-overview"),
-      fetchJson("/api/polymarket-mm-snapshots?ready_only=0"),
-      fetchJson("/api/weather-market-probs"),
-      fetchJson("/api/polymarket-candidates"),
-      fetchJson("/api/polymarket-markets"),
-      fetchJson("/api/polymarket-orders"),
-      fetchJson("/api/bookmark-alpha-ideas"),
-      fetchJson("/api/external-signals"),
-      fetchJson("/api/risk-controls"),
-      fetchJson("/api/tracked-sources"),
-      fetchJson("/api/input-sources"),
-      fetchJson("/api/tracked-poly-wallets"),
-      fetchJson("/api/polymarket-wallet-scores"),
-      fetchJson("/api/trust-panel"),
+      fetchJsonSafe("/api/system-health", { overall: "warn", checks: [] }),
+      fetchJsonSafe("/api/polymarket-overview", {}),
+      fetchJsonSafe("/api/polymarket-mm-overview", {}),
+      fetchJsonSafe("/api/polymarket-mm-snapshots?ready_only=0", []),
+      fetchJsonSafe("/api/weather-market-probs", []),
+      fetchJsonSafe("/api/polymarket-candidates", []),
+      fetchJsonSafe("/api/polymarket-markets", []),
+      fetchJsonSafe("/api/polymarket-orders", []),
+      fetchJsonSafe("/api/bookmark-alpha-ideas", []),
+      fetchJsonSafe("/api/external-signals", []),
+      fetchJsonSafe("/api/risk-controls", []),
+      fetchJsonSafe("/api/tracked-sources", []),
+      fetchJsonSafe("/api/input-sources", []),
+      fetchJsonSafe("/api/tracked-poly-wallets", []),
+      fetchJsonSafe("/api/polymarket-wallet-scores", []),
+      fetchJsonSafe("/api/trust-panel", {}),
     ]);
 
-    renderOverview(polymarketOverview || {});
-    renderMmOverview(polymarketMmOverview || {});
-    renderPreTradeControls(riskControls || []);
-    wirePreTradeActions();
-    renderPolymarketCandidates(polymarketCandidates || []);
-    renderPolymarketMarkets(polymarketMarkets || []);
-    renderPolymarketOrders(polymarketOrders || []);
-    renderMmSnapshots(polymarketMmSnapshots || []);
-    renderWeatherMarketProbs(weatherMarketProbs || []);
-    renderBookmarkAlphaIdeas(bookmarkAlphaIdeas || []);
-    renderTrackedSources(trackedSources || []);
-    renderInputSources(inputSources || []);
-    renderTrackedPolyWallets(trackedPolyWallets || []);
-    renderPolyWalletScores(polyWalletScores || []);
-    renderTrustPanel(trustPanel || {});
-    wireSourceActions();
-    wireInputSourceActions();
-    wirePolyWalletActions();
-    renderTable("external-signals", (externalSignals || []).slice(0, 20), ["Source", "Ticker", "Dir", "Conf"], ["source", "ticker", "direction", "confidence"]);
+    runUiStep("wirePreTradeActions", () => wirePreTradeActions());
+    runUiStep("wireSourceActions", () => wireSourceActions());
+    runUiStep("wireInputSourceActions", () => wireInputSourceActions());
+    runUiStep("wirePolyWalletActions", () => wirePolyWalletActions());
+
+    runUiStep("renderOverview", () => renderOverview(polymarketOverview || {}));
+    runUiStep("renderMmOverview", () => renderMmOverview(polymarketMmOverview || {}));
+    runUiStep("renderPreTradeControls", () => renderPreTradeControls(riskControls || []));
+    runUiStep("renderPolymarketCandidates", () => renderPolymarketCandidates(polymarketCandidates || []));
+    runUiStep("renderPolymarketMarkets", () => renderPolymarketMarkets(polymarketMarkets || []));
+    runUiStep("renderPolymarketOrders", () => renderPolymarketOrders(polymarketOrders || []));
+    runUiStep("renderMmSnapshots", () => renderMmSnapshots(polymarketMmSnapshots || []));
+    runUiStep("renderWeatherMarketProbs", () => renderWeatherMarketProbs(weatherMarketProbs || []));
+    runUiStep("renderBookmarkAlphaIdeas", () => renderBookmarkAlphaIdeas(bookmarkAlphaIdeas || []));
+    runUiStep("renderTrackedSources", () => renderTrackedSources(trackedSources || []));
+    runUiStep("renderInputSources", () => renderInputSources(inputSources || []));
+    runUiStep("renderTrackedPolyWallets", () => renderTrackedPolyWallets(trackedPolyWallets || []));
+    runUiStep("renderPolyWalletScores", () => renderPolyWalletScores(polyWalletScores || []));
+    runUiStep("renderTrustPanel", () => renderTrustPanel(trustPanel || {}));
+    runUiStep("renderExternalSignals", () => {
+      renderTable(
+        "external-signals",
+        (externalSignals || []).slice(0, 20),
+        ["Source", "Ticker", "Dir", "Conf"],
+        ["source", "ticker", "direction", "confidence"]
+      );
+    });
 
     const topState = (systemHealth && systemHealth.overall) || "good";
     setStatus("online", topState === "good" ? "good" : (topState === "warn" ? "warn" : "bad"));

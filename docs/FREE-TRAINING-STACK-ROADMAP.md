@@ -63,10 +63,15 @@ Use this only for **resolved prediction-market datasets**.
 2. Add Kaggle API credentials:
 - Place `kaggle.json` in `~/.kaggle/kaggle.json`
 - Set file mode to `600`
+- Or set `KAGGLE_API_TOKEN` (env or keychain service `kaggle_api_token`)
 
 3. Configure execution controls:
 - `kaggle_auto_pull_enabled=1`
 - `kaggle_poly_dataset_slug=<owner/dataset>`
+- `kaggle_min_hours_between_runs=24`
+- `kaggle_daily_download_limit=1`
+- `kaggle_max_files_per_run=10`
+- `kaggle_max_rows_per_file=50000`
 
 4. Test once:
 - `./scripts/run_kaggle_ingest.sh`
@@ -77,3 +82,5 @@ Use this only for **resolved prediction-market datasets**.
 Notes:
 - Ingestion is now strict and only accepts rows with a resolved binary outcome (`yes/no/up/down/long/short` equivalents) to prevent non-market dataset contamination.
 - Default state is `kaggle_auto_pull_enabled=0` until a valid dataset slug is set.
+- `run-all-scans.sh` now calls `scripts/run_kaggle_ingest.sh`; the script enforces min-hours + daily limit gates so frequent intraday cycles do not exceed Kaggle API cadence.
+- Use `FORCE_KAGGLE_INGEST=1 ./scripts/run_kaggle_ingest.sh` only for manual backfill/testing.

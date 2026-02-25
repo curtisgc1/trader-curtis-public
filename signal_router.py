@@ -8,7 +8,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Set
 
 from execution_guard import evaluate_candidate, init_controls, log_risk_event
 from execution_adapters import is_hl_eligible
@@ -152,6 +152,88 @@ def _load_venue_matrix(conn: sqlite3.Connection) -> Dict[str, Dict[str, float]]:
     return out
 
 
+def ensure_ticker_trade_profiles(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ticker_trade_profiles (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          ticker TEXT NOT NULL UNIQUE,
+          active INTEGER NOT NULL DEFAULT 1,
+          preferred_venue TEXT NOT NULL DEFAULT '',
+          allowed_venues_json TEXT NOT NULL DEFAULT '["stocks","crypto","prediction"]',
+          required_inputs_json TEXT NOT NULL DEFAULT '[]',
+          min_score REAL NOT NULL DEFAULT 0.0,
+          notional_override REAL NOT NULL DEFAULT 0.0,
+          notes TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_ticker_trade_profiles_active ON ticker_trade_profiles(active)")
+    conn.commit()
+
+
+def _load_json_str_list(raw: str, lower: bool = False) -> List[str]:
+    text = str(raw or "").strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+    except Exception:
+        return []
+    if not isinstance(data, list):
+        return []
+    out: List[str] = []
+    for item in data:
+        v = str(item or "").strip()
+        if not v:
+            continue
+        out.append(v.lower() if lower else v)
+    return out
+
+
+def load_ticker_trade_profiles(conn: sqlite3.Connection) -> Dict[str, Dict[str, Any]]:
+    ensure_ticker_trade_profiles(conn)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT UPPER(COALESCE(ticker,'')),
+               COALESCE(active,1),
+               LOWER(COALESCE(preferred_venue,'')),
+               COALESCE(allowed_venues_json,'[]'),
+               COALESCE(required_inputs_json,'[]'),
+               COALESCE(min_score,0),
+               COALESCE(notional_override,0),
+               COALESCE(notes,'')
+        FROM ticker_trade_profiles
+        WHERE COALESCE(active,1)=1
+        """
+    )
+    out: Dict[str, Dict[str, Any]] = {}
+    for ticker, active, preferred, allowed_json, required_json, min_score, notional_override, notes in cur.fetchall():
+        t = str(ticker or "").strip().upper()
+        if not t or int(active or 0) != 1:
+            continue
+        allowed = set(_load_json_str_list(str(allowed_json), lower=True))
+        allowed = {v for v in allowed if v in {"stocks", "crypto", "prediction"}}
+        if not allowed:
+            allowed = {"stocks", "crypto", "prediction"}
+        required = [v.lower() for v in _load_json_str_list(str(required_json), lower=True) if v]
+        pref = str(preferred or "").strip().lower()
+        if pref not in {"", "stocks", "crypto", "prediction"}:
+            pref = ""
+        out[t] = {
+            "allowed_venues": allowed,
+            "preferred_venue": pref,
+            "required_inputs": required,
+            "min_score": float(min_score or 0.0),
+            "notional_override": float(notional_override or 0.0),
+            "notes": str(notes or "").strip(),
+        }
+    return out
+
+
 def _clamp(v: float, lo: float = 0.0, hi: float = 100.0) -> float:
     return max(lo, min(hi, float(v)))
 
@@ -214,6 +296,32 @@ def fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict]:
     return []
 
 
+def _extract_candidate_input_keys(input_breakdown_json: str) -> Set[str]:
+    text = str(input_breakdown_json or "").strip()
+    if not text:
+        return set()
+    try:
+        arr = json.loads(text)
+    except Exception:
+        return set()
+    if not isinstance(arr, list):
+        return set()
+    out: Set[str] = set()
+    for item in arr:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("key") or "").strip().lower()
+        if not key:
+            continue
+        try:
+            val = float(item.get("value", 0.0) or 0.0)
+        except Exception:
+            val = 0.0
+        if val > 0.0:
+            out.add(key)
+    return out
+
+
 def clear_old_queue(conn: sqlite3.Connection, mode: str) -> None:
     conn.execute("DELETE FROM signal_routes WHERE status='queued' AND mode=?", (mode,))
     conn.commit()
@@ -252,9 +360,11 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
         init_controls(conn)
         ensure_route_table(conn)
         ensure_venue_matrix(conn)
+        ensure_ticker_trade_profiles(conn)
         ensure_quant_tables(conn)
         ensure_allocator_tables(conn)
         venue_matrix = _load_venue_matrix(conn)
+        ticker_profiles = load_ticker_trade_profiles(conn)
         ctl = conn.cursor()
         ctl.execute("SELECT value FROM execution_controls WHERE key='quant_gate_enforce' LIMIT 1")
         row = ctl.fetchone()
@@ -277,7 +387,9 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
             score = float(c.get("score") or 0.0)
             source = c.get("source") or "internal"
             candidate_rationale = str(c.get("rationale") or "")
+            candidate_input_keys = _extract_candidate_input_keys(str(c.get("input_breakdown_json") or "[]"))
             notional = float(default_notional)
+            profile = ticker_profiles.get(ticker, None)
 
             if high_beta_only and (not _is_high_beta_ticker(conn, ticker, min_beta)):
                 reason = f"high_beta_only_filter: {ticker} below required beta profile"
@@ -355,6 +467,7 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                 mode=mode,
             )
             allocator_blocked = 0
+            profile_notes: List[str] = []
             if not alloc.allowed:
                 ok = False
                 allocator_blocked = 1
@@ -365,17 +478,39 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                     reason = f"quant_gate_failed: {q_reason}"
                 else:
                     reason = f"quant_gate_warn_only: {q_reason}"
+            if profile:
+                p_min_score = float(profile.get("min_score", 0.0) or 0.0)
+                if p_min_score > 0 and score_adj < p_min_score:
+                    profile_notes.append(f"profile_min_score_failed:{score_adj:.2f}<{p_min_score:.2f}")
+                if ok and p_min_score > 0 and score_adj < p_min_score:
+                    ok = False
+                    reason = f"ticker_profile_min_score_failed: {score_adj:.2f} < {p_min_score:.2f}"
+                required_inputs = [str(x).strip().lower() for x in (profile.get("required_inputs") or []) if str(x).strip()]
+                missing_inputs = [k for k in required_inputs if k not in candidate_input_keys]
+                if missing_inputs:
+                    missing_str = ",".join(missing_inputs[:5])
+                    profile_notes.append(f"profile_missing_inputs:{missing_str}")
+                if ok and missing_inputs:
+                    ok = False
+                    reason = f"ticker_profile_missing_inputs: {missing_str}"
             reason_full = f"{reason} | allocator={alloc.reason}"
+            if profile_notes:
+                reason_full = f"{reason_full} | {';'.join(profile_notes)}"
             if candidate_rationale:
                 reason_full = f"{reason_full} | inputs={candidate_rationale[:120]}"
             venue_scores = _compute_venue_scores(score_adj, ticker, source)
             venue_decisions: Dict[str, Dict[str, object]] = {}
             best_venue = ""
             best_margin = -1e9
+            allowed_venues = {"stocks", "crypto", "prediction"}
+            preferred_venue_profile = ""
+            if profile:
+                allowed_venues = set(profile.get("allowed_venues") or allowed_venues)
+                preferred_venue_profile = str(profile.get("preferred_venue") or "").strip().lower()
             for venue_name in ("stocks", "crypto", "prediction"):
                 cfg = venue_matrix.get(venue_name, {"enabled": 0, "min_score": 60.0, "max_notional": 100.0, "mode": "paper"})
                 v_score = float(venue_scores.get(venue_name, 0.0))
-                enabled = int(cfg.get("enabled", 0)) == 1
+                enabled = int(cfg.get("enabled", 0)) == 1 and venue_name in allowed_venues
                 min_score = float(cfg.get("min_score", 60.0))
                 approved_v = enabled and (v_score >= min_score)
                 margin = v_score - min_score
@@ -390,6 +525,13 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                     best_margin = margin
                     best_venue = venue_name
 
+            if ok and preferred_venue_profile:
+                pref_decision = venue_decisions.get(preferred_venue_profile, {})
+                if bool(pref_decision.get("approved")):
+                    best_venue = preferred_venue_profile
+                else:
+                    ok = False
+                    reason_full = f"{reason_full} | ticker_profile_preferred_venue_unavailable:{preferred_venue_profile}"
             if ok and not best_venue:
                 ok = False
                 reason_full = f"{reason_full} | no venue passed matrix thresholds"
@@ -402,6 +544,10 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                 cfg = venue_matrix.get(best_venue, {})
                 cap = float(cfg.get("max_notional", notional_adj))
                 notional_adj = min(notional_adj, cap)
+            if ok and profile:
+                p_notional = float(profile.get("notional_override", 0.0) or 0.0)
+                if p_notional > 0.0:
+                    notional_adj = min(notional_adj, p_notional)
 
             decision = "approved" if ok else "rejected"
             status = "queued" if ok else "blocked"

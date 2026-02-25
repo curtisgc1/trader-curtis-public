@@ -216,6 +216,23 @@ def contribution(
     return base_value * w, w
 
 
+def strategy_weight_for(
+    controls: Dict[str, Dict[str, float]],
+    strategy_tag: str,
+    family_key: str,
+) -> float:
+    tag = str(strategy_tag or "").strip().upper()
+    if not tag:
+        return 1.0
+    key_a = f"strategy:{tag}:{family_key}"
+    key_b = f"{family_key}:strategy:{tag}"
+    if key_a in controls:
+        return weight_for(controls, key_a)
+    if key_b in controls:
+        return weight_for(controls, key_b)
+    return 1.0
+
+
 def main() -> int:
     conn = sqlite3.connect(str(DB_PATH), timeout=20.0)
     conn.execute("PRAGMA busy_timeout=20000")
@@ -378,42 +395,58 @@ def main() -> int:
                 add_seen_control(conn, copy_key, f"Source {copy_source}", "source_tag")
             if pipe_key:
                 add_seen_control(conn, pipe_key, f"Pipeline {pipe_upper}", "pipeline")
+            if pipe_upper:
+                for fam in ("family:social", "family:pattern", "family:external", "family:copy", "family:pipeline", "family:liquidity"):
+                    add_seen_control(
+                        conn,
+                        f"strategy:{pipe_upper}:{fam}",
+                        f"Strategy {pipe_upper} x {fam.replace('family:', '').replace('_', ' ').title()}",
+                        "strategy_family",
+                    )
             if x_key and ext_lower in tracked_sources:
                 add_seen_control(conn, x_key, f"X @{ext_lower}", "x_account")
 
             breakdown: List[Dict[str, object]] = []
             c_social, w_social = contribution(input_controls, "family:social", (sent_score / 100.0) * 0.25)
+            w_social_strategy = strategy_weight_for(input_controls, pipe_upper, "family:social")
+            c_social *= w_social_strategy
             breakdown.append({"key": "family:social", "base": round((sent_score / 100.0) * 0.25, 6), "weight": round(w_social, 6), "value": round(c_social, 6)})
 
             c_pattern, w_pattern_family = contribution(input_controls, "family:pattern", pattern_score * 0.30)
             w_pattern_specific = weight_for(input_controls, pattern_key) if pattern_key else 1.0
-            c_pattern *= w_pattern_specific
-            breakdown.append({"key": "family:pattern", "base": round(pattern_score * 0.30, 6), "weight": round(w_pattern_family * w_pattern_specific, 6), "value": round(c_pattern, 6)})
+            w_pattern_strategy = strategy_weight_for(input_controls, pipe_upper, "family:pattern")
+            c_pattern *= (w_pattern_specific * w_pattern_strategy)
+            breakdown.append({"key": "family:pattern", "base": round(pattern_score * 0.30, 6), "weight": round(w_pattern_family * w_pattern_specific * w_pattern_strategy, 6), "value": round(c_pattern, 6)})
 
             c_external, w_ext_family = contribution(input_controls, "family:external", ext_conf * 0.20)
             w_ext_specific = weight_for(input_controls, ext_key) if ext_key else 1.0
-            c_external *= w_ext_specific
-            breakdown.append({"key": "family:external", "base": round(ext_conf * 0.20, 6), "weight": round(w_ext_family * w_ext_specific, 6), "value": round(c_external, 6)})
+            w_ext_strategy = strategy_weight_for(input_controls, pipe_upper, "family:external")
+            c_external *= (w_ext_specific * w_ext_strategy)
+            breakdown.append({"key": "family:external", "base": round(ext_conf * 0.20, 6), "weight": round(w_ext_family * w_ext_specific * w_ext_strategy, 6), "value": round(c_external, 6)})
 
             c_pipeline, w_pipe_family = contribution(input_controls, "family:pipeline", (pipe_score / 100.0) * 0.25)
             w_pipe_specific = weight_for(input_controls, pipe_key) if pipe_key else 1.0
-            c_pipeline *= w_pipe_specific
-            breakdown.append({"key": "family:pipeline", "base": round((pipe_score / 100.0) * 0.25, 6), "weight": round(w_pipe_family * w_pipe_specific, 6), "value": round(c_pipeline, 6)})
+            w_pipe_strategy = strategy_weight_for(input_controls, pipe_upper, "family:pipeline")
+            c_pipeline *= (w_pipe_specific * w_pipe_strategy)
+            breakdown.append({"key": "family:pipeline", "base": round((pipe_score / 100.0) * 0.25, 6), "weight": round(w_pipe_family * w_pipe_specific * w_pipe_strategy, 6), "value": round(c_pipeline, 6)})
 
             copy_component = 0.0
             if copy_source:
                 copy_component = 0.08
                 c_copy, w_copy_family = contribution(input_controls, "family:copy", copy_component)
                 w_copy_specific = weight_for(input_controls, copy_key) if copy_key else 1.0
-                c_copy *= w_copy_specific
-                breakdown.append({"key": "family:copy", "base": round(copy_component, 6), "weight": round(w_copy_family * w_copy_specific, 6), "value": round(c_copy, 6)})
+                w_copy_strategy = strategy_weight_for(input_controls, pipe_upper, "family:copy")
+                c_copy *= (w_copy_specific * w_copy_strategy)
+                breakdown.append({"key": "family:copy", "base": round(copy_component, 6), "weight": round(w_copy_family * w_copy_specific * w_copy_strategy, 6), "value": round(c_copy, 6)})
             else:
                 c_copy = 0.0
 
             c_liq = 0.0
             if liq_hit:
                 c_liq, w_liq = contribution(input_controls, "family:liquidity", liq_boost)
-                breakdown.append({"key": "family:liquidity", "base": round(liq_boost, 6), "weight": round(w_liq, 6), "value": round(c_liq, 6)})
+                w_liq_strategy = strategy_weight_for(input_controls, pipe_upper, "family:liquidity")
+                c_liq *= w_liq_strategy
+                breakdown.append({"key": "family:liquidity", "base": round(liq_boost, 6), "weight": round(w_liq * w_liq_strategy, 6), "value": round(c_liq, 6)})
 
             x_component = 0.0
             if x_influence_enabled and ext_lower in tracked_sources:

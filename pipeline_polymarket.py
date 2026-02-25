@@ -12,6 +12,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 import requests
 
@@ -37,6 +38,26 @@ def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     cur = conn.cursor()
     cur.execute(f"PRAGMA table_info({table})")
     return any((row[1] == column) for row in cur.fetchall())
+
+
+def _normalize_x_handle(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    raw = re.split(r"[?#\s]", raw, maxsplit=1)[0].strip()
+    if re.match(r"^(?:www\.)?(?:x\.com|twitter\.com)/", raw, flags=re.IGNORECASE):
+        raw = "https://" + raw.lstrip("/")
+    parsed = urlparse(raw)
+    host = (parsed.netloc or "").lower().replace("www.", "")
+    candidate = raw
+    if host:
+        if host in {"x.com", "twitter.com"}:
+            candidate = parsed.path.strip("/").split("/", 1)[0]
+        else:
+            candidate = parsed.path.strip("/").split("/", 1)[0] or parsed.netloc
+    candidate = candidate.strip().lstrip("@")
+    candidate = re.sub(r"[^A-Za-z0-9_]", "", candidate)
+    return candidate.lower()
 
 
 def ensure_tables(conn: sqlite3.Connection) -> None:
@@ -388,7 +409,7 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             LIMIT 100
             """
         )
-        copy_handles.update([str(r[0]).strip() for r in cur.fetchall() if str(r[0]).strip()])
+        copy_handles.update([h for h in (_normalize_x_handle(r[0]) for r in cur.fetchall()) if h])
     if _table_exists(conn, "copy_trades"):
         cur.execute(
             """
@@ -398,7 +419,7 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             LIMIT 100
             """
         )
-        copy_handles.update([str(r[0]).strip() for r in cur.fetchall() if str(r[0]).strip()])
+        copy_handles.update([h for h in (_normalize_x_handle(r[0]) for r in cur.fetchall()) if h])
     tracked_copy_handles = set()
     tracked_alpha_handles = set()
     if _table_exists(conn, "tracked_x_sources"):
@@ -410,7 +431,7 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             """
         )
         for handle, role_copy, role_alpha in cur.fetchall():
-            h = str(handle or "").strip()
+            h = _normalize_x_handle(handle)
             if not h:
                 continue
             if int(role_copy or 0) == 1:

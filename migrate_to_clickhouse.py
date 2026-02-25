@@ -1,206 +1,209 @@
 #!/usr/bin/env python3
-"""
-Migrate SQLite trading data to ClickHouse
-"""
+"""Migrate SQLite data to ClickHouse"""
 import sqlite3
-import subprocess
-import json
+import requests
+import re
 from datetime import datetime
 
-SQLITE_DB = '/Users/Shared/curtis/trader-curtis/data/trades.db'
-CLICKHOUSE_CMD = ['/opt/homebrew/bin/clickhouse', 'client']
+DB_PATH = '/Users/Shared/curtis/trader-curtis/data/trades.db'
+CH_URL = 'http://localhost:8123/'
 
-def run_clickhouse_query(query):
-    """Execute a ClickHouse query"""
-    result = subprocess.run(
-        CLICKHOUSE_CMD + ['--query', query],
-        capture_output=True,
-        text=True
-    )
-    if result.returncode != 0:
-        print(f"Error: {result.stderr}")
+def parse_datetime(dt_str):
+    """Parse various datetime formats to ClickHouse format"""
+    if not dt_str:
         return None
-    return result.stdout
+    # Handle ISO format with timezone
+    dt_str = dt_str.replace('T', ' ').replace('Z', '')
+    # Remove fractional seconds and timezone offset
+    dt_str = re.sub(r'\.[0-9]+(\+[0-9:]+)?$', '', dt_str)
+    dt_str = re.sub(r'\+[0-9:]+$', '', dt_str)
+    return dt_str.strip()
 
-def migrate_simple_source_outcomes():
-    """Migrate simple source outcomes to ClickHouse trades table"""
-    conn = sqlite3.connect(SQLITE_DB)
+def parse_date(dt_str):
+    """Extract date part only"""
+    if not dt_str:
+        return None
+    dt_str = dt_str.replace('T', ' ').replace('Z', '')
+    dt_str = re.sub(r'\.[0-9]+.*$', '', dt_str)
+    return dt_str[:10]  # YYYY-MM-DD
+
+def escape_str(s):
+    """Escape string for SQL"""
+    if s is None:
+        return 'NULL'
+    s = str(s).replace("'", "\\'")
+    return f"'{s}'"
+
+def migrate_trades():
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT ticker, entry_price, exit_price, pnl, pnl_pct, 
-               trade_grade, outcome, sources, bullish_count, bearish_count, 
-               neutral_count, combo_used, created_at 
-        FROM simple_source_outcomes
-    """)
-    
+    cursor.execute("SELECT * FROM trades")
     rows = cursor.fetchall()
-    count = 0
     
+    count = 0
     for row in rows:
-        ticker, entry_price, exit_price, pnl, pnl_pct, trade_grade, outcome, sources, bullish_count, bearish_count, neutral_count, combo_used, created_at = row
+        # Map columns
+        trade_id = escape_str(row[0])
+        ticker = escape_str(row[1])
+        entry_date = escape_str(parse_date(row[2]))
+        exit_date = escape_str(parse_date(row[3])) if row[3] else 'NULL'
+        entry_price = row[4] if row[4] is not None else 0
+        exit_price = row[5] if row[5] is not None else 'NULL'
+        shares = row[6] if row[6] is not None else 0
+        pnl = row[7] if row[7] is not None else 'NULL'
+        pnl_percent = row[8] if row[8] is not None else 'NULL'
+        status = escape_str(row[9])
+        sentiment_reddit = row[10] if row[10] is not None else 0
+        sentiment_twitter = row[11] if row[11] is not None else 0
+        sentiment_trump = row[12] if row[12] is not None else 0
+        source_reddit_wsb = escape_str(row[13])
+        source_reddit_stocks = escape_str(row[14])
+        source_reddit_investing = escape_str(row[15])
+        source_twitter_general = escape_str(row[16])
+        source_twitter_analysts = escape_str(row[17])
+        source_trump_posts = escape_str(row[18])
+        source_news = escape_str(row[19])
+        source_accuracy_score = row[20] if row[20] is not None else 0
+        thesis = escape_str(row[21])
+        outcome_analysis = escape_str(row[22])
+        lesson_learned = escape_str(row[23])
+        decision_grade = escape_str(row[24])
+        created_at = escape_str(parse_datetime(row[25]))
+        route_id = row[26] if row[26] is not None else 'NULL'
+        broker_order_id = escape_str(row[27])
+        last_sync = escape_str(parse_datetime(row[28])) if row[28] else 'NULL'
         
-        # Parse sources JSON
-        sources_data = json.loads(sources) if sources else {}
+        sql = f"""INSERT INTO trader_curtis.trades VALUES (
+            {trade_id}, {ticker}, {entry_date}, {exit_date}, {entry_price}, {exit_price},
+            {shares}, {pnl}, {pnl_percent}, {status}, {sentiment_reddit}, {sentiment_twitter},
+            {sentiment_trump}, {source_reddit_wsb}, {source_reddit_stocks}, {source_reddit_investing},
+            {source_twitter_general}, {source_twitter_analysts}, {source_trump_posts}, {source_news},
+            {source_accuracy_score}, {thesis}, {outcome_analysis}, {lesson_learned}, {decision_grade},
+            {created_at}, {route_id}, {broker_order_id}, {last_sync}
+        )"""
         
-        # Calculate side based on PNL direction (simplified)
-        side = 'buy' if outcome == 'win' else 'sell'
-        status = 'closed'
-        
-        # Convert timestamp
-        timestamp = created_at.replace('T', ' ').split('.')[0] if created_at else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Generate trade_id
-        trade_id = f"{ticker}_{timestamp.replace(' ', '_').replace(':', '')}_{count}"
-        
-        # Extract sentiment scores (simplified - all neutral 50 -> 0)
-        sentiment_reddit = 0
-        sentiment_twitter = 0
-        sentiment_stocktwits = 0
-        sentiment_grok = 0
-        
-        # Extract source scores
-        source_reddit_wsb = sources_data.get('reddit_wsb', {}).get('score', 50)
-        source_reddit_stocks = sources_data.get('reddit_stocks', {}).get('score', 50)
-        source_twitter = sources_data.get('twitter', {}).get('score', 50)
-        source_stocktwits = sources_data.get('stocktwits', {}).get('score', 50) if 'stocktwits' in sources_data else 50
-        source_trump = sources_data.get('trump', {}).get('score', 50)
-        source_bessent = sources_data.get('bessent', {}).get('score', 50) if 'bessent' in sources_data else 50
-        
-        # Build INSERT query
-        query = f"""
-        INSERT INTO trader_curtis.trades (
-            timestamp, trade_id, ticker, side, shares, entry_price, exit_price,
-            position_size, pnl, pnl_percent, status,
-            sentiment_reddit, sentiment_twitter, sentiment_stocktwits, sentiment_grok,
-            source_reddit_wsb, source_reddit_stocks, source_twitter, source_stocktwits,
-            source_trump, source_bessent,
-            decision_grade, lesson_learned, strategy_used
-        ) VALUES (
-            '{timestamp}', '{trade_id}', '{ticker}', '{side}', 100,
-            {entry_price or 0}, {exit_price or 0}, 
-            {entry_price * 100 if entry_price else 0}, {pnl or 0}, {pnl_pct or 0}, '{status}',
-            {sentiment_reddit}, {sentiment_twitter}, {sentiment_stocktwits}, {sentiment_grok},
-            {source_reddit_wsb}, {source_reddit_stocks}, {source_twitter}, {source_stocktwits},
-            {source_trump}, {source_bessent},
-            '{trade_grade or 'C'}', '{outcome or ''}', '{combo_used or ''}'
-        )
-        """
-        
-        result = run_clickhouse_query(query)
-        if result is not None:
+        try:
+            requests.post(CH_URL, data=sql, timeout=30)
             count += 1
+        except Exception as e:
+            print(f"Error inserting trade {row[0]}: {e}")
     
     conn.close()
     return count
 
-def migrate_source_performance():
-    """Migrate source performance data"""
-    conn = sqlite3.connect(SQLITE_DB)
+def migrate_route_outcomes():
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT source, total_signals, bullish_signals, bearish_signals,
-               wins_when_bullish, losses_when_bullish, wins_when_bearish, losses_when_bearish,
-               neutral_signals, win_rate_bullish, win_rate_bearish, overall_accuracy,
-               avg_pnl_when_followed, grade, last_updated
-        FROM source_performance
-    """)
-    
+    cursor.execute("SELECT * FROM route_outcomes")
     rows = cursor.fetchall()
+    
     count = 0
-    
     for row in rows:
-        source, total_signals, bullish_signals, bearish_signals, wins_when_bullish, losses_when_bullish, wins_when_bearish, losses_when_bearish, neutral_signals, win_rate_bullish, win_rate_bearish, overall_accuracy, avg_pnl_when_followed, grade, last_updated = row
+        route_id = row[0]
+        ticker = escape_str(row[1])
+        source_tag = escape_str(row[2])
+        resolution = escape_str(row[3])
+        pnl = row[4] if row[4] is not None else 0
+        pnl_percent = row[5] if row[5] is not None else 0
+        resolved_at = escape_str(parse_datetime(row[6]))
+        notes = escape_str(row[7])
+        outcome_type = escape_str(row[8])
         
-        # For now, just print summary - we'll build a proper source analytics table later
-        count += 1
-    
-    conn.close()
-    return count
-
-def migrate_sentiment_accuracy():
-    """Migrate sentiment accuracy data"""
-    conn = sqlite3.connect(SQLITE_DB)
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT ticker, date, source, predicted_direction, actual_direction,
-               accuracy_score, sentiment_score, trade_grade, pnl_pct, created_at
-        FROM sentiment_accuracy
-    """)
-    
-    rows = cursor.fetchall()
-    count = 0
-    
-    for row in rows:
-        ticker, date, source, predicted_direction, actual_direction, accuracy_score, sentiment_score, trade_grade, pnl_pct, created_at = row
+        sql = f"""INSERT INTO trader_curtis.route_outcomes VALUES (
+            {route_id}, {ticker}, {source_tag}, {resolution}, {pnl}, {pnl_percent},
+            {resolved_at}, {notes}, {outcome_type}
+        )"""
         
-        # Parse date
-        prediction_date = date if date else (created_at.split('T')[0] if created_at else datetime.now().strftime('%Y-%m-%d'))
-        
-        query = f"""
-        INSERT INTO trader_curtis.sentiment_accuracy (
-            prediction_date, ticker, source, predicted_direction, actual_direction,
-            accuracy_score, confidence, price_at_prediction, price_3d_later, price_7d_later
-        ) VALUES (
-            '{prediction_date}', '{ticker}', '{source}', '{predicted_direction or ''}', '{actual_direction or ''}',
-            {accuracy_score or 0}, {abs(sentiment_score or 0) / 100.0}, 0, 0, 0
-        )
-        """
-        
-        result = run_clickhouse_query(query)
-        if result is not None:
+        try:
+            requests.post(CH_URL, data=sql, timeout=30)
             count += 1
+        except Exception as e:
+            print(f"Error inserting route_outcome {row[0]}: {e}")
     
     conn.close()
     return count
 
-def show_stats():
-    """Show migration statistics"""
-    print("\n=== CLICKHOUSE MIGRATION STATISTICS ===\n")
+def migrate_source_learning_stats():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM source_learning_stats")
+    rows = cursor.fetchall()
     
-    # Count trades
-    result = run_clickhouse_query("SELECT COUNT(*) FROM trader_curtis.trades")
-    print(f"Trades migrated: {result.strip() if result else 'N/A'}")
+    count = 0
+    for row in rows:
+        id = row[0]
+        computed_at = escape_str(parse_datetime(row[1]))
+        source_tag = escape_str(row[2])
+        sample_size = row[3] if row[3] is not None else 0
+        wins = row[4] if row[4] is not None else 0
+        losses = row[5] if row[5] is not None else 0
+        pushes = row[6] if row[6] is not None else 0
+        win_rate = row[7] if row[7] is not None else 0
+        avg_pnl = row[8] if row[8] is not None else 0
+        avg_pnl_percent = row[9] if row[9] is not None else 0
+        
+        sql = f"""INSERT INTO trader_curtis.source_learning_stats VALUES (
+            {id}, {computed_at}, {source_tag}, {sample_size}, {wins}, {losses},
+            {pushes}, {win_rate}, {avg_pnl}, {avg_pnl_percent}
+        )"""
+        
+        try:
+            requests.post(CH_URL, data=sql, timeout=30)
+            count += 1
+        except Exception as e:
+            print(f"Error inserting source_stats {row[0]}: {e}")
     
-    # Count sentiment accuracy records
-    result = run_clickhouse_query("SELECT COUNT(*) FROM trader_curtis.sentiment_accuracy")
-    print(f"Sentiment accuracy records: {result.strip() if result else 'N/A'}")
-    
-    # Show total PnL
-    result = run_clickhouse_query("SELECT SUM(pnl) FROM trader_curtis.trades")
-    print(f"Total PnL: ${result.strip() if result else 'N/A'}")
-    
-    # Show win rate
-    result = run_clickhouse_query("SELECT COUNTIf(pnl > 0) / COUNT() * 100 FROM trader_curtis.trades")
-    print(f"Win Rate: {result.strip() if result else 'N/A'}%")
-    
-    # Show by ticker
-    print("\n--- Trades by Ticker ---")
-    result = run_clickhouse_query("""
-        SELECT ticker, COUNT(*) as trades, SUM(pnl) as total_pnl 
-        FROM trader_curtis.trades 
-        GROUP BY ticker 
-        ORDER BY total_pnl DESC
-    """)
-    if result:
-        print(result)
+    conn.close()
+    return count
 
-if __name__ == "__main__":
-    print("Starting ClickHouse migration...")
+def migrate_strategy_learning_stats():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM strategy_learning_stats")
+    rows = cursor.fetchall()
     
-    # Migrate data
-    trades_count = migrate_simple_source_outcomes()
-    print(f"Migrated {trades_count} trades")
+    count = 0
+    for row in rows:
+        id = row[0]
+        computed_at = escape_str(parse_datetime(row[1]))
+        strategy_tag = escape_str(row[2])
+        sample_size = row[3] if row[3] is not None else 0
+        wins = row[4] if row[4] is not None else 0
+        losses = row[5] if row[5] is not None else 0
+        pushes = row[6] if row[6] is not None else 0
+        win_rate = row[7] if row[7] is not None else 0
+        avg_pnl = row[8] if row[8] is not None else 0
+        avg_pnl_percent = row[9] if row[9] is not None else 0
+        
+        sql = f"""INSERT INTO trader_curtis.strategy_learning_stats VALUES (
+            {id}, {computed_at}, {strategy_tag}, {sample_size}, {wins}, {losses},
+            {pushes}, {win_rate}, {avg_pnl}, {avg_pnl_percent}
+        )"""
+        
+        try:
+            requests.post(CH_URL, data=sql, timeout=30)
+            count += 1
+        except Exception as e:
+            print(f"Error inserting strategy_stats {row[0]}: {e}")
     
-    source_count = migrate_source_performance()
-    print(f"Migrated {source_count} source performance records")
+    conn.close()
+    return count
+
+if __name__ == '__main__':
+    print("Migrating trades...")
+    trades_count = migrate_trades()
+    print(f"  Migrated {trades_count} trades")
     
-    accuracy_count = migrate_sentiment_accuracy()
-    print(f"Migrated {accuracy_count} sentiment accuracy records")
+    print("Migrating route_outcomes...")
+    outcomes_count = migrate_route_outcomes()
+    print(f"  Migrated {outcomes_count} route_outcomes")
     
-    # Show statistics
-    show_stats()
+    print("Migrating source_learning_stats...")
+    source_count = migrate_source_learning_stats()
+    print(f"  Migrated {source_count} source_learning_stats")
     
-    print("\nMigration complete!")
+    print("Migrating strategy_learning_stats...")
+    strategy_count = migrate_strategy_learning_stats()
+    print(f"  Migrated {strategy_count} strategy_learning_stats")
+    
+    print(f"\n✅ Migration complete: {trades_count + outcomes_count + source_count + strategy_count} total rows")

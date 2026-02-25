@@ -103,6 +103,7 @@ DEFAULT_CONTROLS = {
     "grpo_mlx_dry_run": "0",
     "grpo_min_realized_for_live_updates": "100",
     "grpo_min_kaggle_rows": "1000",
+    "grpo_kaggle_max_success_age_hours": "48",
     "grpo_auto_unlock_live_updates": "0",
     "learning_resolver_http_timeout_seconds": "5",
     "mtm_resolver_max_runtime_seconds": "120",

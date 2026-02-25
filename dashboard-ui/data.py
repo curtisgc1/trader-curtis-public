@@ -9,6 +9,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "data" / "trades.db"
@@ -52,6 +53,74 @@ def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
 def _rows_to_dicts(cur: sqlite3.Cursor, rows: List[tuple]) -> List[Dict[str, Any]]:
     cols = [c[0] for c in cur.description]
     return [dict(zip(cols, row)) for row in rows]
+
+
+def _normalize_x_handle(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    raw = re.split(r"[?#\s]", raw, maxsplit=1)[0].strip()
+    if re.match(r"^(?:www\.)?(?:x\.com|twitter\.com)/", raw, flags=re.IGNORECASE):
+        raw = "https://" + raw.lstrip("/")
+    parsed = urlparse(raw)
+    host = (parsed.netloc or "").lower().replace("www.", "")
+    candidate = raw
+    if host:
+        if host in {"x.com", "twitter.com"}:
+            candidate = parsed.path.strip("/").split("/", 1)[0]
+        else:
+            candidate = parsed.path.strip("/").split("/", 1)[0] or parsed.netloc
+    candidate = candidate.strip().lstrip("@")
+    candidate = re.sub(r"[^A-Za-z0-9_]", "", candidate)
+    return candidate.lower()
+
+
+def _extract_x_handle(payload: Dict[str, Any]) -> str:
+    data = payload or {}
+    # Accept nested payload wrappers from differing clients.
+    if isinstance(data.get("payload"), dict):
+        data = data.get("payload") or data
+    elif isinstance(data.get("data"), dict):
+        data = data.get("data") or data
+    for key in ("handle", "x_handle", "src_handle", "source_handle", "username", "screen_name", "profile_url", "url"):
+        normalized = _normalize_x_handle(data.get(key))
+        if normalized:
+            return normalized
+    return ""
+
+
+def _normalize_ticker(value: Any) -> str:
+    raw = str(value or "").strip().upper()
+    if not raw:
+        return ""
+    raw = re.sub(r"[^A-Z0-9._-]", "", raw)
+    return raw[:24]
+
+
+def _parse_json_list(payload_value: Any, *, lower: bool = False, max_items: int = 20) -> List[str]:
+    data = payload_value
+    if isinstance(data, str):
+        text = data.strip()
+        if not text:
+            return []
+        if text.startswith("["):
+            try:
+                data = json.loads(text)
+            except Exception:
+                data = []
+        else:
+            data = [x.strip() for x in text.split(",")]
+    if not isinstance(data, list):
+        return []
+    out: List[str] = []
+    for item in data:
+        val = str(item or "").strip()
+        if not val:
+            continue
+        out.append(val.lower() if lower else val)
+        if len(out) >= int(max_items):
+            break
+    return out
 
 
 def _load_env() -> Dict[str, str]:
@@ -232,6 +301,140 @@ def get_learning_health(lookback_days: int = 7) -> Dict[str, Any]:
             "realized_win_rate": realized_win_rate,
             "realized_avg_pnl_pct": round(realized_avg_pnl_pct, 4),
         }
+    finally:
+        conn.close()
+
+
+def get_learning_monitor() -> Dict[str, Any]:
+    base = {
+        "learning_health": get_learning_health(lookback_days=7),
+        "outcomes": {
+            "realized_total": 0,
+            "operational_total": 0,
+            "unknown_total": 0,
+            "realized_24h": 0,
+            "operational_24h": 0,
+            "last_resolved_at": "",
+            "last_resolved_age_min": None,
+        },
+        "horizons": {
+            "rows_total": 0,
+            "by_horizon": [],
+        },
+        "trades": {
+            "open_total": 0,
+            "closed_total": 0,
+            "closed_with_route": 0,
+        },
+        "readiness": {
+            "state": "",
+            "reasons": "",
+            "apply_live_updates": "0",
+        },
+        "reconciler": {
+            "last_status": "",
+            "last_attempt_utc": "",
+            "last_success_utc": "",
+        },
+    }
+    if not DB_PATH.exists():
+        return base
+
+    conn = _connect()
+    try:
+        cur = conn.cursor()
+        if _table_exists(conn, "route_outcomes"):
+            cur.execute(
+                """
+                SELECT
+                  SUM(CASE WHEN COALESCE(outcome_type,'realized')='realized' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN COALESCE(outcome_type,'realized')='operational' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN COALESCE(outcome_type,'realized') NOT IN ('realized','operational') THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN COALESCE(outcome_type,'realized')='realized' AND datetime(COALESCE(resolved_at,'1970-01-01')) >= datetime('now','-24 hour') THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN COALESCE(outcome_type,'realized')='operational' AND datetime(COALESCE(resolved_at,'1970-01-01')) >= datetime('now','-24 hour') THEN 1 ELSE 0 END),
+                  MAX(resolved_at)
+                FROM route_outcomes
+                """
+            )
+            row = cur.fetchone() or (0, 0, 0, 0, 0, "")
+            last_resolved = str(row[5] or "")
+            base["outcomes"] = {
+                "realized_total": int(row[0] or 0),
+                "operational_total": int(row[1] or 0),
+                "unknown_total": int(row[2] or 0),
+                "realized_24h": int(row[3] or 0),
+                "operational_24h": int(row[4] or 0),
+                "last_resolved_at": last_resolved,
+                "last_resolved_age_min": _age_minutes(last_resolved),
+            }
+
+        if _table_exists(conn, "route_outcomes_horizons"):
+            cur.execute(
+                """
+                SELECT horizon_hours, COUNT(*) AS n, AVG(pnl_percent) AS avg_pnl_pct
+                FROM route_outcomes_horizons
+                GROUP BY horizon_hours
+                ORDER BY horizon_hours ASC
+                """
+            )
+            by_h = []
+            total = 0
+            for h, n, avg_pct in cur.fetchall():
+                ni = int(n or 0)
+                total += ni
+                by_h.append(
+                    {
+                        "horizon_hours": int(h or 0),
+                        "count": ni,
+                        "avg_pnl_pct": round(float(avg_pct or 0.0), 4),
+                    }
+                )
+            base["horizons"] = {"rows_total": total, "by_horizon": by_h}
+
+        if _table_exists(conn, "trades"):
+            cur.execute(
+                """
+                SELECT
+                  SUM(CASE WHEN COALESCE(status,'')='open' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN COALESCE(status,'')='closed' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN COALESCE(status,'')='closed' AND COALESCE(route_id,0)>0 THEN 1 ELSE 0 END)
+                FROM trades
+                """
+            )
+            row = cur.fetchone() or (0, 0, 0)
+            base["trades"] = {
+                "open_total": int(row[0] or 0),
+                "closed_total": int(row[1] or 0),
+                "closed_with_route": int(row[2] or 0),
+            }
+
+        if _table_exists(conn, "execution_controls"):
+            cur.execute(
+                """
+                SELECT key, value
+                FROM execution_controls
+                WHERE key IN (
+                  'runtime:grpo_readiness_state',
+                  'runtime:grpo_readiness_reasons',
+                  'grpo_apply_weight_updates',
+                  'runtime:realized_reconciler_last_status',
+                  'runtime:realized_reconciler_last_attempt_utc',
+                  'runtime:realized_reconciler_last_success_utc'
+                )
+                """
+            )
+            kv = {str(k): str(v) for k, v in cur.fetchall()}
+            base["readiness"] = {
+                "state": kv.get("runtime:grpo_readiness_state", ""),
+                "reasons": kv.get("runtime:grpo_readiness_reasons", ""),
+                "apply_live_updates": kv.get("grpo_apply_weight_updates", "0"),
+            }
+            base["reconciler"] = {
+                "last_status": kv.get("runtime:realized_reconciler_last_status", ""),
+                "last_attempt_utc": kv.get("runtime:realized_reconciler_last_attempt_utc", ""),
+                "last_success_utc": kv.get("runtime:realized_reconciler_last_success_utc", ""),
+            }
+        return base
     finally:
         conn.close()
 
@@ -1028,8 +1231,9 @@ def run_system_action(action: str) -> Dict[str, Any]:
         "run_polymarket_exec": "cd /Users/Shared/curtis/trader-curtis && ./scripts/with_polymarket_keychain.sh python3.11 ./execution_polymarket.py",
         "run_polymarket_mm": "cd /Users/Shared/curtis/trader-curtis && python3.11 ./polymarket_mm_engine.py",
         "run_poly_wallet_ingest": "cd /Users/Shared/curtis/trader-curtis && python3.11 ./ingest_polymarket_wallet_activity.py && python3.11 ./score_polymarket_wallets.py",
-        "sync_broker": "cd /Users/Shared/curtis/trader-curtis && ./sync_alpaca_order_status.py",
-        "refresh_learning": "cd /Users/Shared/curtis/trader-curtis && ./update_learning_feedback.py && ./source_ranker.py",
+        "sync_broker": "cd /Users/Shared/curtis/trader-curtis && (python3.11 ./sync_alpaca_order_status.py || python3 ./sync_alpaca_order_status.py)",
+        "refresh_learning": "cd /Users/Shared/curtis/trader-curtis && ./scripts/run_realized_reconciler.sh && ./source_ranker.py",
+        "run_realized_reconciler": "cd /Users/Shared/curtis/trader-curtis && ./scripts/run_realized_reconciler.sh",
         "run_auto_tune": "cd /Users/Shared/curtis/trader-curtis && ./auto_tune_controls.py",
         "validate_signals": "cd /Users/Shared/curtis/trader-curtis && ./scripts/run_signal_validation.sh",
         "check_awareness": "cd /Users/Shared/curtis/trader-curtis && ./scripts/check_agent_awareness.sh",
@@ -1300,6 +1504,14 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
             "spot_available_after_maintenance": [],
             "error": "",
         },
+        "polymarket": {
+            "ok": False,
+            "wallet": "",
+            "filled_live_count": 0,
+            "net_exposure_usd": 0.0,
+            "positions": [],
+            "error": "",
+        },
     }
 
     # Alpaca account + open positions.
@@ -1429,6 +1641,68 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     else:
         snapshot["hyperliquid"]["error"] = "wallet not configured"
 
+    # Polymarket live position view from filled live orders.
+    try:
+        conn = _connect()
+        try:
+            controls = {x["key"]: x["value"] for x in get_risk_controls()}
+            live_enabled = str(controls.get("allow_polymarket_live", "0")).strip().lower() in {"1", "true", "yes", "on", "enabled", "live"}
+            snapshot["polymarket"]["wallet"] = str(env.get("POLY_FUNDER", "") or "")
+            if _table_exists(conn, "polymarket_orders"):
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT market_id,
+                           outcome,
+                           MAX(created_at) AS last_at,
+                           SUM(CASE
+                                 WHEN lower(COALESCE(side,''))='sell' THEN -1.0*COALESCE(notional,0)
+                                 ELSE COALESCE(notional,0)
+                               END) AS net_notional,
+                           COUNT(*) AS trades
+                    FROM polymarket_orders
+                    WHERE lower(COALESCE(mode,''))='live'
+                      AND lower(COALESCE(status,''))='filled_live'
+                    GROUP BY market_id, outcome
+                    HAVING ABS(COALESCE(net_notional,0)) > 0.000001
+                    ORDER BY last_at DESC
+                    LIMIT 100
+                    """
+                )
+                rows = []
+                total_abs = 0.0
+                for market_id, outcome, last_at, net_notional, trades in cur.fetchall():
+                    net_v = float(net_notional or 0.0)
+                    total_abs += abs(net_v)
+                    rows.append(
+                        {
+                            "market_id": str(market_id or ""),
+                            "outcome": str(outcome or ""),
+                            "net_notional": round(net_v, 6),
+                            "trades": int(trades or 0),
+                            "last_at": str(last_at or ""),
+                        }
+                    )
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM polymarket_orders
+                    WHERE lower(COALESCE(mode,''))='live'
+                      AND lower(COALESCE(status,''))='filled_live'
+                    """
+                )
+                filled_count = int((cur.fetchone() or [0])[0] or 0)
+                snapshot["polymarket"]["filled_live_count"] = filled_count
+                snapshot["polymarket"]["net_exposure_usd"] = round(total_abs, 6)
+                snapshot["polymarket"]["positions"] = rows
+                snapshot["polymarket"]["ok"] = bool(live_enabled or filled_count > 0 or rows)
+            else:
+                snapshot["polymarket"]["error"] = "polymarket_orders table missing"
+        finally:
+            conn.close()
+    except Exception as exc:
+        snapshot["polymarket"]["error"] = str(exc)
+
     return snapshot
 
 
@@ -1457,7 +1731,21 @@ def get_recent_trade_decisions(limit: int = 20) -> List[Dict[str, Any]]:
                   COALESCE(sr.source_tag,'') AS source_tag,
                   COALESCE(sr.score,0) AS score,
                   COALESCE(sr.reason,'') AS route_reason,
-                  COALESCE(el.reason,'') AS learning_reason
+                  COALESCE(el.reason,'') AS learning_reason,
+                  (
+                    SELECT COALESCE(tc.rationale,'')
+                    FROM trade_candidates tc
+                    WHERE UPPER(COALESCE(tc.ticker,''))=UPPER(COALESCE(eo.ticker,''))
+                    ORDER BY datetime(COALESCE(tc.generated_at,'1970-01-01')) DESC
+                    LIMIT 1
+                  ) AS candidate_rationale,
+                  (
+                    SELECT COALESCE(tc.input_breakdown_json,'[]')
+                    FROM trade_candidates tc
+                    WHERE UPPER(COALESCE(tc.ticker,''))=UPPER(COALESCE(eo.ticker,''))
+                    ORDER BY datetime(COALESCE(tc.generated_at,'1970-01-01')) DESC
+                    LIMIT 1
+                  ) AS candidate_inputs
                 FROM execution_orders eo
                 LEFT JOIN signal_routes sr ON sr.id = eo.route_id
                 LEFT JOIN execution_learning el ON el.route_id = eo.route_id
@@ -1481,7 +1769,21 @@ def get_recent_trade_decisions(limit: int = 20) -> List[Dict[str, Any]]:
                   COALESCE(sr.source_tag,'') AS source_tag,
                   COALESCE(sr.score,0) AS score,
                   COALESCE(sr.reason,'') AS route_reason,
-                  '' AS learning_reason
+                  '' AS learning_reason,
+                  (
+                    SELECT COALESCE(tc.rationale,'')
+                    FROM trade_candidates tc
+                    WHERE UPPER(COALESCE(tc.ticker,''))=UPPER(COALESCE(eo.ticker,''))
+                    ORDER BY datetime(COALESCE(tc.generated_at,'1970-01-01')) DESC
+                    LIMIT 1
+                  ) AS candidate_rationale,
+                  (
+                    SELECT COALESCE(tc.input_breakdown_json,'[]')
+                    FROM trade_candidates tc
+                    WHERE UPPER(COALESCE(tc.ticker,''))=UPPER(COALESCE(eo.ticker,''))
+                    ORDER BY datetime(COALESCE(tc.generated_at,'1970-01-01')) DESC
+                    LIMIT 1
+                  ) AS candidate_inputs
                 FROM execution_orders eo
                 LEFT JOIN signal_routes sr ON sr.id = eo.route_id
                 ORDER BY eo.created_at DESC
@@ -1504,7 +1806,21 @@ def get_recent_trade_decisions(limit: int = 20) -> List[Dict[str, Any]]:
                   '' AS source_tag,
                   0 AS score,
                   '' AS route_reason,
-                  '' AS learning_reason
+                  '' AS learning_reason,
+                  (
+                    SELECT COALESCE(tc.rationale,'')
+                    FROM trade_candidates tc
+                    WHERE UPPER(COALESCE(tc.ticker,''))=UPPER(COALESCE(execution_orders.ticker,''))
+                    ORDER BY datetime(COALESCE(tc.generated_at,'1970-01-01')) DESC
+                    LIMIT 1
+                  ) AS candidate_rationale,
+                  (
+                    SELECT COALESCE(tc.input_breakdown_json,'[]')
+                    FROM trade_candidates tc
+                    WHERE UPPER(COALESCE(tc.ticker,''))=UPPER(COALESCE(execution_orders.ticker,''))
+                    ORDER BY datetime(COALESCE(tc.generated_at,'1970-01-01')) DESC
+                    LIMIT 1
+                  ) AS candidate_inputs
                 FROM execution_orders
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -1516,7 +1832,759 @@ def get_recent_trade_decisions(limit: int = 20) -> List[Dict[str, Any]]:
         conn.close()
 
 
+def get_pnl_breakdown(limit: int = 120) -> Dict[str, Any]:
+    base = {
+        "closed_count": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0.0,
+        "avg_pnl": 0.0,
+        "top_winners": [],
+        "top_losers": [],
+        "recent_closed": [],
+    }
+    if not DB_PATH.exists():
+        return base
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "trades"):
+            return base
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+              COALESCE(t.trade_id,'') AS trade_id,
+              UPPER(COALESCE(t.ticker,'')) AS ticker,
+              COALESCE(t.exit_date, t.created_at, '') AS closed_at,
+              COALESCE(t.pnl, 0) AS pnl,
+              COALESCE(t.pnl_percent, 0) AS pnl_percent,
+              COALESCE(t.shares, 0) AS shares,
+              COALESCE(t.route_id, 0) AS route_id,
+              COALESCE(sr.source_tag, '') AS source_tag,
+              COALESCE(sr.score, 0) AS route_score,
+              COALESCE(sr.reason, '') AS route_reason
+            FROM trades t
+            LEFT JOIN signal_routes sr ON sr.id = t.route_id
+            WHERE lower(COALESCE(t.status,''))='closed'
+            ORDER BY datetime(COALESCE(t.exit_date, t.created_at, '1970-01-01')) DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        if not rows:
+            return base
+
+        wins = 0
+        losses = 0
+        total_pnl = 0.0
+        for row in rows:
+            pnl = float(row.get("pnl") or 0.0)
+            total_pnl += pnl
+            if pnl > 0:
+                wins += 1
+            elif pnl < 0:
+                losses += 1
+        closed_count = len(rows)
+        avg_pnl = total_pnl / closed_count if closed_count else 0.0
+        win_rate = (wins / closed_count) * 100.0 if closed_count else 0.0
+
+        by_pnl_desc = sorted(rows, key=lambda x: float(x.get("pnl") or 0.0), reverse=True)
+        top_winners = [r for r in by_pnl_desc if float(r.get("pnl") or 0.0) > 0][:8]
+        top_losers = [r for r in sorted(rows, key=lambda x: float(x.get("pnl") or 0.0)) if float(r.get("pnl") or 0.0) < 0][:8]
+
+        return {
+            "closed_count": int(closed_count),
+            "wins": int(wins),
+            "losses": int(losses),
+            "win_rate": round(float(win_rate), 2),
+            "total_pnl": round(float(total_pnl), 4),
+            "avg_pnl": round(float(avg_pnl), 4),
+            "top_winners": top_winners,
+            "top_losers": top_losers,
+            "recent_closed": rows[:30],
+        }
+    finally:
+        conn.close()
+
+
+def _input_friendly_name(key: str) -> str:
+    k = str(key or "").strip().lower()
+    if k == "family:liquidity":
+        return "Liquidity setup quality"
+    if k == "family:pipeline":
+        return "Strategy score"
+    if k == "family:pattern":
+        return "Pattern confidence"
+    if k == "family:social":
+        return "Social sentiment"
+    if k == "family:external":
+        return "External signal confidence"
+    if k == "family:copy":
+        return "Copy/call signal strength"
+    if k.startswith("strategy:"):
+        return "Strategy-specific weight"
+    if k.startswith("source:"):
+        return "Source feed weight"
+    if k.startswith("pipeline:"):
+        return "Pipeline family weight"
+    if k.startswith("x:"):
+        return "Tracked X handle weight"
+    return str(key or "").replace("_", " ")
+
+
+def _input_friendly_help(key: str) -> str:
+    k = str(key or "").strip().lower()
+    if k == "family:liquidity":
+        return "This favors setups with cleaner entry/stop/target structure. It helps entry timing."
+    if k == "family:pipeline":
+        return "This favors your strategy engine score. Higher means strategy score drives decisions more."
+    if k == "family:pattern":
+        return "This favors chart pattern reliability (breakouts, reversals, traps)."
+    if k == "family:social":
+        return "This favors social sentiment inputs."
+    if k == "family:external":
+        return "This favors news/event/external data signals."
+    if k == "family:copy":
+        return "This favors copy-trade style signals from tracked sources."
+    if k.startswith("strategy:"):
+        return "This is a strategy-specific override for one strategy profile."
+    if k.startswith("source:"):
+        return "This is a source-specific override for one feed."
+    if k.startswith("pipeline:"):
+        return "This is a pipeline-level override."
+    if k.startswith("x:"):
+        return "This controls influence from one tracked X handle."
+    return "This input contributes to trade scoring."
+
+
+def _ensure_trade_feedback_tables(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS trade_feedback_reviews (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          identifier TEXT NOT NULL,
+          route_id INTEGER NOT NULL DEFAULT 0,
+          trade_id TEXT NOT NULL DEFAULT '',
+          ticker TEXT NOT NULL DEFAULT '',
+          feedback_action TEXT NOT NULL DEFAULT '',
+          rating REAL NOT NULL DEFAULT 0.0,
+          notes TEXT NOT NULL DEFAULT '',
+          apply_now INTEGER NOT NULL DEFAULT 0,
+          applied INTEGER NOT NULL DEFAULT 0,
+          applied_at TEXT NOT NULL DEFAULT '',
+          snapshot_json TEXT NOT NULL DEFAULT '{}'
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS trade_feedback_input_votes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          review_id INTEGER NOT NULL,
+          input_key TEXT NOT NULL,
+          input_value REAL NOT NULL DEFAULT 0.0,
+          input_weight REAL NOT NULL DEFAULT 1.0,
+          suggested_multiplier REAL NOT NULL DEFAULT 1.0,
+          created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_feedback_reviews_applied ON trade_feedback_reviews(applied, apply_now)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_feedback_votes_review ON trade_feedback_input_votes(review_id)")
+    conn.commit()
+
+
+def _parse_input_breakdown_json(raw: str) -> List[Dict[str, Any]]:
+    text = str(raw or "").strip()
+    if not text:
+        return []
+    try:
+        arr = json.loads(text)
+    except Exception:
+        return []
+    if not isinstance(arr, list):
+        return []
+    out: List[Dict[str, Any]] = []
+    for item in arr:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("key") or "").strip()
+        if not key:
+            continue
+        try:
+            value = float(item.get("value", 0.0) or 0.0)
+        except Exception:
+            value = 0.0
+        try:
+            weight = float(item.get("weight", 1.0) or 1.0)
+        except Exception:
+            weight = 1.0
+        out.append(
+            {
+                "key": key,
+                "name": _input_friendly_name(key),
+                "help": _input_friendly_help(key),
+                "value": round(value, 6),
+                "weight": round(weight, 6),
+            }
+        )
+    out.sort(key=lambda x: float(x.get("value") or 0.0), reverse=True)
+    return out
+
+
+def _simple_trade_explanation(
+    ticker: str,
+    direction: str,
+    outcome_label: str,
+    score: float,
+    top_inputs: List[Dict[str, Any]],
+    route_reason: str,
+) -> str:
+    inputs = [str(x.get("name") or x.get("key") or "input") for x in top_inputs[:3]]
+    input_text = ", ".join(inputs) if inputs else "no strong inputs were recorded"
+    d = str(direction or "unknown").upper()
+    return (
+        f"We took a {d} idea on {ticker or 'this ticker'} because the system score was {score:.1f} and "
+        f"the strongest signals were {input_text}. "
+        f"Result: {outcome_label}. "
+        f"In plain terms, the model saw enough green lights at the time, then the market moved {'with' if outcome_label == 'WIN' else 'against' if outcome_label == 'LOSS' else 'sideways to'} the setup."
+        + (f" Main gate reason was: {route_reason[:180]}." if route_reason else "")
+    )
+
+
+def get_trade_explain(identifier: str) -> Dict[str, Any]:
+    ident = str(identifier or "").strip()
+    if not ident:
+        return {"ok": False, "error": "identifier required"}
+    if ident.lower().startswith("route_"):
+        tail = ident.split("_", 1)[1].strip()
+        if tail.isdigit():
+            ident = tail
+    if not DB_PATH.exists():
+        return {"ok": False, "error": "database missing"}
+    conn = _connect()
+    try:
+        cur = conn.cursor()
+        is_num = ident.isdigit()
+        route_id = 0
+        trade: Dict[str, Any] = {}
+
+        if _table_exists(conn, "trades"):
+            if is_num:
+                cur.execute(
+                    """
+                    SELECT trade_id, COALESCE(route_id,0), UPPER(COALESCE(ticker,'')), COALESCE(status,''), COALESCE(pnl,0), COALESCE(pnl_percent,0),
+                           COALESCE(entry_date,''), COALESCE(exit_date,''), COALESCE(shares,0), COALESCE(entry_price,0), COALESCE(exit_price,0)
+                    FROM trades
+                    WHERE COALESCE(route_id,0)=?
+                    ORDER BY datetime(COALESCE(exit_date, created_at, '1970-01-01')) DESC
+                    LIMIT 1
+                    """,
+                    (int(ident),),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT trade_id, COALESCE(route_id,0), UPPER(COALESCE(ticker,'')), COALESCE(status,''), COALESCE(pnl,0), COALESCE(pnl_percent,0),
+                           COALESCE(entry_date,''), COALESCE(exit_date,''), COALESCE(shares,0), COALESCE(entry_price,0), COALESCE(exit_price,0)
+                    FROM trades
+                    WHERE COALESCE(trade_id,'')=?
+                    ORDER BY datetime(COALESCE(exit_date, created_at, '1970-01-01')) DESC
+                    LIMIT 1
+                    """,
+                    (ident,),
+                )
+            row = cur.fetchone()
+            if row:
+                trade = {
+                    "trade_id": str(row[0] or ""),
+                    "route_id": int(row[1] or 0),
+                    "ticker": str(row[2] or ""),
+                    "status": str(row[3] or ""),
+                    "pnl": float(row[4] or 0.0),
+                    "pnl_percent": float(row[5] or 0.0),
+                    "entry_date": str(row[6] or ""),
+                    "exit_date": str(row[7] or ""),
+                    "shares": float(row[8] or 0.0),
+                    "entry_price": float(row[9] or 0.0),
+                    "exit_price": float(row[10] or 0.0),
+                }
+                route_id = int(trade.get("route_id") or 0)
+
+        if not trade and _table_exists(conn, "execution_orders") and is_num:
+            cur.execute(
+                """
+                SELECT COALESCE(route_id,0), UPPER(COALESCE(ticker,'')), COALESCE(direction,''), COALESCE(order_status,''), COALESCE(notional,0), COALESCE(created_at,'')
+                FROM execution_orders
+                WHERE id=? OR COALESCE(route_id,0)=?
+                ORDER BY datetime(COALESCE(created_at,'1970-01-01')) DESC
+                LIMIT 1
+                """,
+                (int(ident), int(ident)),
+            )
+            row = cur.fetchone()
+            if row:
+                route_id = int(row[0] or 0)
+                trade = {
+                    "trade_id": f"execution:{ident}",
+                    "route_id": route_id,
+                    "ticker": str(row[1] or ""),
+                    "status": str(row[3] or ""),
+                    "pnl": 0.0,
+                    "pnl_percent": 0.0,
+                    "entry_date": str(row[5] or ""),
+                    "exit_date": "",
+                    "shares": 0.0,
+                    "entry_price": 0.0,
+                    "exit_price": 0.0,
+                }
+
+        if not trade and is_num and _table_exists(conn, "signal_routes"):
+            cur.execute(
+                """
+                SELECT id, UPPER(COALESCE(ticker,'')), COALESCE(direction,''), COALESCE(score,0), COALESCE(status,''), COALESCE(routed_at,'')
+                FROM signal_routes
+                WHERE id=?
+                LIMIT 1
+                """,
+                (int(ident),),
+            )
+            row = cur.fetchone()
+            if row:
+                route_id = int(row[0] or 0)
+                trade = {
+                    "trade_id": f"route_{route_id}",
+                    "route_id": route_id,
+                    "ticker": str(row[1] or ""),
+                    "status": str(row[4] or ""),
+                    "pnl": 0.0,
+                    "pnl_percent": 0.0,
+                    "entry_date": str(row[5] or ""),
+                    "exit_date": "",
+                    "shares": 0.0,
+                    "entry_price": 0.0,
+                    "exit_price": 0.0,
+                }
+
+        if not trade:
+            return {"ok": False, "error": f"trade not found for identifier {ident}"}
+
+        route = {
+            "id": 0,
+            "ticker": trade.get("ticker", ""),
+            "direction": "",
+            "score": 0.0,
+            "source_tag": "",
+            "decision": "",
+            "status": "",
+            "preferred_venue": "",
+            "reason": "",
+            "routed_at": "",
+        }
+        if route_id > 0 and _table_exists(conn, "signal_routes"):
+            cur.execute(
+                """
+                SELECT id, UPPER(COALESCE(ticker,'')), COALESCE(direction,''), COALESCE(score,0), COALESCE(source_tag,''), COALESCE(decision,''),
+                       COALESCE(status,''), COALESCE(preferred_venue,''), COALESCE(reason,''), COALESCE(routed_at,'')
+                FROM signal_routes
+                WHERE id=?
+                LIMIT 1
+                """,
+                (route_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                route = {
+                    "id": int(row[0] or 0),
+                    "ticker": str(row[1] or ""),
+                    "direction": str(row[2] or ""),
+                    "score": float(row[3] or 0.0),
+                    "source_tag": str(row[4] or ""),
+                    "decision": str(row[5] or ""),
+                    "status": str(row[6] or ""),
+                    "preferred_venue": str(row[7] or ""),
+                    "reason": str(row[8] or ""),
+                    "routed_at": str(row[9] or ""),
+                }
+
+        outcome = {
+            "outcome_type": "",
+            "resolution": "",
+            "pnl": float(trade.get("pnl") or 0.0),
+            "pnl_percent": float(trade.get("pnl_percent") or 0.0),
+            "resolved_at": str(trade.get("exit_date") or ""),
+        }
+        if route_id > 0 and _table_exists(conn, "route_outcomes"):
+            cur.execute(
+                """
+                SELECT COALESCE(outcome_type,''), COALESCE(resolution,''), COALESCE(pnl,0), COALESCE(pnl_percent,0), COALESCE(resolved_at,'')
+                FROM route_outcomes
+                WHERE route_id=?
+                ORDER BY datetime(COALESCE(resolved_at,'1970-01-01')) DESC
+                LIMIT 1
+                """,
+                (route_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                outcome = {
+                    "outcome_type": str(row[0] or ""),
+                    "resolution": str(row[1] or ""),
+                    "pnl": float(row[2] or 0.0),
+                    "pnl_percent": float(row[3] or 0.0),
+                    "resolved_at": str(row[4] or ""),
+                }
+
+        candidate = {"rationale": "", "input_breakdown": [], "generated_at": "", "score": 0.0}
+        if _table_exists(conn, "trade_candidates"):
+            ticker = str(trade.get("ticker") or "")
+            route_ts = str(route.get("routed_at") or "")
+            if ticker:
+                if route_ts:
+                    cur.execute(
+                        """
+                        SELECT COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]'), COALESCE(generated_at,''), COALESCE(score,0)
+                        FROM trade_candidates
+                        WHERE UPPER(COALESCE(ticker,''))=?
+                        ORDER BY ABS(julianday(COALESCE(generated_at,'1970-01-01')) - julianday(?)) ASC
+                        LIMIT 1
+                        """,
+                        (ticker.upper(), route_ts),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]'), COALESCE(generated_at,''), COALESCE(score,0)
+                        FROM trade_candidates
+                        WHERE UPPER(COALESCE(ticker,''))=?
+                        ORDER BY datetime(COALESCE(generated_at,'1970-01-01')) DESC
+                        LIMIT 1
+                        """,
+                        (ticker.upper(),),
+                    )
+                row = cur.fetchone()
+                if row:
+                    candidate = {
+                        "rationale": str(row[0] or ""),
+                        "input_breakdown": _parse_input_breakdown_json(str(row[1] or "[]")),
+                        "generated_at": str(row[2] or ""),
+                        "score": float(row[3] or 0.0),
+                    }
+
+        pnl = float(outcome.get("pnl") if outcome.get("pnl") is not None else trade.get("pnl", 0.0))
+        if pnl > 0:
+            outcome_label = "WIN"
+        elif pnl < 0:
+            outcome_label = "LOSS"
+        else:
+            outcome_label = "FLAT"
+
+        simple = _simple_trade_explanation(
+            ticker=str(trade.get("ticker") or ""),
+            direction=str(route.get("direction") or ""),
+            outcome_label=outcome_label,
+            score=float(route.get("score") or candidate.get("score") or 0.0),
+            top_inputs=candidate.get("input_breakdown") or [],
+            route_reason=str(route.get("reason") or ""),
+        )
+
+        return {
+            "ok": True,
+            "identifier": ident,
+            "trade": trade,
+            "route": route,
+            "outcome": outcome,
+            "candidate": candidate,
+            "simple_explanation": simple,
+        }
+    finally:
+        conn.close()
+
+
+def _apply_feedback_multipliers(
+    conn: sqlite3.Connection,
+    input_rows: List[Dict[str, Any]],
+    multiplier: float,
+    apply_column: str = "manual_weight",
+) -> Dict[str, Any]:
+    _ensure_input_source_controls(conn)
+    cur = conn.cursor()
+    updates = []
+    for row in input_rows:
+        key = str(row.get("key") or "").strip()
+        if not key:
+            continue
+        cur.execute("SELECT COALESCE(manual_weight,1.0), COALESCE(auto_weight,1.0), COALESCE(enabled,1), COALESCE(source_label,''), COALESCE(source_class,'') FROM input_source_controls WHERE source_key=? LIMIT 1", (key,))
+        existing = cur.fetchone()
+        if existing:
+            manual_w = float(existing[0] or 1.0)
+            auto_w = float(existing[1] or 1.0)
+            enabled = int(existing[2] or 1)
+            label = str(existing[3] or _input_friendly_name(key))
+            klass = str(existing[4] or "feedback")
+        else:
+            manual_w = 1.0
+            auto_w = 1.0
+            enabled = 1
+            label = _input_friendly_name(key)
+            klass = "feedback"
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO input_source_controls
+                (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+                VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, 1.0, 1.0, '')
+                """,
+                (key, label, klass, enabled),
+            )
+
+        if apply_column == "auto_weight":
+            new_auto = max(0.1, min(5.0, auto_w * float(multiplier)))
+            cur.execute(
+                "UPDATE input_source_controls SET updated_at=datetime('now'), auto_weight=? WHERE source_key=?",
+                (float(new_auto), key),
+            )
+            updates.append({"key": key, "from": auto_w, "to": new_auto, "column": "auto_weight"})
+        else:
+            new_manual = max(0.0, min(5.0, manual_w * float(multiplier)))
+            cur.execute(
+                "UPDATE input_source_controls SET updated_at=datetime('now'), manual_weight=? WHERE source_key=?",
+                (float(new_manual), key),
+            )
+            updates.append({"key": key, "from": manual_w, "to": new_manual, "column": "manual_weight"})
+    conn.commit()
+    return {"updated": len(updates), "rows": updates}
+
+
+def submit_trade_feedback(payload: Dict[str, Any]) -> Dict[str, Any]:
+    identifier = str((payload or {}).get("identifier") or "").strip()
+    if not identifier:
+        return {"ok": False, "error": "identifier required"}
+    action = str((payload or {}).get("feedback_action") or "").strip().lower()
+    if action not in {"boost", "downrank", "neutral"}:
+        return {"ok": False, "error": "feedback_action must be boost, downrank, or neutral"}
+    apply_now = bool((payload or {}).get("apply_now", False))
+    notes = str((payload or {}).get("notes") or "").strip()
+    rating = float((payload or {}).get("rating", 0.0) or 0.0)
+
+    explain = get_trade_explain(identifier)
+    if not explain.get("ok"):
+        return {"ok": False, "error": explain.get("error", "trade not found")}
+
+    if action == "boost":
+        suggested_multiplier = 2.0
+    elif action == "downrank":
+        suggested_multiplier = 0.5
+    else:
+        suggested_multiplier = 1.0
+
+    if not DB_PATH.exists():
+        return {"ok": False, "error": "database missing"}
+    selected_keys_raw: List[str] = []
+    if isinstance((payload or {}).get("selected_input_keys"), list):
+        selected_keys_raw = [str(x or "").strip().lower() for x in ((payload or {}).get("selected_input_keys") or []) if str(x or "").strip()]
+    elif (payload or {}).get("selected_input_key"):
+        selected_keys_raw = [str((payload or {}).get("selected_input_key") or "").strip().lower()]
+    selected_keys = [k for k in selected_keys_raw if k]
+
+    conn = _connect()
+    try:
+        _ensure_trade_feedback_tables(conn)
+        trade = explain.get("trade") or {}
+        route = explain.get("route") or {}
+        candidate = explain.get("candidate") or {}
+        candidate_inputs = (candidate.get("input_breakdown") or [])[:8]
+        top_inputs = candidate_inputs[:5]
+        if selected_keys:
+            selected_rows: List[Dict[str, Any]] = []
+            by_key = {str(x.get("key") or "").strip().lower(): x for x in candidate_inputs}
+            for sk in selected_keys:
+                row = by_key.get(sk)
+                if row:
+                    selected_rows.append(row)
+                else:
+                    selected_rows.append(
+                        {
+                            "key": sk,
+                            "name": _input_friendly_name(sk),
+                            "help": _input_friendly_help(sk),
+                            "value": 0.0,
+                            "weight": 1.0,
+                        }
+                    )
+            top_inputs = selected_rows[:5]
+        snapshot = {
+            "trade": trade,
+            "route": route,
+            "outcome": explain.get("outcome") or {},
+            "candidate_rationale": candidate.get("rationale", ""),
+            "top_inputs": top_inputs,
+            "simple_explanation": explain.get("simple_explanation", ""),
+        }
+
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO trade_feedback_reviews
+            (created_at, identifier, route_id, trade_id, ticker, feedback_action, rating, notes, apply_now, applied, applied_at, snapshot_json)
+            VALUES (datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?)
+            """,
+            (
+                identifier,
+                int(route.get("id") or trade.get("route_id") or 0),
+                str(trade.get("trade_id") or ""),
+                str(trade.get("ticker") or route.get("ticker") or ""),
+                action,
+                float(rating),
+                notes,
+                1 if apply_now else 0,
+                json.dumps(snapshot, separators=(",", ":"), ensure_ascii=True),
+            ),
+        )
+        review_id = int(cur.lastrowid or 0)
+        for inp in top_inputs:
+            cur.execute(
+                """
+                INSERT INTO trade_feedback_input_votes
+                (review_id, input_key, input_value, input_weight, suggested_multiplier, created_at)
+                VALUES (?, ?, ?, ?, ?, datetime('now'))
+                """,
+                (
+                    review_id,
+                    str(inp.get("key") or ""),
+                    float(inp.get("value") or 0.0),
+                    float(inp.get("weight") or 1.0),
+                    float(suggested_multiplier),
+                ),
+            )
+        conn.commit()
+
+        applied = {"updated": 0, "rows": []}
+        if apply_now and top_inputs:
+            applied = _apply_feedback_multipliers(conn, top_inputs, suggested_multiplier, apply_column="manual_weight")
+            cur.execute(
+                "UPDATE trade_feedback_reviews SET applied=1, applied_at=datetime('now') WHERE id=?",
+                (review_id,),
+            )
+            conn.commit()
+
+        return {
+            "ok": True,
+            "review_id": review_id,
+            "identifier": identifier,
+            "feedback_action": action,
+            "apply_now": apply_now,
+            "selected_input_keys": selected_keys,
+            "suggested_multiplier": suggested_multiplier,
+            "top_inputs": top_inputs,
+            "applied": applied,
+        }
+    finally:
+        conn.close()
+
+
+def apply_weekly_trade_feedback(max_reviews: int = 300) -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {"ok": False, "error": "database missing"}
+    conn = _connect()
+    try:
+        _ensure_trade_feedback_tables(conn)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT r.id, v.input_key, v.suggested_multiplier
+            FROM trade_feedback_reviews r
+            JOIN trade_feedback_input_votes v ON v.review_id = r.id
+            WHERE COALESCE(r.apply_now,0)=0
+              AND COALESCE(r.applied,0)=0
+            ORDER BY r.id ASC
+            LIMIT ?
+            """,
+            (int(max_reviews),),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return {"ok": True, "applied_reviews": 0, "updated_inputs": 0, "rows": []}
+
+        by_key: Dict[str, List[float]] = {}
+        review_ids = set()
+        for rid, input_key, mult in rows:
+            review_ids.add(int(rid or 0))
+            k = str(input_key or "").strip()
+            if not k:
+                continue
+            by_key.setdefault(k, []).append(float(mult or 1.0))
+
+        input_rows: List[Dict[str, Any]] = []
+        for k, vals in by_key.items():
+            if not vals:
+                continue
+            avg_mult = sum(vals) / len(vals)
+            input_rows.append({"key": k, "value": 0.0, "weight": 1.0, "mult": avg_mult})
+
+        _ensure_input_source_controls(conn)
+        updates = []
+        for r in input_rows:
+            k = str(r.get("key") or "")
+            mult = float(r.get("mult") or 1.0)
+            cur.execute("SELECT COALESCE(auto_weight,1.0) FROM input_source_controls WHERE source_key=? LIMIT 1", (k,))
+            row = cur.fetchone()
+            if row is None:
+                cur.execute(
+                    """
+                    INSERT INTO input_source_controls
+                    (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+                    VALUES (datetime('now'), datetime('now'), ?, ?, 'feedback', 1, 1.0, 1.0, 'weekly human feedback lane')
+                    """,
+                    (k, _input_friendly_name(k)),
+                )
+                auto_w = 1.0
+            else:
+                auto_w = float(row[0] or 1.0)
+            new_auto = max(0.1, min(5.0, auto_w * mult))
+            cur.execute(
+                "UPDATE input_source_controls SET updated_at=datetime('now'), auto_weight=? WHERE source_key=?",
+                (float(new_auto), k),
+            )
+            updates.append({"key": k, "from": auto_w, "to": new_auto, "column": "auto_weight"})
+
+        if review_ids:
+            q_marks = ",".join(["?"] * len(review_ids))
+            cur.execute(
+                f"UPDATE trade_feedback_reviews SET applied=1, applied_at=datetime('now') WHERE id IN ({q_marks})",
+                tuple(sorted(review_ids)),
+            )
+        conn.commit()
+        return {
+            "ok": True,
+            "applied_reviews": len(review_ids),
+            "updated_inputs": len(updates),
+            "rows": updates,
+        }
+    finally:
+        conn.close()
+
+
 def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
+    threshold_keys = {
+        "min_candidate_score",
+        "alpaca_min_route_score",
+        "hyperliquid_min_route_score",
+        "consensus_min_confirmations",
+        "consensus_min_ratio",
+        "consensus_min_score",
+        "polymarket_min_edge_pct",
+        "polymarket_min_confidence_pct",
+        "training_min_candidate_score",
+        "training_consensus_min_confirmations",
+        "training_consensus_min_ratio",
+        "training_consensus_min_score",
+        "training_alpaca_min_route_score",
+        "training_hyperliquid_min_route_score",
+        "training_polymarket_min_confidence_pct",
+    }
     allowed = {
         "agent_master_enabled",
         "allow_live_trading",
@@ -1537,6 +2605,9 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "polymarket_fee_gate_enabled",
         "polymarket_taker_fee_pct",
         "polymarket_fee_buffer_pct",
+        "polymarket_exec_backend",
+        "polymarket_strict_funding_check",
+        "polymarket_edge_unit_mode",
         "polymarket_manual_approval",
         "polymarket_approval_threshold",
         "polymarket_copy_enabled",
@@ -1602,6 +2673,11 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "grpo_local_model",
         "kaggle_auto_pull_enabled",
         "kaggle_poly_dataset_slug",
+        "kaggle_min_hours_between_runs",
+        "kaggle_daily_download_limit",
+        "kaggle_max_files_per_run",
+        "kaggle_max_rows_per_file",
+        "threshold_override_unlocked",
     }
     if not DB_PATH.exists():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -1617,9 +2693,18 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
             """
         )
         cur = conn.cursor()
+        cur.execute("SELECT key, value FROM execution_controls")
+        existing_controls = {str(k): str(v) for k, v in cur.fetchall()}
+        lock_open = str(existing_controls.get("threshold_override_unlocked", "0")).strip() == "1"
+        requested_unlock = str((updates or {}).get("threshold_override_unlocked", "")).strip() == "1"
+        can_change_thresholds = lock_open or requested_unlock
         changed = 0
+        blocked_locked: List[str] = []
         for key, value in (updates or {}).items():
             if key not in allowed:
+                continue
+            if key in threshold_keys and not can_change_thresholds:
+                blocked_locked.append(str(key))
                 continue
             cur.execute(
                 """
@@ -1631,7 +2716,11 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
             )
             changed += 1
         conn.commit()
-        return {"updated": changed, "controls": get_risk_controls()}
+        out = {"updated": changed, "controls": get_risk_controls()}
+        if blocked_locked:
+            out["blocked_locked"] = sorted(blocked_locked)
+            out["lock_key"] = "threshold_override_unlocked"
+        return out
     finally:
         conn.close()
 
@@ -2907,7 +3996,7 @@ def get_tracked_sources(limit: int = 200) -> List[Dict[str, Any]]:
 
 
 def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
-    handle = str((payload or {}).get("handle") or "").strip().lstrip("@")
+    handle = _extract_x_handle(payload or {})
     if not handle:
         return {"ok": False, "error": "handle required"}
     role_copy = 1 if bool((payload or {}).get("role_copy", True)) else 0
@@ -2945,6 +4034,36 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
             conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN x_api_enabled INTEGER NOT NULL DEFAULT 1")
         if not _column_exists(conn, "tracked_x_sources", "source_weight"):
             conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN source_weight REAL NOT NULL DEFAULT 1.0")
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT handle
+            FROM tracked_x_sources
+            WHERE lower(COALESCE(handle,'')) = ?
+            LIMIT 1
+            """,
+            (handle,),
+        )
+        existing = cur.fetchone()
+        if existing and str(existing[0] or "").strip() and str(existing[0]).strip() != handle:
+            conn.execute(
+                """
+                UPDATE tracked_x_sources
+                SET
+                  updated_at=datetime('now'),
+                  handle=?,
+                  role_copy=?,
+                  role_alpha=?,
+                  active=?,
+                  x_api_enabled=?,
+                  source_weight=?,
+                  notes=?
+                WHERE handle=?
+                """,
+                (handle, role_copy, role_alpha, active, x_api_enabled, float(source_weight), notes, str(existing[0])),
+            )
+            conn.commit()
+            return {"ok": True, "handle": handle, "sources": get_tracked_sources()}
         conn.execute(
             """
             INSERT INTO tracked_x_sources (created_at, updated_at, handle, role_copy, role_alpha, active, x_api_enabled, source_weight, notes)
@@ -3001,7 +4120,7 @@ def _seed_input_sources_from_runtime(conn: sqlite3.Connection) -> None:
     if _table_exists(conn, "tracked_x_sources"):
         cur.execute("SELECT handle FROM tracked_x_sources")
         for (h,) in cur.fetchall():
-            hh = str(h or "").strip().lower()
+            hh = _normalize_x_handle(h)
             if hh:
                 keys.append((f"x:{hh}", f"X @{hh}", "x_account"))
     if _table_exists(conn, "source_learning_stats"):
@@ -3096,6 +4215,124 @@ def upsert_input_source_control(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
         conn.commit()
         return {"ok": True, "source_key": source_key}
+    finally:
+        conn.close()
+
+
+def _ensure_ticker_trade_profiles(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ticker_trade_profiles (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          ticker TEXT NOT NULL UNIQUE,
+          active INTEGER NOT NULL DEFAULT 1,
+          preferred_venue TEXT NOT NULL DEFAULT '',
+          allowed_venues_json TEXT NOT NULL DEFAULT '["stocks","crypto","prediction"]',
+          required_inputs_json TEXT NOT NULL DEFAULT '[]',
+          min_score REAL NOT NULL DEFAULT 0.0,
+          notional_override REAL NOT NULL DEFAULT 0.0,
+          notes TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_ticker_trade_profiles_active ON ticker_trade_profiles(active)")
+    conn.commit()
+
+
+def get_ticker_trade_profiles(limit: int = 200) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        _ensure_ticker_trade_profiles(conn)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, created_at, updated_at, ticker, active, preferred_venue,
+                   allowed_venues_json, required_inputs_json, min_score, notional_override, notes
+            FROM ticker_trade_profiles
+            ORDER BY updated_at DESC, ticker ASC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        for row in rows:
+            row["allowed_venues"] = _parse_json_list(row.get("allowed_venues_json"), lower=True)
+            row["required_inputs"] = _parse_json_list(row.get("required_inputs_json"), lower=True)
+        return rows
+    finally:
+        conn.close()
+
+
+def upsert_ticker_trade_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
+    ticker = _normalize_ticker((payload or {}).get("ticker"))
+    if not ticker:
+        return {"ok": False, "error": "ticker required"}
+
+    active = 1 if bool((payload or {}).get("active", True)) else 0
+    preferred_venue = str((payload or {}).get("preferred_venue") or "").strip().lower()
+    if preferred_venue not in {"", "stocks", "crypto", "prediction"}:
+        return {"ok": False, "error": "preferred_venue must be stocks, crypto, prediction, or empty"}
+
+    allowed_venues = [
+        x
+        for x in _parse_json_list((payload or {}).get("allowed_venues", (payload or {}).get("allowed_venues_json", [])), lower=True)
+        if x in {"stocks", "crypto", "prediction"}
+    ]
+    if not allowed_venues:
+        allowed_venues = ["stocks", "crypto", "prediction"]
+    if preferred_venue and preferred_venue not in allowed_venues:
+        allowed_venues.append(preferred_venue)
+
+    required_inputs = _parse_json_list(
+        (payload or {}).get("required_inputs", (payload or {}).get("required_inputs_json", [])),
+        lower=True,
+        max_items=30,
+    )
+    required_inputs = [x for x in required_inputs if x]
+
+    min_score = float((payload or {}).get("min_score", 0.0) or 0.0)
+    min_score = max(0.0, min(100.0, min_score))
+    notional_override = float((payload or {}).get("notional_override", 0.0) or 0.0)
+    notional_override = max(0.0, min(1000000.0, notional_override))
+    notes = str((payload or {}).get("notes") or "").strip()
+
+    if not DB_PATH.exists():
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = _connect()
+    try:
+        _ensure_ticker_trade_profiles(conn)
+        conn.execute(
+            """
+            INSERT INTO ticker_trade_profiles
+            (created_at, updated_at, ticker, active, preferred_venue, allowed_venues_json, required_inputs_json, min_score, notional_override, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(ticker) DO UPDATE SET
+              updated_at=datetime('now'),
+              active=excluded.active,
+              preferred_venue=excluded.preferred_venue,
+              allowed_venues_json=excluded.allowed_venues_json,
+              required_inputs_json=excluded.required_inputs_json,
+              min_score=excluded.min_score,
+              notional_override=excluded.notional_override,
+              notes=excluded.notes
+            """,
+            (
+                ticker,
+                int(active),
+                preferred_venue,
+                json.dumps(sorted(set(allowed_venues)), separators=(",", ":"), ensure_ascii=True),
+                json.dumps(required_inputs, separators=(",", ":"), ensure_ascii=True),
+                float(min_score),
+                float(notional_override),
+                notes,
+            ),
+        )
+        conn.commit()
+        return {"ok": True, "ticker": ticker}
     finally:
         conn.close()
 

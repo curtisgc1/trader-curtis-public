@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-02-24T17:39:09.360794Z",
-  "total_rows": 60,
-  "train_rows": 54,
-  "eval_rows": 6,
+  "generated_at": "2026-02-25T07:01:10.153662Z",
+  "total_rows": 4311,
+  "train_rows": 3880,
+  "eval_rows": 431,
   "include_operational": true,
   "kaggle_file": "",
   "sources": {
-    "internal": 60,
-    "kaggle_polymarket": 0
+    "internal": 50,
+    "kaggle_polymarket": 4261
   }
 }

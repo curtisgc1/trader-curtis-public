@@ -83,6 +83,30 @@ def load_env() -> Dict[str, str]:
                 env["HL_AGENT_PRIVATE_KEY"] = out
         except Exception:
             pass
+    # Self-heal: if provided HL key signer does not match configured wallet, prefer
+    # the Keychain key only when it matches HL_WALLET_ADDRESS.
+    try:
+        target_wallet = str(env.get("HL_WALLET_ADDRESS", "") or "").strip().lower()
+        runtime_pk = str(env.get("HL_AGENT_PRIVATE_KEY", "") or "").strip()
+        if target_wallet and runtime_pk and Account is not None:
+            runtime_addr = str(Account.from_key(runtime_pk).address).lower()
+            if runtime_addr != target_wallet:
+                acct = os.environ.get("KEYCHAIN_ACCOUNT", "curtiscorum")
+                try:
+                    kc_pk = subprocess.check_output(
+                        ["security", "find-generic-password", "-a", acct, "-s", "trader-curtis-HL_AGENT_PRIVATE_KEY", "-w"],
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        timeout=4,
+                    ).strip()
+                    if kc_pk:
+                        kc_addr = str(Account.from_key(kc_pk).address).lower()
+                        if kc_addr == target_wallet:
+                            env["HL_AGENT_PRIVATE_KEY"] = kc_pk
+                except Exception:
+                    pass
+    except Exception:
+        pass
     return env
 
 
@@ -380,14 +404,13 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
     except Exception as exc:
         return False, f"invalid HL private key: {exc}", {}
 
-    # Self-heal stale wallet overrides: if configured account doesn't match signer,
-    # force signer address to prevent routing to an old/wrong wallet.
+    # Keep configured account (funder) if provided. A mismatched signer can still be valid
+    # when the signer is an approved API wallet. Do not silently overwrite to signer.
     signer_address = wallet.address
     configured_account = str(account_address or "").strip()
     account_mismatch_corrected = False
     if configured_account and configured_account.lower() != signer_address.lower():
         account_mismatch_corrected = True
-        account_address = signer_address
     elif not configured_account:
         account_address = signer_address
 

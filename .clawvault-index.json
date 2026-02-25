@@ -214,11 +214,11 @@
       "path": "/Users/Shared/curtis/trader-curtis/README.md",
       "category": "root",
       "title": "README",
-      "content": "# trader-curtis\n\nAn elephant never forgets.\n\n## Structure\n\n### Memory Categories\n- `rules/` — Injectable operational constraints, guardrails, and runbooks\n- `preferences/` — Likes, dislikes, how I want things\n- `decisions/` — Choices made with context and reasoning\n- `patterns/` — Recurring behaviors (→ lessons)\n- `people/` — Relationships, one file per person\n- `projects/` — Active work, ventures, ongoing efforts\n- `goals/` — Long-term and short-term objectives\n- `transcripts/` — Session summaries and logs\n- `inbox/` — Quick capture → process later\n- `lessons/` — What I learned, insights, patterns observed\n- `agents/` — Other agents — capabilities, trust levels, coordination notes\n- `commitments/` — Promises, goals, obligations to fulfill\n- `handoffs/` — Session bridges — what I was doing, what comes next\n- `research/` — Deep dives, analysis, reference material\n\n### Work Tracking\n\n\n### Observational Memory\n- `ledger/raw/` — Raw session transcripts (source of truth)\n- `ledger/observations/` — Compressed observations with importance scores\n- `ledger/reflections/` — Weekly reflection summaries\n\n## Quick Reference\n\n```bash\n# Capture a thought\nclawvault capture \"important insight about X\"\n\n# Store structured memory\nclawvault store --category decisions --title \"Choice\" --content \"We chose X because...\"\n\n# Search\nclawvault search \"query\"\nclawvault vsearch \"semantic query\"    # vector search\n\n# Knowledge graph\nclawvault graph                       # vault stats\nclawvault context \"topic\"             # graph-aware context retrieval\n\n# Session lifecycle\nclawvault checkpoint --working-on \"task\"\nclawvault sleep \"what I did\" --next \"what's next\"\nclawvault wake                        # restore context on startup\n```\n\n---\n\n*Managed by [ClawVault](https://clawvault.dev)*\n",
+      "content": "# Trader Curtis Quant System\n\nEvent-driven multi-venue quant pipeline for:\n- `stocks` (Alpaca paper/live-gated)\n- `crypto` (Hyperliquid test/live-gated)\n- `prediction markets` (Polymarket)\n\nThe system ingests many signal families (bookmarks, event feeds, breakthroughs, free data, tracked X handles), routes candidates through hard controls, executes only when allowed, and runs a separate learning/alignment loop.\n\n## Core Architecture\n\n1. Signal ingestion\n- `pipeline_*.py` jobs write to `pipeline_signals`, `external_signals`, `copy_trades`, and related staging tables.\n\n2. Candidate generation and routing\n- `generate_trade_candidates.py` builds `trade_candidates`.\n- `signal_router.py` applies policy/risk controls and writes `signal_routes`.\n\n3. Execution\n- `execution_worker.py` (stocks/crypto) and `execution_polymarket.py` (prediction markets).\n- Execution is always control-gated via `execution_controls`.\n\n4. Learning feedback\n- `update_learning_feedback.py` refreshes `route_outcomes`, source/strategy stats, and feature stats.\n\n5. GRPO/HGRM alignment lane (shadow-safe by default)\n- `grpo_hgrm_weekly.py` computes hierarchical reward samples and optional weight updates.\n- `training/grpo/build_grpo_dataset.py` creates `datasets/grpo_train.jsonl` and `datasets/grpo_eval.jsonl`.\n\n## Main Entry Points\n\n- Full cycle: `./run-all-scans.sh`\n- Scheduled cycle wrapper: `./scripts/trader_cycle_locked.sh <mode>`\n- Full audit: `./scripts/full_pipeline_audit.sh`\n- Local stack check: `./scripts/check_local_grpo_stack.sh`\n- GRPO readiness gate: `./scripts/grpo_readiness_gate.sh`\n- Kaggle ingest (daily-gated): `./scripts/run_kaggle_ingest.sh`\n  - isolated daily job (separate from OpenClaw trading cycle)\n- MLX training (daily-gated): `./scripts/run_mlx_grpo_train.sh`\n  - isolated daily job, intentionally decoupled from `run-all-scans.sh` / OpenClaw execution path\n- Learning heavy resolver pass (daily-gated): `./scripts/run_learning_feedback_daily.sh`\n  - runs missed-opportunity + multi-horizon counterfactual evaluation in isolated daily lane\n- Realized close/settle reconciler (daily-gated): `./scripts/run_realized_reconciler.sh`\n  - runs Alpaca sync + Polymarket settlement reconciliation + realized feedback refresh\n\n## Safety Model\n\n- `grpo_apply_weight_updates=0` is the default safe mode.\n- Trading remains blocked unless venue-specific controls are enabled.\n- Policy/alignment logic does not bypass execution guards.\n- Realized outcome truth is isolated: use `route_outcomes` with `outcome_type='realized'`.\n- Counterfactual/multi-horizon outcomes are stored separately in `route_outcomes_horizons`.\n\n## Input Weighting + Overrides\n\nCandidate scoring is assembled in `generate_trade_candidates.py` with this effective pattern:\n\n- family contribution:\n  - `base_component * family_weight`\n- source/pipeline/pattern contribution:\n  - `base_component * family_weight * specific_key_weight`\n- strategy-aware family contribution:\n  - `base_component * family_weight * strategy_family_weight`\n- X handle contribution:\n  - `0.05 * weight_for('x:<handle>') * tracked_x_sources.source_weight`\n\nAll of these weights are in `input_source_controls`:\n\n- global family keys: `family:social`, `family:pattern`, `family:external`, `family:copy`, `family:pipeline`, `family:liquidity`\n- source keys: `source:<source_tag>`\n- pipeline keys: `pipeline:<PIPELINE_ID>`\n- X keys: `x:<handle>`\n- strategy family keys: `strategy:<PIPELINE_ID>:family:<family>`\n\nExample DB overrides:\n\n```sql\n-- Heavier liquidity for scalp profile, moderate for long-term.\nUPDATE input_source_controls SET manual_weight=1.35 WHERE source_key='family:liquidity';\nUPDATE input_source_controls SET manual_weight=2.40 WHERE source_key='strategy:CHART_LIQUIDITY:family:liquidity';\nUPDATE input_source_controls SET manual_weight=1.15 WHERE source_key='strategy:B_LONGTERM:family:liquidity';\n```\n\n## Ticker-Specific Routing Profiles\n\nTicker-level route controls are in `ticker_trade_profiles` and enforced in `signal_router.py` before route approval.\n\nMain fields:\n- `ticker` (e.g., `BTC`)\n- `preferred_venue` (`stocks` | `crypto` | `prediction` | empty)\n- `allowed_venues_json` (list)\n- `required_inputs_json` (list of candidate input keys, e.g. `family:liquidity`)\n- `min_score`\n- `notional_override`\n\nExample profile for BTC scalp routing on HL:\n\n```sql\nINSERT INTO ticker_trade_profiles\n(created_at, updated_at, ticker, active, preferred_venue, allowed_venues_json, required_inputs_json, min_score, notional_override, notes)\nVALUES\n(datetime('now'), datetime('now'), 'BTC', 1, 'crypto', '[\"crypto\"]', '[\"family:liquidity\",\"family:pipeline\"]', 60, 10, 'BTC scalp profile')\nON CONFLICT(ticker) DO UPDATE SET\n  updated_at=excluded.updated_at,\n  active=excluded.active,\n  preferred_venue=excluded.preferred_venue,\n  allowed_venues_json=excluded.allowed_venues_json,\n  required_inputs_json=excluded.required_inputs_json,\n  min_score=excluded.min_score,\n  notional_override=excluded.notional_override,\n  notes=excluded.notes;\n```\n\n## Outcome Truth + Timeframes\n\n- Source of truth for realized performance: closed/finalized trades linked into `route_outcomes` (`outcome_type='realized'`).\n- Operational quality lane (fills/blocks/missed proxies): `route_outcomes` (`outcome_type='operational'`).\n- Multi-timeframe counterfactual lane (scalp/1d/1w/1m+): `route_outcomes_horizons`.\n- Learning stats by timeframe/source: `source_horizon_learning_stats`.\n- Runtime guardrails for resolver jobs are control-driven via:\n  - `learning_resolver_http_timeout_seconds`\n  - `mtm_resolver_max_runtime_seconds`\n  - `missed_opportunity_max_runtime_seconds`\n  - `horizon_resolver_max_runtime_seconds`\n\n## Kaggle Role\n\nKaggle is used to complement training/alignment data, not as live execution truth.\n\nCurrent Kaggle ingest requirements:\n1. Kaggle auth via either:\n   - `~/.kaggle/kaggle.json`, or\n   - `KAGGLE_API_TOKEN` (env or keychain service `kaggle_api_token`)\n2. `kaggle_poly_dataset_slug` set in `execution_controls`\n3. Daily/min-hour limits respected by `scripts/run_kaggle_ingest.sh`\n\nMLX training requirements:\n1. `grpo_mlx_train_enabled=1` in `execution_controls`\n2. `mlx` + `mlx_lm` installed for Python runtime\n3. Base model set in `grpo_mlx_base_model` (default: `mlx-community/Qwen2.5-7B-Instruct-4bit`)\n4. Daily/min-hour limits respected by `scripts/run_mlx_grpo_train.sh`\n\n## Local Runtime Notes\n\n- Mac hardware detected: Apple Silicon (M3 Ultra class)\n- Ollama local model support is active (`qwen2.5:14b` available)\n- MLX/MLX-LM runtime is installed for local training/inference workflows\n\n## Quick Ops Commands\n\n```bash\n# Health/status\n./scripts/check_local_grpo_stack.sh\n./scripts/full_pipeline_audit.sh\n./scripts/grpo_readiness_gate.sh\n\n# Force one Kaggle ingest attempt (for validation)\nFORCE_KAGGLE_INGEST=1 ./scripts/run_kaggle_ingest.sh\n\n# Rebuild GRPO datasets from local outcomes\n./training/grpo/build_grpo_dataset.py --include-operational\n./training/grpo/compare_sources.py --file datasets/grpo_train.jsonl\n./training/grpo/build_mlx_lora_dataset.py\n\n# Force one MLX train attempt (bypass daily/hourly gate)\nFORCE_MLX_GRPO_TRAIN=1 ./scripts/run_mlx_grpo_train.sh\n```\n\n## Important Tables\n\n- Live flow: `pipeline_signals`, `trade_candidates`, `signal_routes`, `execution_orders`, `polymarket_orders`\n- Learning: `route_outcomes`, `source_learning_stats`, `strategy_learning_stats`, `input_feature_stats`\n- Alignment: `alignment_reward_samples`, `alignment_policy_runs`\n- Kaggle training data: `polymarket_kaggle_markets`\n",
       "frontmatter": {},
       "links": [],
       "tags": [],
-      "modified": "2026-02-16T00:51:47.834Z"
+      "modified": "2026-02-25T17:24:12.602Z"
     },
     {
       "id": "QUICK_REFERENCE",
@@ -1015,6 +1015,17 @@
       "modified": "2026-02-17T01:50:30.187Z"
     },
     {
+      "id": "logs/clickhouse_migration_report_2026-02-24",
+      "path": "/Users/Shared/curtis/trader-curtis/logs/clickhouse_migration_report_2026-02-24.md",
+      "category": "logs",
+      "title": "clickhouse_migration_report_2026-02-24",
+      "content": "# ClickHouse Analytics Migration Report\nGenerated: 2026-02-24 22:01 PST\n\n## Summary\n✅ ClickHouse server started successfully\n✅ Database `trader_curtis` created\n✅ 4 tables created with MergeTree engine\n✅ 107 total rows migrated from SQLite\n\n## Migration Results\n| Table | Rows Migrated |\n|-------|---------------|\n| trades | 44 |\n| route_outcomes | 50 |\n| source_learning_stats | 10 |\n| strategy_learning_stats | 3 |\n\n## Overall Performance Metrics\n| Metric | Value |\n|--------|-------|\n| Total P&L | +$293.49 |\n| Avg P&L per Trade | +$5.87 |\n| Total Outcomes | 50 |\n| Win Rate | 56% |\n| Best Trade | +$27.27 |\n| Worst Trade | -$4.80 |\n\n## Win/Loss Breakdown\n| Resolution | Outcomes | Avg P&L | Total P&L | Avg Return % |\n|------------|----------|---------|-----------|--------------|\n| Win | 28 | +$11.47 | +$321.16 | +3.15% |\n| Loss | 22 | -$1.26 | -$27.67 | -0.37% |\n\n## Top Performing Sources (by Win Rate)\n| Source | Sample Size | Wins | Losses | Win Rate | Avg P&L |\n|--------|-------------|------|--------|----------|---------|\n| TestSource | 3 | 3 | 0 | 100% | +$1.28 |\n| manual-test | 1 | 1 | 0 | 100% | +$8.18 |\n| B_LONGTERM | 25 | 20 | 5 | 80% | +$10.93 |\n| NoLimitGains | 3 | 1 | 2 | 33% | +$0.10 |\n| internal | 6 | 2 | 4 | 33% | +$1.84 |\n| C_EVENT | 4 | 1 | 3 | 25% | +$0.22 |\n| finviz:rss | 5 | 0 | 5 | 0% | -$0.50 |\n\n## Strategy Performance\n| Strategy | Sample Size | Wins | Losses | Win Rate | Avg P&L |\n|----------|-------------|------|--------|----------|---------|\n| B_LONGTERM | 25 | 20 | 5 | 80% | +$10.93 |\n| UNSPECIFIED | 21 | 7 | 14 | 33% | +$0.92 |\n| C_EVENT | 4 | 1 | 3 | 25% | +$0.22 |\n\n## Recent Daily Performance (Last 7 Days)\n| Date | Outcomes | Daily P&L | Avg Return % |\n|------|----------|-----------|--------------|\n| 2026-02-24 | 41 | +$297.99 | +2.01% |\n| 2026-02-23 | 9 | -$4.50 | -0.25% |\n\n## Trade Status Breakdown\n| Status | Count |\n|--------|-------|\n| open | 33 |\n| pending | 11 |\n\n## Tables Created\n1. **trades** - Main trade records with sentiment data\n2. **route_outcomes** - Resolved trade outcomes with P&L\n3. **source_learning_stats** - Performance metrics by source\n4. **strategy_learning_stats** - Performance metrics by strategy\n\n## Next Steps\n- Materialized views can be added for real-time aggregations\n- Consider partitioning strategy for larger datasets\n- Set up automated ETL pipeline for ongoing sync\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T06:05:29.772Z"
+    },
+    {
       "id": "inbox/welcome",
       "path": "/Users/Shared/curtis/trader-curtis/inbox/welcome.md",
       "category": "inbox",
@@ -1034,6 +1045,48 @@
       ],
       "tags": [],
       "modified": "2026-02-16T00:51:47.835Z"
+    },
+    {
+      "id": "inbox/note-1772035931150",
+      "path": "/Users/Shared/curtis/trader-curtis/inbox/note-1772035931150.md",
+      "category": "inbox",
+      "title": "note-1772035931150",
+      "content": "Trader resolver hardened: runtime/timeouts + PID lock; horizon counterfactual now filling 6h/24h while realized truth remains isolated\n",
+      "frontmatter": {
+        "title": "note-1772035931150",
+        "date": "2026-02-25"
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T16:12:11.151Z"
+    },
+    {
+      "id": "inbox/note-1771972835776",
+      "path": "/Users/Shared/curtis/trader-curtis/inbox/note-1771972835776.md",
+      "category": "inbox",
+      "title": "note-1771972835776",
+      "content": "Trader-curtis: integrated polymarket CLI backend and fixed core issues (wallet mismatch handling, edge unit normalization, candidate status reset, non-strict funding checks).\n",
+      "frontmatter": {
+        "title": "note-1771972835776",
+        "date": "2026-02-24"
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T22:40:35.777Z"
+    },
+    {
+      "id": "inbox/note-1771957288080",
+      "path": "/Users/Shared/curtis/trader-curtis/inbox/note-1771957288080.md",
+      "category": "inbox",
+      "title": "note-1771957288080",
+      "content": "Trader-curtis: implemented 3-venue matrix routing + preferred venue worker guards + venue readiness APIs; audit found open position cap starvation and overly aggressive live posture.\n",
+      "frontmatter": {
+        "title": "note-1771957288080",
+        "date": "2026-02-24"
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T18:21:28.081Z"
     },
     {
       "id": "inbox/note-1771954787551",
@@ -1609,15 +1662,26 @@
       "modified": "2026-02-16T07:26:08.926Z"
     },
     {
+      "id": "memory/2026-02-25",
+      "path": "/Users/Shared/curtis/trader-curtis/memory/2026-02-25.md",
+      "category": "memory",
+      "title": "2026-02-25",
+      "content": "- Fixed tracked X source handle ingestion path end-to-end (dashboard + polymarket UI + API + pipelines): supports @handle and x.com/twitter URLs, normalizes to canonical lowercase handle key, and prevents case-variant split rows.\n- Verified live save path for `x.com/NoLimitGains` and `@Qullamaggie` via API and browser-level dashboard interaction.\n- Added Kaggle ingest gating for API-safe cadence:\n  - `scripts/run_kaggle_ingest.sh` now enforces min-hours gate and daily download limit using `execution_controls` runtime keys.\n  - Added configurable controls: `kaggle_min_hours_between_runs`, `kaggle_daily_download_limit`, `kaggle_max_files_per_run`, `kaggle_max_rows_per_file`.\n  - Added `FORCE_KAGGLE_INGEST=1` manual override for backfill/testing.\n- Integrated Kaggle ingest into `run-all-scans.sh` as a safe gated step.\n- Added file/row limits and newest-first ingestion behavior in `pipeline_j_kaggle_polymarket.py`.\n- Added operator docs:\n  - `docs/KAGGLE-DATA-FIT-GUIDE.md`\n  - Updated `docs/FREE-TRAINING-STACK-ROADMAP.md` with new controls and cadence behavior.\n- Full pipeline audit run completed; system remains operational with `overall=warn` due trade-claim guard state (`no approved queued routes`), not ingestion breakage.\n- GitHub parity check: `main` and `origin/main` are in commit sync (`0 ahead / 0 behind`), but local working tree has uncommitted changes.\n- Added `scripts/pipeline_digest_check.sh` and wired it into `run-all-scans.sh` so each cycle emits a compact good/warn/bad ingestion health summary from DB freshness/throughput.\n- Verified digest currently reports `overall=good` with fresh pipeline/candidate/route timestamps.\n- Kaggle daily gate verified: second run now correctly skips with `reason=min_hours_gate`.\n- UI reliability fix for X handle save actions: dashboard boot could fail before wiring source buttons when any Polymarket API call rejected; patched `dashboard-ui/static/polymarket.js` to use safe fetch fallbacks and wire handlers before render blocks.\n- Hardened main dashboard UI bootstrap in `dashboard-ui/static/app.js` with per-step guard rails (`runUiStep`) so render errors no longer block `btn-x-save` binding.\n- Eliminated stale JS cache risk by setting no-cache headers in `dashboard-ui/app.py` and bumping static script versions to `20260225c` in `index.html` and `polymarket.html`.\n- Verified live with Playwright on 2026-02-24 PT: both `/` and `/polymarket` Add/Update source buttons submitted `@Qullamaggie` successfully and returned saved status.\n- Added resilient handle extraction in UI (not ID-dependent): source save now scans handle-like fields in the same card if primary ids are missing; prevents false empty-handle errors when markup drifts.\n- Added visible build tag in handle-required messages (`[build 20260225d]`) for quick stale-client detection during support.\n- Hardened learning resolver runtime for production safety:\n  - Added `learning_resolver_http_timeout_seconds`, `mtm_resolver_max_runtime_seconds`, `missed_opportunity_max_runtime_seconds`, and `horizon_resolver_max_runtime_seconds` controls.\n  - Added per-loop runtime cutoffs in `update_learning_feedback.py` so daily learning jobs cannot run indefinitely.\n- Improved horizon resolver price coverage:\n  - Expanded equity at-time lookup to nearest-bar lookahead window (up to 3 days) to handle after-hours/weekend routed timestamps.\n  - Added crypto-specific at-time/latest price lookups and wired by ticker/venue detection.\n- Hardened `scripts/run_learning_feedback_daily.sh`:\n  - Uses `python3.11` when available.\n  - Adds PID-aware lock handling and stale lock cleanup.\n- Validated daily learning run after hardening:\n  - `horizon_resolved=205` in latest run.\n  - `route_outcomes_horizons` now includes 6h and 24h buckets (`6h=259`, `24h=17`; later `horizon_rows=276` in digest).\n- Source-of-truth posture remains intact:\n  - `route_outcomes` remains operational-only in this dataset (`realized=0`, `operational>0`), so GRPO readiness gate still warns on `realized_lt_min`.\n- Fixed GRPO readiness false-red condition:\n  - `scripts/grpo_readiness_gate.sh` now treats Kaggle as healthy when `runtime:kaggle_last_success_utc` is recent (control: `grpo_kaggle_max_success_age_hours`, default 48h), even if latest status is `skipped:min_hours_gate`.\n  - Readiness reasons now correctly isolate the true blocker: `realized_lt_min`.\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T16:13:50.902Z"
+    },
+    {
       "id": "memory/2026-02-24",
       "path": "/Users/Shared/curtis/trader-curtis/memory/2026-02-24.md",
       "category": "memory",
       "title": "2026-02-24",
-      "content": "- Hardened trade-readiness truthing: added scripts/trade_claim_guard.sh, wired into check_agent_awareness.sh and run-all-scans.sh, added dashboard endpoint /api/trade-claim-guard, and enforced SOUL/SYSTEM_STATUS guardrails against \"trade ready\" claims without DB/control checks.\n- Added canonical tooling grounding layer: docs/TOOLING-RUNTIME-PLAYBOOK.md + scripts/check_tooling_context.sh; wired into scripts/check_agent_awareness.sh and scripts/openclaw_trader_cycle.sh so readiness now fails/warns when tool docs/scripts/tables are missing. Updated dashboard-ui/data.py /api/agent-awareness to include Tooling Playbook + Tooling Context Check states.\n- Implemented all-input weighting engine (not only X): new input_source_controls API/UI, tracked X fields (x_api_enabled/source_weight), auto reweight script (reweight_input_sources.py), candidate scoring now uses weighted contributions and writes input_breakdown_json + rationale top-input summary. Routed trade reasons now include input rationale snippet for auditability.\n- Kaggle pipeline hardened: strict resolved binary ingest + safe default disabled + control keys wired into dashboard/execution.\n- Implemented 3-venue routing matrix (stocks/crypto/prediction), preferred venue execution guards, and venue readiness APIs. Independent audit completed with prioritized findings.\n",
+      "content": "- Hardened trade-readiness truthing: added scripts/trade_claim_guard.sh, wired into check_agent_awareness.sh and run-all-scans.sh, added dashboard endpoint /api/trade-claim-guard, and enforced SOUL/SYSTEM_STATUS guardrails against \"trade ready\" claims without DB/control checks.\n- Added canonical tooling grounding layer: docs/TOOLING-RUNTIME-PLAYBOOK.md + scripts/check_tooling_context.sh; wired into scripts/check_agent_awareness.sh and scripts/openclaw_trader_cycle.sh so readiness now fails/warns when tool docs/scripts/tables are missing. Updated dashboard-ui/data.py /api/agent-awareness to include Tooling Playbook + Tooling Context Check states.\n- Implemented all-input weighting engine (not only X): new input_source_controls API/UI, tracked X fields (x_api_enabled/source_weight), auto reweight script (reweight_input_sources.py), candidate scoring now uses weighted contributions and writes input_breakdown_json + rationale top-input summary. Routed trade reasons now include input rationale snippet for auditability.\n- Kaggle pipeline hardened: strict resolved binary ingest + safe default disabled + control keys wired into dashboard/execution.\n- Implemented 3-venue routing matrix (stocks/crypto/prediction), preferred venue execution guards, and venue readiness APIs. Independent audit completed with prioritized findings.\n- Integrated official polymarket CLI backend, fixed candidate status auto-reset, added edge unit normalization controls, and relaxed brittle funding check.\n\n## 22:01 PST - ClickHouse Migration Complete\n\n**Status:** ✅ Complete\n\n**Actions:**\n- Started ClickHouse server (v26.1.2.11)\n- Created `trader_curtis` database\n- Created 4 analytics tables with MergeTree engine\n- Migrated 107 rows from SQLite → ClickHouse\n\n**Migration Summary:**\n| Table | Rows |\n|-------|------|\n| trades | 44 |\n| route_outcomes | 50 |\n| source_learning_stats | 10 |\n| strategy_learning_stats | 3 |\n\n**Key Performance Metrics:**\n- Total P&L: +$293.49\n- Win Rate: 56% (28 wins / 22 losses)\n- Avg P&L per trade: +$5.87\n- Best Source: B_LONGTERM (80% win rate, $10.93 avg P&L)\n- Best Strategy: B_LONGTERM (80% win rate)\n\n**Report saved:** `logs/clickhouse_migration_report_2026-02-24.md`\n\n",
       "frontmatter": {},
       "links": [],
       "tags": [],
-      "modified": "2026-02-24T18:21:27.624Z"
+      "modified": "2026-02-25T06:05:43.067Z"
     },
     {
       "id": "memory/2026-02-23_compact",
@@ -1776,6 +1840,17 @@
       "links": [],
       "tags": [],
       "modified": "2026-02-24T18:21:27.135Z"
+    },
+    {
+      "id": "handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes",
+      "path": "/Users/Shared/curtis/trader-curtis/handoffs/handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes.md",
+      "category": "handoffs",
+      "title": "handoff-2026-02-24-polymarket-cli-wallet-edge-status-fixes",
+      "content": "# Handoff — 2026-02-24 — Polymarket CLI + Wallet/Edge/Status Fixes\n\n## Completed\n\n### 1) Polymarket CLI integration\n- Installed official CLI via Homebrew tap.\n- Added backend switch in execution controls:\n  - `polymarket_exec_backend` (`pyclob` | `cli`)\n- Added runner wrapper:\n  - `scripts/run_polymarket_exec.sh`\n- Updated scan orchestrator:\n  - `run-all-scans.sh` now calls wrapper.\n- `execution_polymarket.py` now supports live submit via CLI (`polymarket clob market-order`) when backend is `cli`.\n\n### 2) Wallet mismatch hardening\n- Added signer/funder normalization logic in `execution_polymarket.py`.\n- Behavior:\n  - If `POLY_FUNDER` missing -> auto-set to signer address.\n  - If `POLY_FUNDER` differs from signer -> warn only (do NOT overwrite), preserving proxy/API-wallet flows.\n\n### 3) Edge unit normalization fix\n- Added `polymarket_edge_unit_mode` control (`auto|pct|fraction|ratio`).\n- `_evaluate_candidate` now compares normalized edge percentage to `polymarket_min_edge_pct`.\n- Prevents threshold mismatch caused by mixed edge units.\n\n### 4) Candidate status reset fix\n- Blocked candidates are no longer force-overwritten to `blocked` every cycle.\n- Only `awaiting_approval` status is set when appropriate and lifecycle is still pending.\n- This preserves manual status workflows and avoids repeated auto-reset.\n\n### 5) Funding check brittleness fix\n- Added `polymarket_strict_funding_check` control.\n- In non-strict mode (`0`), funding check failures create `funding_warn` but do not hard-block live attempt.\n- This avoids false negatives when allowance APIs lag.\n\n### 6) Hyperliquid wallet mismatch behavior\n- In `execution_adapters.py`, removed forced account overwrite to signer address.\n- Keeps configured funded account if provided (important for approved API-wallet flow).\n\n## New/updated controls\n- `polymarket_exec_backend=cli`\n- `polymarket_strict_funding_check=0`\n- `polymarket_edge_unit_mode=auto`\n\n## Validation\n- `polymarket --version` works.\n- `polymarket clob ok` returns OK.\n- Python compile checks pass for modified modules.\n- Polymarket exec wrapper runs and resolves backend correctly.\n\n## Files changed\n- `execution_polymarket.py`\n- `execution_adapters.py`\n- `execution_guard.py`\n- `dashboard-ui/data.py`\n- `run-all-scans.sh`\n- `scripts/run_polymarket_exec.sh`\n- `docs/POLY-CLI-INTEGRATION.md`\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T22:40:35.298Z"
     },
     {
       "id": "handoffs/handoff-2026-02-24-kaggle-hardening",
@@ -1988,6 +2063,66 @@
       "modified": "2026-02-19T10:01:09.546Z"
     },
     {
+      "id": "decisions/use-alpaca-paper-api-for-testing",
+      "path": "/Users/Shared/curtis/trader-curtis/decisions/use-alpaca-paper-api-for-testing.md",
+      "category": "decisions",
+      "title": "Use Alpaca Paper API for testing",
+      "content": "Paper trading API at paper-api.alpaca.markets. Never connect to live trading without explicit Curtis approval.\n",
+      "frontmatter": {
+        "title": "Use Alpaca Paper API for testing",
+        "date": "2026-02-17",
+        "memoryType": "decision"
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-17T01:51:03.414Z"
+    },
+    {
+      "id": "decisions/redact-tool-results-for-orion-transcript-persistence",
+      "path": "/Users/Shared/curtis/trader-curtis/decisions/redact-tool-results-for-orion-transcript-persistence.md",
+      "category": "decisions",
+      "title": "Redact tool results for ORION transcript persistence",
+      "content": "\n",
+      "frontmatter": {
+        "title": "Redact tool results for ORION transcript persistence",
+        "date": "2026-02-20",
+        "memoryType": "decision"
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-20T00:02:08.016Z"
+    },
+    {
+      "id": "decisions/policy-alert-triggered-bessent-tariffs",
+      "path": "/Users/Shared/curtis/trader-curtis/decisions/policy-alert-triggered-bessent-tariffs.md",
+      "category": "decisions",
+      "title": "Policy alert triggered: Bessent tariffs",
+      "content": "Action: Detected tariff escalation rhetoric from Treasury Sec. Logged fact. Prepared alert for Curtis. Sectors to monitor: XLI, XLB, XLK, QQQ. No position changes recommended without Curtis input.\n",
+      "frontmatter": {
+        "title": "Policy alert triggered: Bessent tariffs",
+        "date": "2026-02-20",
+        "memoryType": "decision"
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-20T23:00:38.204Z"
+    },
+    {
+      "id": "decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod",
+      "path": "/Users/Shared/curtis/trader-curtis/decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod.md",
+      "category": "decisions",
+      "title": "Consolidated trader cron cadence to 4 core scans + EOD",
+      "content": "\n",
+      "frontmatter": {
+        "title": "Consolidated trader cron cadence to 4 core scans + EOD",
+        "date": "2026-02-24",
+        "memoryType": "decision"
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T16:45:51.442Z"
+    },
+    {
       "id": "docs/polymarket-integration-plan",
       "path": "/Users/Shared/curtis/trader-curtis/docs/polymarket-integration-plan.md",
       "category": "docs",
@@ -2076,6 +2211,17 @@
       "modified": "2026-02-24T16:06:35.002Z"
     },
     {
+      "id": "docs/POLY-CLI-INTEGRATION",
+      "path": "/Users/Shared/curtis/trader-curtis/docs/POLY-CLI-INTEGRATION.md",
+      "category": "docs",
+      "title": "POLY-CLI-INTEGRATION",
+      "content": "# Polymarket CLI Integration\n\n## Status\n- `polymarket` CLI installed via Homebrew (`polymarket 0.1.0` available at `/opt/homebrew/bin/polymarket`).\n- Execution backend is switchable through `execution_controls.polymarket_exec_backend`.\n\n## Backend Modes\n- `pyclob` (default legacy): uses `py_clob_client` from `execution_polymarket.py`.\n- `cli`: uses `polymarket clob market-order` for live submissions.\n\n## Runtime Control Keys\n- `polymarket_exec_backend`: `pyclob` or `cli`\n- `polymarket_strict_funding_check`: `0|1`\n- `polymarket_edge_unit_mode`: `auto|pct|fraction|ratio`\n\n## Current Wiring\n- `run-all-scans.sh` now calls `scripts/run_polymarket_exec.sh`.\n- `scripts/run_polymarket_exec.sh` reads backend control and invokes `execution_polymarket.py`.\n- `execution_polymarket.py` will use CLI submit path when:\n  - `polymarket_exec_backend=cli`\n  - live mode is enabled\n\n## Wallet Notes\n- If `POLY_FUNDER` and signer from `POLY_PRIVATE_KEY` differ, worker now logs warning and preserves configured funder (for proxy/API-wallet setups).\n- If `POLY_FUNDER` is missing, it is auto-filled from signer address.\n\n## Suggested CLI setup check\n```bash\npolymarket --version\npolymarket clob ok\n```\n\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T22:40:16.753Z"
+    },
+    {
       "id": "docs/KYLE-WILLIAMS-STRATEGY",
       "path": "/Users/Shared/curtis/trader-curtis/docs/KYLE-WILLIAMS-STRATEGY.md",
       "category": "docs",
@@ -2085,6 +2231,17 @@
       "links": [],
       "tags": [],
       "modified": "2026-02-24T15:52:23.499Z"
+    },
+    {
+      "id": "docs/KAGGLE-DATA-FIT-GUIDE",
+      "path": "/Users/Shared/curtis/trader-curtis/docs/KAGGLE-DATA-FIT-GUIDE.md",
+      "category": "docs",
+      "title": "KAGGLE-DATA-FIT-GUIDE",
+      "content": "# Kaggle Data Fit Guide (Stocks + Crypto + Prediction)\n\nUse Kaggle for **training and calibration**, not for live execution truth.\n\n## What fits your system\n\n1. `prediction markets` (highest value for your GRPO supervision)\n- Must have a market `question` and a resolved `outcome`.\n- Best if it includes `close/resolved time`.\n- Your ingest expects resolved binary outcomes (yes/no/up/down/long/short equivalents).\n\n2. `stocks OHLCV` (feature enrichment + regime learning)\n- Must include timestamp/date + open/high/low/close (+ volume preferred).\n- Works for feature engineering and non-live backfill.\n\n3. `crypto OHLCV` (same as stocks, separate regime)\n- Same schema as stocks.\n- Useful for venue-specific threshold tuning.\n\n## What to avoid\n\n1. Datasets with no resolved label\n- Good for exploration, not good for reward modeling.\n\n2. Blog/sentiment dumps without event timestamps\n- Hard to align with route outcomes.\n\n3. Synthetic/demo datasets\n- Can poison source weights and policy updates.\n\n## Selection checklist (pass/fail)\n\n1. Has event/market identity?\n2. Has timestamp or resolution time?\n3. Has resolved direction/label?\n4. Data history long enough (>6 months preferred)?\n5. License allows your usage?\n\nIf any of `1-3` fail, do not wire it into GRPO supervision.\n\n## Integration rule for your stack\n\n1. `pipeline_j_kaggle_polymarket.py` should only ingest resolved prediction rows into `polymarket_kaggle_markets`.\n2. Stocks/crypto Kaggle data should be treated as auxiliary feature data unless labeled outcomes are available and aligned.\n3. Keep Kaggle ingest gated daily; never let it run every cycle.\n\n## Recommended operating mode\n\n1. Start with one high-quality prediction dataset slug.\n2. Run for 1-2 weeks in shadow mode (`grpo_apply_weight_updates=0`).\n3. Promote only after realized outcome coverage and stability checks pass.\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T04:30:54.123Z"
     },
     {
       "id": "docs/JANUSQ-HGRM-GRPO-IMPLEMENTATION-BLUEPRINT",
@@ -2113,11 +2270,11 @@
       "path": "/Users/Shared/curtis/trader-curtis/docs/FREE-TRAINING-STACK-ROADMAP.md",
       "category": "docs",
       "title": "FREE-TRAINING-STACK-ROADMAP",
-      "content": "# Free Training Stack Roadmap (Actionable)\n\n## Objective\nUse free/open-source tools + datasets to improve trade decision quality and train with resolved outcomes.\n\n## Stack Priority (in order)\n1. Internal truth data first (already live)\n- `route_outcomes`, `route_feedback_features`, `polymarket_orders`, `execution_orders`\n- This is highest-quality label source for your own strategy.\n\n2. Polymarket historical dataset (Kaggle/API)\n- Use to expand yes/no event coverage.\n- Feed into `training/grpo/build_grpo_dataset.py --kaggle-file <path>`.\n\n3. Daily free source ingest (already added)\n- Pipeline I uses free feeds (Fed/BLS/EIA/SEC current filings) once daily.\n- Adds event context for candidate generation and later labeling.\n\n4. GRPO alignment loop (already added)\n- Weekly HGRM scoring + optional weight update.\n- Promote to active weight updates after realized sample threshold.\n\n## Repos to Evaluate (Free/Open)\n1. TradingAgents (multi-agent orchestration)\n- Best use: debate/risk manager layer for pre-trade reasoning only.\n\n2. FinGPT\n- Best use: event/news parsing and finance-specific language priors.\n\n3. Polymarket tool repos (MCP/alpha bots)\n- Best use: market discovery + liquidity/correlation features.\n\n4. Hyperliquid open bots\n- Best use: orderbook/microstructure feature extraction.\n\n## Integration Rule\nNew repos should feed signals/features into your existing DB + routing system.\nDo not let third-party agents place live orders directly.\n\n## Data/Training Cadence\n- Daily: ingest + route + execution + outcome reconciliation\n- Weekly: GRPO/HGRM alignment + dataset rebuild\n- Monthly: heavier model fine-tune run + promote only if metrics improve\n\n## Promotion Requirements\nBefore enabling policy influence:\n1. >=100 realized outcomes\n2. sample depth across venues/sources\n3. no regression on drawdown/accuracy metrics\n\n## Current Status\n- Training-mode override controls: added\n- Free-source daily ingestion cron: added\n- GRPO dataset builder: added\n- Weekly GRPO alignment job: added\n\n## Kaggle Autopull (Safe Setup)\nUse this only for **resolved prediction-market datasets**.\n\n1. Install CLI for runtime Python:\n- `/opt/homebrew/opt/python@3.11/bin/python3.11 -m pip install --user kaggle`\n\n2. Add Kaggle API credentials:\n- Place `kaggle.json` in `~/.kaggle/kaggle.json`\n- Set file mode to `600`\n\n3. Configure execution controls:\n- `kaggle_auto_pull_enabled=1`\n- `kaggle_poly_dataset_slug=<owner/dataset>`\n\n4. Test once:\n- `./scripts/run_kaggle_ingest.sh`\n\n5. Verify rows:\n- `sqlite3 data/trades.db \"SELECT COUNT(*) FROM polymarket_kaggle_markets;\"`\n\nNotes:\n- Ingestion is now strict and only accepts rows with a resolved binary outcome (`yes/no/up/down/long/short` equivalents) to prevent non-market dataset contamination.\n- Default state is `kaggle_auto_pull_enabled=0` until a valid dataset slug is set.\n",
+      "content": "# Free Training Stack Roadmap (Actionable)\n\n## Objective\nUse free/open-source tools + datasets to improve trade decision quality and train with resolved outcomes.\n\n## Stack Priority (in order)\n1. Internal truth data first (already live)\n- `route_outcomes`, `route_feedback_features`, `polymarket_orders`, `execution_orders`\n- This is highest-quality label source for your own strategy.\n\n2. Polymarket historical dataset (Kaggle/API)\n- Use to expand yes/no event coverage.\n- Feed into `training/grpo/build_grpo_dataset.py --kaggle-file <path>`.\n\n3. Daily free source ingest (already added)\n- Pipeline I uses free feeds (Fed/BLS/EIA/SEC current filings) once daily.\n- Adds event context for candidate generation and later labeling.\n\n4. GRPO alignment loop (already added)\n- Weekly HGRM scoring + optional weight update.\n- Promote to active weight updates after realized sample threshold.\n\n## Repos to Evaluate (Free/Open)\n1. TradingAgents (multi-agent orchestration)\n- Best use: debate/risk manager layer for pre-trade reasoning only.\n\n2. FinGPT\n- Best use: event/news parsing and finance-specific language priors.\n\n3. Polymarket tool repos (MCP/alpha bots)\n- Best use: market discovery + liquidity/correlation features.\n\n4. Hyperliquid open bots\n- Best use: orderbook/microstructure feature extraction.\n\n## Integration Rule\nNew repos should feed signals/features into your existing DB + routing system.\nDo not let third-party agents place live orders directly.\n\n## Data/Training Cadence\n- Daily: ingest + route + execution + outcome reconciliation\n- Weekly: GRPO/HGRM alignment + dataset rebuild\n- Monthly: heavier model fine-tune run + promote only if metrics improve\n\n## Promotion Requirements\nBefore enabling policy influence:\n1. >=100 realized outcomes\n2. sample depth across venues/sources\n3. no regression on drawdown/accuracy metrics\n\n## Current Status\n- Training-mode override controls: added\n- Free-source daily ingestion cron: added\n- GRPO dataset builder: added\n- Weekly GRPO alignment job: added\n\n## Kaggle Autopull (Safe Setup)\nUse this only for **resolved prediction-market datasets**.\n\n1. Install CLI for runtime Python:\n- `/opt/homebrew/opt/python@3.11/bin/python3.11 -m pip install --user kaggle`\n\n2. Add Kaggle API credentials:\n- Place `kaggle.json` in `~/.kaggle/kaggle.json`\n- Set file mode to `600`\n- Or set `KAGGLE_API_TOKEN` (env or keychain service `kaggle_api_token`)\n\n3. Configure execution controls:\n- `kaggle_auto_pull_enabled=1`\n- `kaggle_poly_dataset_slug=<owner/dataset>`\n- `kaggle_min_hours_between_runs=24`\n- `kaggle_daily_download_limit=1`\n- `kaggle_max_files_per_run=10`\n- `kaggle_max_rows_per_file=50000`\n\n4. Test once:\n- `./scripts/run_kaggle_ingest.sh`\n\n5. Verify rows:\n- `sqlite3 data/trades.db \"SELECT COUNT(*) FROM polymarket_kaggle_markets;\"`\n\nNotes:\n- Ingestion is now strict and only accepts rows with a resolved binary outcome (`yes/no/up/down/long/short` equivalents) to prevent non-market dataset contamination.\n- Default state is `kaggle_auto_pull_enabled=0` until a valid dataset slug is set.\n- `run-all-scans.sh` now calls `scripts/run_kaggle_ingest.sh`; the script enforces min-hours + daily limit gates so frequent intraday cycles do not exceed Kaggle API cadence.\n- Use `FORCE_KAGGLE_INGEST=1 ./scripts/run_kaggle_ingest.sh` only for manual backfill/testing.\n",
       "frontmatter": {},
       "links": [],
       "tags": [],
-      "modified": "2026-02-24T17:39:24.084Z"
+      "modified": "2026-02-25T07:04:20.697Z"
     },
     {
       "id": "docs/DASHBOARD-GUIDE-FOR-TEENS",
@@ -2438,75 +2595,15 @@
       "modified": "2026-02-17T01:51:00.833Z"
     },
     {
-      "id": "decisions/use-alpaca-paper-api-for-testing",
-      "path": "/Users/Shared/curtis/trader-curtis/decisions/use-alpaca-paper-api-for-testing.md",
-      "category": "decisions",
-      "title": "Use Alpaca Paper API for testing",
-      "content": "Paper trading API at paper-api.alpaca.markets. Never connect to live trading without explicit Curtis approval.\n",
-      "frontmatter": {
-        "title": "Use Alpaca Paper API for testing",
-        "date": "2026-02-17",
-        "memoryType": "decision"
-      },
-      "links": [],
-      "tags": [],
-      "modified": "2026-02-17T01:51:03.414Z"
-    },
-    {
-      "id": "decisions/redact-tool-results-for-orion-transcript-persistence",
-      "path": "/Users/Shared/curtis/trader-curtis/decisions/redact-tool-results-for-orion-transcript-persistence.md",
-      "category": "decisions",
-      "title": "Redact tool results for ORION transcript persistence",
-      "content": "\n",
-      "frontmatter": {
-        "title": "Redact tool results for ORION transcript persistence",
-        "date": "2026-02-20",
-        "memoryType": "decision"
-      },
-      "links": [],
-      "tags": [],
-      "modified": "2026-02-20T00:02:08.016Z"
-    },
-    {
-      "id": "decisions/policy-alert-triggered-bessent-tariffs",
-      "path": "/Users/Shared/curtis/trader-curtis/decisions/policy-alert-triggered-bessent-tariffs.md",
-      "category": "decisions",
-      "title": "Policy alert triggered: Bessent tariffs",
-      "content": "Action: Detected tariff escalation rhetoric from Treasury Sec. Logged fact. Prepared alert for Curtis. Sectors to monitor: XLI, XLB, XLK, QQQ. No position changes recommended without Curtis input.\n",
-      "frontmatter": {
-        "title": "Policy alert triggered: Bessent tariffs",
-        "date": "2026-02-20",
-        "memoryType": "decision"
-      },
-      "links": [],
-      "tags": [],
-      "modified": "2026-02-20T23:00:38.204Z"
-    },
-    {
-      "id": "decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod",
-      "path": "/Users/Shared/curtis/trader-curtis/decisions/consolidated-trader-cron-cadence-to-4-core-scans-eod.md",
-      "category": "decisions",
-      "title": "Consolidated trader cron cadence to 4 core scans + EOD",
-      "content": "\n",
-      "frontmatter": {
-        "title": "Consolidated trader cron cadence to 4 core scans + EOD",
-        "date": "2026-02-24",
-        "memoryType": "decision"
-      },
-      "links": [],
-      "tags": [],
-      "modified": "2026-02-24T16:45:51.442Z"
-    },
-    {
-      "id": "dashboard-ui/README",
-      "path": "/Users/Shared/curtis/trader-curtis/dashboard-ui/README.md",
-      "category": "dashboard-ui",
-      "title": "README",
-      "content": "# Trader Curtis Dashboard (Local)\n\n## Run\n```bash\ncd /Users/Shared/curtis/trader-curtis/dashboard-ui\npython3 -m venv .venv\n. .venv/bin/activate\npip install -r requirements.txt\npython app.py\n```\n\nOpen: http://127.0.0.1:8090\n\n## Data Sources\n- Trades + patterns: `/Users/Shared/curtis/trader-curtis/data/trades.db`\n- X bookmarks: `/Users/Shared/curtis/trader-curtis/docs/x-bookmarks.json`\n\n## Add external signal from X/link\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./add_external_signal.py \\\n  --source ZenomTrader \\\n  --url \"https://x.com/ZenomTrader/status/2025198060536578298\" \\\n  --ticker BTC \\\n  --direction long \\\n  --confidence 0.68 \\\n  --notes \"Imported from external strategy link\"\n```\n\nThis populates `external_signals` in `data/trades.db` and appears in dashboard panels:\n- `External Signals`\n- `Top Candidates`\n\n## Build Candidate Queue\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./generate_trade_candidates.py\n```\n\nThis writes normalized candidates to `trade_candidates` and the dashboard will read from that table first.\n\n## Route Candidates Through Risk Guard\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./signal_router.py --mode paper --limit 12 --notional 100\n```\n\nThis writes `signal_routes` and `risk_events` tables and powers dashboard panels:\n- `Risk Controls`\n- `Signal Routes`\n\n## Ingest X Bookmarks Into Thesis Queue (Pipeline D)\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./pipeline_d_bookmarks.py\n```\n\nThis writes `bookmark_theses` and powers dashboard panel:\n- `Bookmark Theses`\n\n## Run Multi-Pipeline Stack\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./run-all-scans.sh\n```\n\nThis now includes:\n- Pipeline A: liquidity scalp signals\n- Pipeline B: long-term innovation signals\n- Pipeline C: event/geopolitical signals\n- Pipeline D: bookmark thesis ingestion\n- Execution worker (paper queue consumer)\n- Source reliability scoring\n- Structured event alerts mapped from playbooks\n",
+      "id": "clickhouse_migration/migration_report",
+      "path": "/Users/Shared/curtis/trader-curtis/clickhouse_migration/migration_report.md",
+      "category": "clickhouse_migration",
+      "title": "migration_report",
+      "content": "# ClickHouse Migration Report\nGenerated: 2026-02-23 22:05 PST\n\n## Summary\n✅ ClickHouse server started (v26.1.2.11)\n✅ Tables created successfully\n✅ Data migrated from SQLite\n\n## Migration Results\n\n### Tables Created\n- source_outcomes\n- trades\n- pipeline_signals\n- source_learning_stats\n- route_outcomes\n- execution_learning\n- polymarket_markets\n- signal_routes\n\n### Data Migrated\n| Table | Records | Status |\n|-------|---------|--------|\n| trades | 37 | ✅ Complete |\n| pipeline_signals | 1,215 | ✅ Complete |\n| route_outcomes | 9 | ✅ Complete |\n| source_learning_stats | 0 | ℹ️ No data |\n\n## Analytics Results\n\n### Trades Summary\n- **Total Trades:** 37\n- **Open Positions:** 33\n- **Unique Tickers:** 13\n- **Avg Entry Price (Open):** $501.73\n- **Most Active Ticker:** NVDA (9 trades)\n\n### Top Holdings by Trade Count\n1. NVDA - 9 trades @ avg $191.51\n2. ASML - 6 trades @ avg $1,472\n3. TSM - 5 trades @ avg $366.68\n4. ISRG - 5 trades @ avg $498.88\n5. CRSP - 3 trades @ avg $52.21\n\n### Pipeline Signals Summary\n- **Total Signals:** 1,215\n- **Long Signals:** 1,075 (avg confidence: 0.59)\n- **Short Signals:** 140 (avg confidence: 0.73)\n\n### Top Signal Tickers\n1. ISRG - 70 signals (avg conf: 0.57)\n2. ASML - 67 signals (avg conf: 0.61)\n3. NVDA - 62 signals (avg conf: 0.67)\n4. CRSP - 61 signals (avg conf: 0.54)\n5. TSM - 56 signals (avg conf: 0.60)\n\n### Signal Date Range\n- First signals: 2026-02-22\n- Latest signals: 2026-02-23\n\n## ClickHouse Server Info\n- Version: 26.1.2.11\n- HTTP Port: 8123\n- TCP Port: 9000\n- Data Directory: ./clickhouse_data\n\n## Performance Metrics Queries Available\n```sql\n-- Trade status breakdown\nSELECT status, count(), avg(entry_price) FROM trades GROUP BY status;\n\n-- Signal confidence by direction\nSELECT direction, avg(confidence), count() FROM pipeline_signals GROUP BY direction;\n\n-- Ticker activity summary\nSELECT ticker, count(), min(created_at), max(created_at) \nFROM pipeline_signals GROUP BY ticker ORDER BY count() DESC;\n```\n",
       "frontmatter": {},
       "links": [],
       "tags": [],
-      "modified": "2026-02-22T21:13:00.810Z"
+      "modified": "2026-02-24T06:06:59.897Z"
     },
     {
       "id": "commitments/no-entries-after-10-daily-move",
@@ -2569,15 +2666,169 @@
       "modified": "2026-02-17T01:50:58.270Z"
     },
     {
-      "id": "clickhouse_migration/migration_report",
-      "path": "/Users/Shared/curtis/trader-curtis/clickhouse_migration/migration_report.md",
-      "category": "clickhouse_migration",
-      "title": "migration_report",
-      "content": "# ClickHouse Migration Report\nGenerated: 2026-02-23 22:05 PST\n\n## Summary\n✅ ClickHouse server started (v26.1.2.11)\n✅ Tables created successfully\n✅ Data migrated from SQLite\n\n## Migration Results\n\n### Tables Created\n- source_outcomes\n- trades\n- pipeline_signals\n- source_learning_stats\n- route_outcomes\n- execution_learning\n- polymarket_markets\n- signal_routes\n\n### Data Migrated\n| Table | Records | Status |\n|-------|---------|--------|\n| trades | 37 | ✅ Complete |\n| pipeline_signals | 1,215 | ✅ Complete |\n| route_outcomes | 9 | ✅ Complete |\n| source_learning_stats | 0 | ℹ️ No data |\n\n## Analytics Results\n\n### Trades Summary\n- **Total Trades:** 37\n- **Open Positions:** 33\n- **Unique Tickers:** 13\n- **Avg Entry Price (Open):** $501.73\n- **Most Active Ticker:** NVDA (9 trades)\n\n### Top Holdings by Trade Count\n1. NVDA - 9 trades @ avg $191.51\n2. ASML - 6 trades @ avg $1,472\n3. TSM - 5 trades @ avg $366.68\n4. ISRG - 5 trades @ avg $498.88\n5. CRSP - 3 trades @ avg $52.21\n\n### Pipeline Signals Summary\n- **Total Signals:** 1,215\n- **Long Signals:** 1,075 (avg confidence: 0.59)\n- **Short Signals:** 140 (avg confidence: 0.73)\n\n### Top Signal Tickers\n1. ISRG - 70 signals (avg conf: 0.57)\n2. ASML - 67 signals (avg conf: 0.61)\n3. NVDA - 62 signals (avg conf: 0.67)\n4. CRSP - 61 signals (avg conf: 0.54)\n5. TSM - 56 signals (avg conf: 0.60)\n\n### Signal Date Range\n- First signals: 2026-02-22\n- Latest signals: 2026-02-23\n\n## ClickHouse Server Info\n- Version: 26.1.2.11\n- HTTP Port: 8123\n- TCP Port: 9000\n- Data Directory: ./clickhouse_data\n\n## Performance Metrics Queries Available\n```sql\n-- Trade status breakdown\nSELECT status, count(), avg(entry_price) FROM trades GROUP BY status;\n\n-- Signal confidence by direction\nSELECT direction, avg(confidence), count() FROM pipeline_signals GROUP BY direction;\n\n-- Ticker activity summary\nSELECT ticker, count(), min(created_at), max(created_at) \nFROM pipeline_signals GROUP BY ticker ORDER BY count() DESC;\n```\n",
+      "id": "dashboard-ui/README",
+      "path": "/Users/Shared/curtis/trader-curtis/dashboard-ui/README.md",
+      "category": "dashboard-ui",
+      "title": "README",
+      "content": "# Trader Curtis Dashboard (Local)\n\n## Run\n```bash\ncd /Users/Shared/curtis/trader-curtis/dashboard-ui\npython3 -m venv .venv\n. .venv/bin/activate\npip install -r requirements.txt\npython app.py\n```\n\nOpen: http://127.0.0.1:8090\n\n## Data Sources\n- Trades + patterns: `/Users/Shared/curtis/trader-curtis/data/trades.db`\n- X bookmarks: `/Users/Shared/curtis/trader-curtis/docs/x-bookmarks.json`\n\n## Add external signal from X/link\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./add_external_signal.py \\\n  --source ZenomTrader \\\n  --url \"https://x.com/ZenomTrader/status/2025198060536578298\" \\\n  --ticker BTC \\\n  --direction long \\\n  --confidence 0.68 \\\n  --notes \"Imported from external strategy link\"\n```\n\nThis populates `external_signals` in `data/trades.db` and appears in dashboard panels:\n- `External Signals`\n- `Top Candidates`\n\n## Build Candidate Queue\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./generate_trade_candidates.py\n```\n\nThis writes normalized candidates to `trade_candidates` and the dashboard will read from that table first.\n\n## Route Candidates Through Risk Guard\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./signal_router.py --mode paper --limit 12 --notional 100\n```\n\nThis writes `signal_routes` and `risk_events` tables and powers dashboard panels:\n- `Risk Controls`\n- `Signal Routes`\n\n## Ingest X Bookmarks Into Thesis Queue (Pipeline D)\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./pipeline_d_bookmarks.py\n```\n\nThis writes `bookmark_theses` and powers dashboard panel:\n- `Bookmark Theses`\n\n## Run Multi-Pipeline Stack\n```bash\ncd /Users/Shared/curtis/trader-curtis\n./run-all-scans.sh\n```\n\nThis now includes:\n- Pipeline A: liquidity scalp signals\n- Pipeline B: long-term innovation signals\n- Pipeline C: event/geopolitical signals\n- Pipeline D: bookmark thesis ingestion\n- Execution worker (paper queue consumer)\n- Source reliability scoring\n- Structured event alerts mapped from playbooks\n",
       "frontmatter": {},
       "links": [],
       "tags": [],
-      "modified": "2026-02-24T06:06:59.897Z"
+      "modified": "2026-02-22T21:13:00.810Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260225-105035",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260225-105035.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260225-105035",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-25 10:50 PST\nSource: Bessent\nImpact Score: 50/50\n\nKeywords Detected: tariff, tariffs, treasury, yield, dollar, gold\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI have conducted a web search for statements made by Treasury Secretary Scott Bessent (assuming this is the intended individual, as there is no widely recognized Treasury Secretary by the name \"Bessent\" in current records; Scott Bessent is a notable hedge fund manager and economic commentator who has been mentioned in connection with potential Treasury roles under a Trump administration). Since th...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T18:50:35.510Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260225-105025",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260225-105025.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260225-105025",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-25 10:50 PST\nSource: Trump\nImpact Score: 79/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, bitcoin, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI've conducted a search for recent posts or statements by Donald Trump in the last hour regarding the specified topics (tariffs, China, trade war; Treasury, yields, dollar; gold, oil, bitcoin) on platforms like Truth Social and X (formerly Twitter), as well as news outlets that might report his statements in real-time. As of the current time, there are no verifiable posts or statements from Trump ...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T18:50:25.400Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260225-075034",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260225-075034.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260225-075034",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-25 07:50 PST\nSource: Bessent\nImpact Score: 50/50\n\nKeywords Detected: tariff, tariffs, treasury, yield, dollar, gold\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI have conducted a web search for statements by Treasury Secretary Scott Bessent (assuming this refers to a current or potential Treasury Secretary, as Scott Bessent has been mentioned in connection with such a role under a potential Trump administration as of recent news). However, I must clarify that as of the latest available data, Scott Bessent is not the current U.S. Treasury Secretary (Janet...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T15:50:34.877Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260225-075024",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260225-075024.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260225-075024",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-25 07:50 PST\nSource: Trump\nImpact Score: 79/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, bitcoin, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI've conducted a search for recent posts or statements by Donald Trump in the last hour regarding the specified topics: Tariffs/China/Trade War, Treasury/Yields/Dollar, and Gold/Oil/Bitcoin. I checked platforms like Truth Social and X (formerly Twitter), as well as news outlets for any breaking statements. Below are the results based on the most current data available as of my search time.\n\n**Sear...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T15:50:25.000Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260225-055035",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260225-055035.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260225-055035",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-25 05:50 PST\nSource: Bessent\nImpact Score: 50/50\n\nKeywords Detected: tariff, tariffs, treasury, yield, dollar, gold\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI'm conducting a search for statements made by Treasury Secretary nominee Scott Bessent (as of recent reports, he is not yet confirmed as Treasury Secretary) within the last hour regarding treasury yields, bonds, the Federal Reserve, dollar strength/weakness, gold, and commodities. Please note that my search capabilities are limited to publicly available data up to my cutoff in April 2023, supplem...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T13:50:35.837Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260225-055025",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260225-055025.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260225-055025",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-25 05:50 PST\nSource: Trump\nImpact Score: 84/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, bitcoin, crypto, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI’ve conducted a search for recent posts or statements by Donald Trump within the last hour regarding the specified topics (tariffs, China, trade war; Treasury, yields, dollar; gold, oil, bitcoin) using available web and social media sources. As of the current time, there are no verifiable posts or statements from Trump on platforms like Truth Social or X (formerly Twitter) within the last hour th...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-25T13:50:25.531Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-134556",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-134556.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-134556",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 13:45 PST\nSource: Bessent\nImpact Score: 58/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI'm conducting a search for any recent statements by Treasury Secretary Scott Bessent (assuming this is the intended individual, as there is no widely recognized Treasury Secretary by the name \"Bessent\" currently in office; Scott Bessent is a prominent hedge fund manager and economic commentator who has been mentioned in relation to potential Treasury roles under a Trump administration). Since my ...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T21:45:56.962Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-134544",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-134544.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-134544",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 13:45 PST\nSource: Trump\nImpact Score: 79/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, bitcoin, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI’ve conducted a search for recent posts or statements by Donald Trump in the last hour regarding the specified topics (tariffs, China, trade war; Treasury, yields, dollar; gold, oil, bitcoin) using available web and social media sources. Below are the findings based on the most recent data accessible as of my cutoff time. Since real-time data beyond my cutoff (April 2023) isn't directly available...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T21:45:44.973Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-125052",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-125052.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-125052",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 12:50 PST\nSource: Bessent\nImpact Score: 74/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI'm unable to find any statements from Treasury Secretary Scott Bessent within the last hour, as there is no current record of a Treasury Secretary by that name. I believe you might be referring to Scott Bessent, a hedge fund manager and potential candidate for Treasury Secretary under a future administration, as reported in recent news. However, Janet Yellen is the current U.S. Treasury Secretary...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T20:50:52.623Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-125029",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-125029.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-125029",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 12:50 PST\nSource: Trump\nImpact Score: 79/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, bitcoin, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI've conducted a search for recent posts or statements by Donald Trump in the last hour regarding the specified topics (tariffs, China, trade war; treasury, yields, dollar; gold, oil, bitcoin) across platforms like Truth Social and X, as well as news sources for any reported statements. As of the current time, there are no verifiable posts or statements from Donald Trump in the last hour directly ...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T20:50:29.493Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-105622",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-105622.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-105622",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 10:56 PST\nSource: Bessent\nImpact Score: 74/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI have conducted a web search for statements by Treasury Secretary Scott Bessent from the last hour regarding treasury yields, bonds, the Federal Reserve, dollar strength/weakness, and gold or commodities. However, I must clarify that Scott Bessent is not the current U.S. Treasury Secretary; Janet Yellen currently holds that position. Scott Bessent is a hedge fund manager and has been mentioned as...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T18:56:22.623Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-105604",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-105604.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-105604",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 10:56 PST\nSource: Trump\nImpact Score: 84/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, bitcoin, crypto, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI’ve conducted a search for recent posts or statements by Donald Trump in the last hour regarding the specified topics (tariffs, China, trade war; Treasury, yields, dollar; gold, oil, bitcoin) across news outlets and social media platforms like Truth Social and X. As of the current time, there are no verifiable posts or statements from Trump within the last hour on these subjects. Below is a summa...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T18:56:04.288Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-105108",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-105108.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-105108",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 10:51 PST\nSource: Bessent\nImpact Score: 74/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI'm unable to find any statements from a Treasury Secretary named Bessent in the last hour, as there is no record of a current or recent U.S. Treasury Secretary by that name. However, I believe you might be referring to Scott Bessent, a hedge fund manager and economic advisor who has been mentioned as a potential candidate for Treasury Secretary in a future administration, particularly in relation...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T18:51:08.543Z"
+    },
+    {
+      "id": "alerts/political-CRITICAL-20260224-105044",
+      "path": "/Users/Shared/curtis/trader-curtis/alerts/political-CRITICAL-20260224-105044.md",
+      "category": "alerts",
+      "title": "political-CRITICAL-20260224-105044",
+      "content": "\n🔥 POLITICAL ALPHA ALERT - CRITICAL\nTime: 2026-02-24 10:50 PST\nSource: Trump\nImpact Score: 84/50\n\nKeywords Detected: tariff, tariffs, china, treasury, yield, dollar, gold, oil, bitcoin, crypto, trade war\n\nSources Checked:\n- Grok web search: ✓ Found\n- Brave news: ✓ Found\n- Reddit chatter: ✗ No discussion\n\n\nGrok Summary:\nI've conducted a search for recent posts or statements by Donald Trump in the last hour regarding the specified topics: tariffs, China, trade war; Treasury, yields, dollar; and gold, oil, bitcoin. I checked platforms like Truth Social and X (formerly Twitter), as well as recent news articles for any direct quotes or statements. Below are the findings based on the most current data available as of ...\n\nSuggested Actions:\n- Check affected sector ETFs\n- Review positions in related tickers\n- Monitor for follow-up statements\n- Consider hedging if high conviction\n",
+      "frontmatter": {},
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-24T18:50:44.764Z"
     },
     {
       "id": "alerts/political-CRITICAL-20260224-084256",
@@ -3244,25 +3495,22 @@
       "path": "/Users/Shared/curtis/trader-curtis/training/grpo/README.md",
       "category": "training",
       "title": "README",
-      "content": "# GRPO Training Stack (Trader Curtis)\n\n## Goal\nTrain/alignment loop using resolved outcomes:\n1. ingest data (Polymarket + internal outcomes + market data)\n2. build prompt/reward groups\n3. run GRPO training locally (MLX) or Colab (Unsloth)\n4. validate and feed back to route/input weights\n\n## Data Inputs\n- Internal: `data/trades.db` tables (`route_outcomes`, `route_feedback_features`, `polymarket_candidates`, `polymarket_orders`)\n- External: Polymarket Kaggle export CSV/JSON (optional)\n- Optional: Hyperliquid snapshots + stock market context\n\n## Scripts\n- `training/grpo/build_grpo_dataset.py`\n  - Builds grouped training dataset from internal + optional external files.\n- `scripts/run_grpo_alignment.sh`\n  - Runs weekly HGRM alignment in shadow/live-weight-update mode.\n\n## Output Artifacts\n- `datasets/grpo_train.jsonl`\n- `datasets/grpo_eval.jsonl`\n- `datasets/grpo_summary.json`\n\n## Recommended Cadence\n- Daily: collect data + outcomes.\n- Weekly: build dataset + alignment.\n- Monthly: heavy model fine-tune run and promotion check.\n",
+      "content": "# GRPO Training Stack (Trader Curtis)\n\n## Goal\nTrain/alignment loop using resolved outcomes:\n1. ingest data (Polymarket + internal outcomes + market data)\n2. build prompt/reward groups\n3. run GRPO training locally (MLX) or Colab (Unsloth)\n4. validate and feed back to route/input weights\n\n## Data Inputs\n- Internal: `data/trades.db` tables (`route_outcomes`, `route_feedback_features`, `polymarket_candidates`, `polymarket_orders`)\n- External: Polymarket Kaggle export CSV/JSON (optional)\n- Optional: Hyperliquid snapshots + stock market context\n- Current Kaggle baseline slug: `dhruvgup/polymarket-closed-2025-markets-7-day-price-history`\n\n## Outcome Truth Policy\n- Ground truth for model promotion/live-weight updates: `route_outcomes` where `outcome_type='realized'`.\n- Fast feedback/proxy labels: `route_outcomes` where `outcome_type='operational'`.\n- Multi-timeframe counterfactual scoring (scalp/week/month/quarter): `route_outcomes_horizons`.\n\n## Scripts\n- `training/grpo/build_grpo_dataset.py`\n  - Builds grouped training dataset from internal + optional external files.\n- `training/grpo/build_mlx_lora_dataset.py`\n  - Converts GRPO artifacts into MLX LoRA format (`prompt/completion` JSONL).\n- `scripts/run_grpo_alignment.sh`\n  - Runs weekly HGRM alignment in shadow/live-weight-update mode.\n- `scripts/run_mlx_grpo_train.sh`\n  - Daily-gated MLX LoRA trainer (enabled via `execution_controls`).\n  - Runs as isolated background workload (separate from OpenClaw trading cycle).\n- `scripts/grpo_readiness_gate.sh`\n  - Enforces readiness thresholds before enabling live GRPO weight updates.\n\n## Output Artifacts\n- `datasets/grpo_train.jsonl`\n- `datasets/grpo_eval.jsonl`\n- `datasets/grpo_summary.json`\n- `datasets/mlx_grpo_lora/train.jsonl`\n- `datasets/mlx_grpo_lora/valid.jsonl`\n- `datasets/mlx_grpo_lora/test.jsonl`\n- `datasets/mlx_grpo_lora/summary.json`\n\n## Recommended Cadence\n- Daily: collect data + outcomes.\n- Daily: Kaggle ingest + optional MLX LoRA train pass (24h gated).\n- Weekly: alignment pass and policy review.\n- Monthly: heavy model fine-tune run and promotion check.\n\n## MLX Enablement Controls\n- `grpo_mlx_train_enabled=1`\n- `grpo_mlx_base_model=mlx-community/Qwen2.5-7B-Instruct-4bit`\n- `grpo_mlx_min_hours_between_runs=24`\n- `grpo_mlx_daily_train_limit=1`\n- `grpo_mlx_min_train_rows=40`\n\nRuntime keys:\n- `runtime:grpo_mlx_last_train_utc`\n- `runtime:grpo_mlx_last_status`\n- `runtime:grpo_mlx_last_model`\n",
       "frontmatter": {},
       "links": [],
       "tags": [],
-      "modified": "2026-02-24T17:13:36.159Z"
+      "modified": "2026-02-25T15:38:33.349Z"
     },
     {
-      "id": "skills/strategic-compact/SKILL",
-      "path": "/Users/Shared/curtis/trader-curtis/skills/strategic-compact/SKILL.md",
-      "category": "skills",
-      "title": "SKILL",
-      "content": "\n# Strategic Compact Skill\n\nSuggests manual `/compact` at strategic points in your workflow rather than relying on arbitrary auto-compaction.\n\n## Why Strategic Compaction?\n\nAuto-compaction triggers at arbitrary points:\n- Often mid-task, losing important context\n- No awareness of logical task boundaries\n- Can interrupt complex multi-step operations\n\nStrategic compaction at logical boundaries:\n- **After exploration, before execution** - Compact research context, keep implementation plan\n- **After completing a milestone** - Fresh start for next phase\n- **Before major context shifts** - Clear exploration context before different task\n\n## How It Works\n\nThe `suggest-compact.sh` script runs on PreToolUse (Edit/Write) and:\n\n1. **Tracks tool calls** - Counts tool invocations in session\n2. **Threshold detection** - Suggests at configurable threshold (default: 50 calls)\n3. **Periodic reminders** - Reminds every 25 calls after threshold\n\n## Hook Setup\n\nAdd to your `~/.claude/settings.json`:\n\n```json\n{\n  \"hooks\": {\n    \"PreToolUse\": [{\n      \"matcher\": \"tool == \\\"Edit\\\" || tool == \\\"Write\\\"\",\n      \"hooks\": [{\n        \"type\": \"command\",\n        \"command\": \"~/.claude/skills/strategic-compact/suggest-compact.sh\"\n      }]\n    }]\n  }\n}\n```\n\n## Configuration\n\nEnvironment variables:\n- `COMPACT_THRESHOLD` - Tool calls before first suggestion (default: 50)\n\n## Best Practices\n\n1. **Compact after planning** - Once plan is finalized, compact to start fresh\n2. **Compact after debugging** - Clear error-resolution context before continuing\n3. **Don't compact mid-implementation** - Preserve context for related changes\n4. **Read the suggestion** - The hook tells you *when*, you decide *if*\n\n## Related\n\n- [The Longform Guide](https://x.com/affaanmustafa/status/2014040193557471352) - Token optimization section\n- Memory persistence hooks - For state that survives compaction\n",
-      "frontmatter": {
-        "name": "strategic-compact",
-        "description": "Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction."
-      },
+      "id": "vendor/polymarket-cli/README",
+      "path": "/Users/Shared/curtis/trader-curtis/vendor/polymarket-cli/README.md",
+      "category": "vendor",
+      "title": "README",
+      "content": "# Polymarket CLI\n\nRust CLI for Polymarket. Browse markets, place orders, manage positions, and interact with onchain contracts — from a terminal or as a JSON API for scripts and agents.\n\n> **Warning:** This is early, experimental software. Use at your own risk and do not use with large amounts of funds. APIs, commands, and behavior may change without notice. Always verify transactions before confirming.\n\n## Install\n\n### Homebrew (macOS / Linux)\n\n```bash\nbrew tap Polymarket/polymarket-cli https://github.com/Polymarket/polymarket-cli\nbrew install polymarket\n```\n\n### Shell script\n\n```bash\ncurl -sSL https://raw.githubusercontent.com/Polymarket/polymarket-cli/main/install.sh | sh\n```\n\n### Build from source\n\n```bash\ngit clone https://github.com/Polymarket/polymarket-cli\ncd polymarket-cli\ncargo install --path .\n```\n\n## Quick Start\n\n```bash\n# No wallet needed — browse markets immediately\npolymarket markets list --limit 5\npolymarket markets search \"election\"\npolymarket events list --tag politics\n\n# Check a specific market\npolymarket markets get will-trump-win-the-2024-election\n\n# JSON output for scripts\npolymarket -o json markets list --limit 3\n```\n\nTo trade, set up a wallet:\n\n```bash\npolymarket setup\n# Or manually:\npolymarket wallet create\npolymarket approve set\n```\n\n## Configuration\n\n### Wallet Setup\n\nThe CLI needs a private key to sign orders and on-chain transactions. Three ways to provide it (checked in this order):\n\n1. **CLI flag**: `--private-key 0xabc...`\n2. **Environment variable**: `POLYMARKET_PRIVATE_KEY=0xabc...`\n3. **Config file**: `~/.config/polymarket/config.json`\n\n```bash\n# Create a new wallet (generates random key, saves to config)\npolymarket wallet create\n\n# Import an existing key\npolymarket wallet import 0xabc123...\n\n# Check what's configured\npolymarket wallet show\n```\n\nThe config file (`~/.config/polymarket/config.json`):\n\n```json\n{\n  \"private_key\": \"0x...\",\n  \"chain_id\": 137,\n  \"signature_type\": \"proxy\"\n}\n```\n\n### Signature Types\n\n- `proxy` (default) — uses Polymarket's proxy wallet system\n- `eoa` — signs directly with your key\n- `gnosis-safe` — for multisig wallets\n\nOverride per-command with `--signature-type eoa` or via `POLYMARKET_SIGNATURE_TYPE`.\n\n### What Needs a Wallet\n\nMost commands work without a wallet — browsing markets, viewing order books, checking prices. You only need a wallet for:\n\n- Placing and canceling orders (`clob create-order`, `clob market-order`, `clob cancel-*`)\n- Checking your balances and trades (`clob balance`, `clob trades`, `clob orders`)\n- On-chain operations (`approve set`, `ctf split/merge/redeem`)\n- Reward and API key management (`clob rewards`, `clob create-api-key`)\n\n## Output Formats\n\nEvery command supports `--output table` (default) and `--output json`.\n\n```bash\n# Human-readable table (default)\npolymarket markets list --limit 2\n```\n\n```\n Question                            Price (Yes)  Volume   Liquidity  Status\n Will Trump win the 2024 election?   52.00¢       $145.2M  $1.2M      Active\n Will BTC hit $100k by Dec 2024?     67.30¢       $89.4M   $430.5K    Active\n```\n\n```bash\n# Machine-readable JSON\npolymarket -o json markets list --limit 2\n```\n\n```json\n[\n  { \"id\": \"12345\", \"question\": \"Will Trump win the 2024 election?\", \"outcomePrices\": [\"0.52\", \"0.48\"], ... },\n  { \"id\": \"67890\", \"question\": \"Will BTC hit $100k by Dec 2024?\", ... }\n]\n```\n\nShort form: `-o json` or `-o table`.\n\nErrors follow the same pattern — table mode prints `Error: ...` to stderr, JSON mode prints `{\"error\": \"...\"}` to stdout. Non-zero exit code either way.\n\n## Commands\n\n### Markets\n\n```bash\n# List markets with filters\npolymarket markets list --limit 10\npolymarket markets list --active true --order volume_num\npolymarket markets list --closed false --limit 50 --offset 25\n\n# Get a single market by ID or slug\npolymarket markets get 12345\npolymarket markets get will-trump-win\n\n# Search\npolymarket markets search \"bitcoin\" --limit 5\n\n# Get tags for a market\npolymarket markets tags 12345\n```\n\n**Flags for `markets list`**: `--limit`, `--offset`, `--order`, `--ascending`, `--active`, `--closed`\n\n### Events\n\nEvents group related markets (e.g. \"2024 Election\" contains multiple yes/no markets).\n\n```bash\npolymarket events list --limit 10\npolymarket events list --tag politics --active true\npolymarket events get 500\npolymarket events tags 500\n```\n\n**Flags for `events list`**: `--limit`, `--offset`, `--order`, `--ascending`, `--active`, `--closed`, `--tag`\n\n### Tags, Series, Comments, Profiles, Sports\n\n```bash\n# Tags\npolymarket tags list\npolymarket tags get politics\npolymarket tags related politics\npolymarket tags related-tags politics\n\n# Series (recurring events)\npolymarket series list --limit 10\npolymarket series get 42\n\n# Comments on an entity\npolymarket comments list --entity-type event --entity-id 500\npolymarket comments get abc123\npolymarket comments by-user 0xf5E6...\n\n# Public profiles\npolymarket profiles get 0xf5E6...\n\n# Sports metadata\npolymarket sports list\npolymarket sports market-types\npolymarket sports teams --league NFL --limit 32\n```\n\n### Order Book & Prices (CLOB)\n\nAll read-only — no wallet needed.\n\n```bash\n# Check API health\npolymarket clob ok\n\n# Prices\npolymarket clob price 48331043336612883... --side buy\npolymarket clob midpoint 48331043336612883...\npolymarket clob spread 48331043336612883...\n\n# Batch queries (comma-separated token IDs)\npolymarket clob batch-prices \"TOKEN1,TOKEN2\" --side buy\npolymarket clob midpoints \"TOKEN1,TOKEN2\"\npolymarket clob spreads \"TOKEN1,TOKEN2\"\n\n# Order book\npolymarket clob book 48331043336612883...\npolymarket clob books \"TOKEN1,TOKEN2\"\n\n# Last trade\npolymarket clob last-trade 48331043336612883...\n\n# Market info\npolymarket clob market 0xABC123...  # by condition ID\npolymarket clob markets             # list all\n\n# Price history\npolymarket clob price-history 48331043336612883... --interval 1d --fidelity 30\n\n# Metadata\npolymarket clob tick-size 48331043336612883...\npolymarket clob fee-rate 48331043336612883...\npolymarket clob neg-risk 48331043336612883...\npolymarket clob time\npolymarket clob geoblock\n```\n\n**Interval options for `price-history`**: `1m`, `1h`, `6h`, `1d`, `1w`, `max`\n\n### Trading (CLOB, authenticated)\n\nRequires a configured wallet.\n\n```bash\n# Place a limit order (buy 10 shares at $0.50)\npolymarket clob create-order \\\n  --token 48331043336612883... \\\n  --side buy --price 0.50 --size 10\n\n# Place a market order (buy $5 worth)\npolymarket clob market-order \\\n  --token 48331043336612883... \\\n  --side buy --amount 5\n\n# Post multiple orders at once\npolymarket clob post-orders \\\n  --tokens \"TOKEN1,TOKEN2\" \\\n  --side buy \\\n  --prices \"0.40,0.60\" \\\n  --sizes \"10,10\"\n\n# Cancel\npolymarket clob cancel ORDER_ID\npolymarket clob cancel-orders \"ORDER1,ORDER2\"\npolymarket clob cancel-market --market 0xCONDITION...\npolymarket clob cancel-all\n\n# View your orders and trades\npolymarket clob orders\npolymarket clob orders --market 0xCONDITION...\npolymarket clob order ORDER_ID\npolymarket clob trades\n\n# Check balances\npolymarket clob balance --asset-type collateral\npolymarket clob balance --asset-type conditional --token 48331043336612883...\npolymarket clob update-balance --asset-type collateral\n```\n\n**Order types**: `GTC` (default), `FOK`, `GTD`, `FAK`. Add `--post-only` for limit orders.\n\n### Rewards & API Keys (CLOB, authenticated)\n\n```bash\npolymarket clob rewards --date 2024-06-15\npolymarket clob earnings --date 2024-06-15\npolymarket clob earnings-markets --date 2024-06-15\npolymarket clob reward-percentages\npolymarket clob current-rewards\npolymarket clob market-reward 0xCONDITION...\n\n# Check if orders are scoring rewards\npolymarket clob order-scoring ORDER_ID\npolymarket clob orders-scoring \"ORDER1,ORDER2\"\n\n# API key management\npolymarket clob api-keys\npolymarket clob create-api-key\npolymarket clob delete-api-key\n\n# Account status\npolymarket clob account-status\npolymarket clob notifications\npolymarket clob delete-notifications \"NOTIF1,NOTIF2\"\n```\n\n### On-Chain Data\n\nPublic data — no wallet needed.\n\n```bash\n# Portfolio\npolymarket data positions 0xWALLET_ADDRESS\npolymarket data closed-positions 0xWALLET_ADDRESS\npolymarket data value 0xWALLET_ADDRESS\npolymarket data traded 0xWALLET_ADDRESS\n\n# Trade history\npolymarket data trades 0xWALLET_ADDRESS --limit 50\n\n# Activity\npolymarket data activity 0xWALLET_ADDRESS\n\n# Market data\npolymarket data holders 0xCONDITION_ID\npolymarket data open-interest 0xCONDITION_ID\npolymarket data volume 12345  # event ID\n\n# Leaderboards\npolymarket data leaderboard --period month --order-by pnl --limit 10\npolymarket data builder-leaderboard --period week\npolymarket data builder-volume --period month\n```\n\n### Contract Approvals\n\nBefore trading, Polymarket contracts need ERC-20 (USDC) and ERC-1155 (CTF token) approvals.\n\n```bash\n# Check current approvals (read-only)\npolymarket approve check\npolymarket approve check 0xSOME_ADDRESS\n\n# Approve all contracts (sends 6 on-chain transactions, needs MATIC for gas)\npolymarket approve set\n```\n\n### CTF Operations\n\nSplit, merge, and redeem conditional tokens directly on-chain.\n\n```bash\n# Split $10 USDC into YES/NO tokens\npolymarket ctf split --condition 0xCONDITION... --amount 10\n\n# Merge tokens back to USDC\npolymarket ctf merge --condition 0xCONDITION... --amount 10\n\n# Redeem winning tokens after resolution\npolymarket ctf redeem --condition 0xCONDITION...\n\n# Redeem neg-risk positions\npolymarket ctf redeem-neg-risk --condition 0xCONDITION... --amounts \"10,5\"\n\n# Calculate IDs (read-only, no wallet needed)\npolymarket ctf condition-id --oracle 0xORACLE... --question 0xQUESTION... --outcomes 2\npolymarket ctf collection-id --condition 0xCONDITION... --index-set 1\npolymarket ctf position-id --collection 0xCOLLECTION...\n```\n\n`--amount` is in USDC (e.g., `10` = $10). The `--partition` flag defaults to binary (`1,2`). On-chain operations require MATIC for gas on Polygon.\n\n### Bridge\n\nDeposit assets from other chains into Polymarket.\n\n```bash\n# Get deposit addresses (EVM, Solana, Bitcoin)\npolymarket bridge deposit 0xWALLET_ADDRESS\n\n# List supported chains and tokens\npolymarket bridge supported-assets\n\n# Check deposit status\npolymarket bridge status 0xDEPOSIT_ADDRESS\n```\n\n### Wallet Management\n\n```bash\npolymarket wallet create               # Generate new random wallet\npolymarket wallet create --force       # Overwrite existing\npolymarket wallet import 0xKEY...      # Import existing key\npolymarket wallet address              # Print wallet address\npolymarket wallet show                 # Full wallet info (address, source, config path)\npolymarket wallet reset                # Delete config (prompts for confirmation)\npolymarket wallet reset --force        # Delete without confirmation\n```\n\n### Interactive Shell\n\n```bash\npolymarket shell\n# polymarket> markets list --limit 3\n# polymarket> clob book 48331043336612883...\n# polymarket> exit\n```\n\nSupports command history. All commands work the same as the CLI, just without the `polymarket` prefix.\n\n### Other\n\n```bash\npolymarket status     # API health check\npolymarket setup      # Guided first-time setup wizard\npolymarket upgrade    # Update to the latest version\npolymarket --version\npolymarket --help\n```\n\n## Common Workflows\n\n### Browse and research markets\n\n```bash\npolymarket markets search \"bitcoin\" --limit 5\npolymarket markets get bitcoin-above-100k\npolymarket clob book 48331043336612883...\npolymarket clob price-history 48331043336612883... --interval 1d\n```\n\n### Set up a new wallet and start trading\n\n```bash\npolymarket wallet create\npolymarket approve set                    # needs MATIC for gas\npolymarket clob balance --asset-type collateral\npolymarket clob market-order --token TOKEN_ID --side buy --amount 5\n```\n\n### Monitor your portfolio\n\n```bash\npolymarket data positions 0xYOUR_ADDRESS\npolymarket data value 0xYOUR_ADDRESS\npolymarket clob orders\npolymarket clob trades\n```\n\n### Place and manage limit orders\n\n```bash\n# Place order\npolymarket clob create-order --token TOKEN_ID --side buy --price 0.45 --size 20\n\n# Check it\npolymarket clob orders\n\n# Cancel if needed\npolymarket clob cancel ORDER_ID\n\n# Or cancel everything\npolymarket clob cancel-all\n```\n\n### Script with JSON output\n\n```bash\n# Pipe market data to jq\npolymarket -o json markets list --limit 100 | jq '.[].question'\n\n# Check prices programmatically\npolymarket -o json clob midpoint TOKEN_ID | jq '.mid'\n\n# Error handling in scripts\nif ! result=$(polymarket -o json clob balance --asset-type collateral 2>/dev/null); then\n  echo \"Failed to fetch balance\"\nfi\n```\n\n## Architecture\n\n```\nsrc/\n  main.rs        -- CLI entry point, clap parsing, error handling\n  auth.rs        -- Wallet resolution, RPC provider, CLOB authentication\n  config.rs      -- Config file (~/.config/polymarket/config.json)\n  shell.rs       -- Interactive REPL\n  commands/      -- One module per command group\n  output/        -- Table and JSON rendering per command group\n```\n\n## License\n\nMIT\n",
+      "frontmatter": {},
       "links": [],
       "tags": [],
-      "modified": "2026-02-03T05:39:36.376Z"
+      "modified": "2026-02-24T22:36:15.545Z"
     },
     {
       "id": "skills/git-notes-memory/SKILL",
@@ -3296,6 +3544,20 @@
         "important"
       ],
       "modified": "2026-02-02T04:40:59.053Z"
+    },
+    {
+      "id": "skills/strategic-compact/SKILL",
+      "path": "/Users/Shared/curtis/trader-curtis/skills/strategic-compact/SKILL.md",
+      "category": "skills",
+      "title": "SKILL",
+      "content": "\n# Strategic Compact Skill\n\nSuggests manual `/compact` at strategic points in your workflow rather than relying on arbitrary auto-compaction.\n\n## Why Strategic Compaction?\n\nAuto-compaction triggers at arbitrary points:\n- Often mid-task, losing important context\n- No awareness of logical task boundaries\n- Can interrupt complex multi-step operations\n\nStrategic compaction at logical boundaries:\n- **After exploration, before execution** - Compact research context, keep implementation plan\n- **After completing a milestone** - Fresh start for next phase\n- **Before major context shifts** - Clear exploration context before different task\n\n## How It Works\n\nThe `suggest-compact.sh` script runs on PreToolUse (Edit/Write) and:\n\n1. **Tracks tool calls** - Counts tool invocations in session\n2. **Threshold detection** - Suggests at configurable threshold (default: 50 calls)\n3. **Periodic reminders** - Reminds every 25 calls after threshold\n\n## Hook Setup\n\nAdd to your `~/.claude/settings.json`:\n\n```json\n{\n  \"hooks\": {\n    \"PreToolUse\": [{\n      \"matcher\": \"tool == \\\"Edit\\\" || tool == \\\"Write\\\"\",\n      \"hooks\": [{\n        \"type\": \"command\",\n        \"command\": \"~/.claude/skills/strategic-compact/suggest-compact.sh\"\n      }]\n    }]\n  }\n}\n```\n\n## Configuration\n\nEnvironment variables:\n- `COMPACT_THRESHOLD` - Tool calls before first suggestion (default: 50)\n\n## Best Practices\n\n1. **Compact after planning** - Once plan is finalized, compact to start fresh\n2. **Compact after debugging** - Clear error-resolution context before continuing\n3. **Don't compact mid-implementation** - Preserve context for related changes\n4. **Read the suggestion** - The hook tells you *when*, you decide *if*\n\n## Related\n\n- [The Longform Guide](https://x.com/affaanmustafa/status/2014040193557471352) - Token optimization section\n- Memory persistence hooks - For state that survives compaction\n",
+      "frontmatter": {
+        "name": "strategic-compact",
+        "description": "Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction."
+      },
+      "links": [],
+      "tags": [],
+      "modified": "2026-02-03T05:39:36.376Z"
     },
     {
       "id": "skills/eval-harness/SKILL",
@@ -3445,20 +3707,6 @@
       "links": [],
       "tags": [],
       "modified": "2026-02-18T07:32:20.786Z"
-    },
-    {
-      "id": "inbox/note-1771957288080",
-      "path": "/Users/Shared/curtis/trader-curtis/inbox/note-1771957288080.md",
-      "category": "inbox",
-      "title": "note-1771957288080",
-      "content": "Trader-curtis: implemented 3-venue matrix routing + preferred venue worker guards + venue readiness APIs; audit found open position cap starvation and overly aggressive live posture.\n",
-      "frontmatter": {
-        "title": "note-1771957288080",
-        "date": "2026-02-24"
-      },
-      "links": [],
-      "tags": [],
-      "modified": "2026-02-24T18:21:28.081Z"
     }
   ]
 }
