@@ -38,6 +38,7 @@ from data import (
     get_venue_matrix,
     get_venue_readiness,
     get_trade_intents,
+    get_position_management_intents,
     get_risk_controls,
     get_wallet_config,
     get_portfolio_snapshot,
@@ -49,6 +50,7 @@ from data import (
     apply_weekly_trade_feedback,
     get_quant_validations,
     run_system_action,
+    apply_position_protection,
     set_execution_controls,
     set_venue_matrix,
     get_signal_routes,
@@ -58,6 +60,7 @@ from data import (
     get_summary,
     get_agent_awareness,
     get_trade_candidates,
+    get_core_signal_overview,
     get_trades,
     get_tracked_sources,
     get_tracked_polymarket_wallets,
@@ -172,6 +175,12 @@ def api_candidates():
     return jsonify(get_trade_candidates())
 
 
+@app.get("/api/core-signals")
+def api_core_signals():
+    lookback_hours = int(request.args.get("lookback_hours", 72))
+    return jsonify(get_core_signal_overview(lookback_hours=lookback_hours))
+
+
 @app.get("/api/risk-controls")
 def api_risk_controls():
     return jsonify(get_risk_controls())
@@ -259,6 +268,12 @@ def api_actions():
     return jsonify(run_system_action(action))
 
 
+@app.post("/api/position-protection")
+def api_position_protection():
+    payload = request.get_json(silent=True) or {}
+    return jsonify(apply_position_protection(payload))
+
+
 @app.get("/api/signal-routes")
 def api_signal_routes():
     return jsonify(get_signal_routes())
@@ -293,6 +308,12 @@ def api_event_alerts():
 @app.get("/api/trade-intents")
 def api_trade_intents():
     return jsonify(get_trade_intents())
+
+
+@app.get("/api/position-management-intents")
+def api_position_management_intents():
+    limit = int(request.args.get("limit", 120))
+    return jsonify(get_position_management_intents(limit=limit))
 
 
 @app.get("/api/execution-learning")

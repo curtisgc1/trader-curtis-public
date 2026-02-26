@@ -4,7 +4,7 @@ async function fetchJson(url) {
   return res.json();
 }
 
-const UI_BUILD = "20260225j";
+const UI_BUILD = "20260226a";
 
 async function fetchJsonSafe(url, fallback) {
   try {
@@ -329,6 +329,43 @@ function renderTradeClaimGuard(guard) {
   renderTable("trade-claim-checks", guard?.checks || [], ["Check", "State", "Detail"], ["name", "state", "detail"]);
 }
 
+function renderExecutionReadiness(walletRows, awareness, guard) {
+  const el = document.getElementById("execution-readiness-brief");
+  if (!el) return;
+  const map = {};
+  (walletRows || []).forEach((r) => { map[r.key] = r.value; });
+
+  const awarenessState = String(awareness?.overall || "unknown");
+  const guardState = String(guard?.state || "unknown");
+  let overall = "good";
+  if (awarenessState === "bad" || guardState === "bad") overall = "bad";
+  else if (awarenessState === "warn" || guardState === "warn") overall = "warn";
+
+  const blockers = [...(awareness?.blockers || []), ...(guard?.blockers || [])];
+  const warnings = [...(awareness?.warnings || []), ...(guard?.warnings || [])];
+  const adapterDetail = (guard?.checks || []).find((c) => c?.name === "Adapters Detail")?.detail || "n/a";
+
+  const lines = [
+    ["Readiness", `${overall} | awareness ${awarenessState} | claim ${guardState}`],
+    ["Effective Mode", `${awareness?.effective_mode || "unknown"} | trade ready ${guard?.trade_ready ? "yes" : "no"}`],
+    ["Approved Queued Routes", String(guard?.approved_queued_routes ?? 0)],
+    ["Adapters", adapterDetail],
+    ["HL Wallet", map.hl_wallet_address ? "configured" : "missing"],
+    ["Poly Wallet", map.poly_wallet_address ? "configured" : "missing"],
+  ];
+  if (blockers.length) {
+    lines.push(["Top Blockers", blockers.slice(0, 3).join(" | ")]);
+  } else if (warnings.length) {
+    lines.push(["Top Warnings", warnings.slice(0, 3).join(" | ")]);
+  } else {
+    lines.push(["Blocking Status", "none"]);
+  }
+  el.innerHTML = lines.map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+
+  renderTable("awareness-checks", awareness?.checks || [], ["Check", "State", "Detail"], ["name", "state", "detail"]);
+  renderTable("trade-claim-checks", guard?.checks || [], ["Check", "State", "Detail"], ["name", "state", "detail"]);
+}
+
 function renderWallet(rows) {
   const el = document.getElementById("wallet-brief");
   if (!el) return;
@@ -424,8 +461,10 @@ function renderPortfolio(snapshot) {
       ? `<div class="flow-item"><strong>Perps: ${perpRows.length}</strong></div>` +
         perpRows.slice(0, 24).map((p) => {
           const pl = Number(p.unrealized_pnl || 0);
+          const plPct = Number(p.unrealized_pnl_pct || 0);
+          const lev = Number(p.leverage || 1);
           const cls = pl >= 0 ? "good" : "bad";
-          return `<div class="flow-item"><div><strong>${p.coin || ""}</strong> ${p.szi || ""}</div><div>Value ${fmtCurrency(p.position_value || 0)}</div><div class="${cls}">uPnL ${fmtCurrency(pl)}</div></div>`;
+          return `<div class="flow-item"><div><strong>${p.coin || ""}</strong> ${p.szi || ""} | lev ${lev.toFixed(2)}x</div><div>Value ${fmtCurrency(p.position_value || 0)}</div><div class="${cls}">uPnL ${fmtCurrency(pl)} (${plPct.toFixed(2)}%)</div></div>`;
         }).join("") +
         (perpRows.length > 24 ? `<div class="flow-item">...and ${perpRows.length - 24} more perp positions</div>` : "")
       : `<div class="empty">No HL perp positions</div>`;
@@ -509,10 +548,98 @@ function renderVenueAndMissed(master) {
   ].map(([k, val]) => `<div class="item"><span class="label">${k}</span><span>${val}</span></div>`).join("");
 }
 
+function renderExecutionOpportunity(master, monitor) {
+  const el = document.getElementById("execution-opportunity-brief");
+  if (!el) return;
+
+  const v = master?.venue_24h || {};
+  const a = v.alpaca || {};
+  const h = v.hyperliquid || {};
+  const p = v.polymarket || {};
+  const missed = master?.missed_opportunities || {};
+  const lh = monitor?.learning_health || {};
+  const out = monitor?.outcomes || {};
+
+  const submitted = Number(a.submitted || 0) + Number(h.submitted || 0) + Number(p.submitted || 0);
+  const filled = Number(a.filled || 0) + Number(h.filled || 0) + Number(p.filled || 0);
+  const blocked = Number(a.blocked || 0) + Number(h.blocked || 0) + Number(p.blocked || 0);
+  const resolved = Number(missed.not_taken_resolved || 0);
+  const wins = Number(missed.not_taken_wins || 0);
+
+  el.innerHTML = [
+    ["24h Execution", `submitted ${submitted} | filled ${filled} | blocked ${blocked}`],
+    ["By Venue", `alp ${a.filled || 0}/${a.submitted || 0} | hl ${h.filled || 0}/${h.submitted || 0} | poly ${p.filled || 0}/${p.submitted || 0}`],
+    ["Missed Opportunities (7d)", `${Number(missed.not_taken_total || 0)} checked | ${wins} winners / ${resolved} resolved`],
+    ["Missed Win Rate", `${Number(missed.not_taken_win_rate || 0).toFixed(2)}% | avg ${Number(missed.not_taken_avg_pnl_pct || 0).toFixed(2)}%`],
+    ["Truth Coverage (7d)", `${Number(lh.coverage_pct || 0).toFixed(2)}% resolved | ${Number(lh.tracked_coverage_pct || 0).toFixed(2)}% tracked`],
+    ["Outcome Writes", `realized ${Number(out.realized_total || 0)} | operational ${Number(out.operational_total || 0)} | last ${fmtMinutes(out.last_resolved_age_min)} ago`],
+  ].map(([k, vtxt]) => `<div class="item"><span class="label">${k}</span><span>${vtxt}</span></div>`).join("");
+}
+
+function renderPositionPlan(intents) {
+  const brief = document.getElementById("position-plan-brief");
+  const table = document.getElementById("position-plan-table");
+  if (!brief || !table) return;
+
+  const rows = Array.isArray(intents) ? intents : [];
+  if (!rows.length) {
+    brief.innerHTML = [
+      ["Plan Status", "No current manage intents"],
+      ["Meaning", "No open positions currently crossed manage thresholds"],
+    ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+    table.innerHTML = `<div class="empty">No position-management intents yet</div>`;
+    return;
+  }
+
+  const actionCounts = {};
+  rows.forEach((r) => {
+    const a = String(r.action || r.status || "manage");
+    actionCounts[a] = (actionCounts[a] || 0) + 1;
+  });
+  const actionSummary = Object.entries(actionCounts)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 3)
+    .map(([k, v]) => `${k} (${v})`)
+    .join(" | ");
+
+  const top = rows
+    .slice()
+    .sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0))[0] || {};
+  const topLabel = top.symbol
+    ? `${top.symbol} ${top.side || ""} | ${top.action || top.status || "manage"} | conf ${Number(top.confidence || 0).toFixed(2)}`
+    : "n/a";
+
+  const newest = rows[0]?.created_at || "n/a";
+  brief.innerHTML = [
+    ["Active Intents", String(rows.length)],
+    ["Action Mix", actionSummary || "n/a"],
+    ["Top Conviction", topLabel],
+    ["Last Update", newest],
+  ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+
+  const mapped = rows.slice(0, 60).map((r) => ({
+    time: String(r.created_at || ""),
+    symbol: String(r.symbol || ""),
+    side: String(r.side || ""),
+    action: String(r.action || r.status || "manage"),
+    leverage: `${Number(r.leverage || 1).toFixed(2)}x`,
+    confidence: Number(r.confidence || 0).toFixed(2),
+    pnl: `${Number(r.pnl_pct || 0).toFixed(2)}% / ${fmtCurrency(r.upnl_usd || 0)}`,
+    stop: Number(r.suggested_stop_price || 0) > 0 ? Number(r.suggested_stop_price).toFixed(4) : "-",
+    reason: String(r.reason || ""),
+  }));
+  renderTable(
+    "position-plan-table",
+    mapped,
+    ["Time", "Symbol", "Side", "Action", "Lev", "Conf", "uPnL", "Suggested Stop", "Reason"],
+    ["time", "symbol", "side", "action", "leverage", "confidence", "pnl", "stop", "reason"]
+  );
+}
+
 function renderLearningMonitor(monitor) {
   const brief = document.getElementById("learning-monitor-brief");
   const horizonEl = document.getElementById("learning-monitor-horizons");
-  if (!brief || !horizonEl) return;
+  if (!brief && !horizonEl) return;
 
   const lh = monitor?.learning_health || {};
   const out = monitor?.outcomes || {};
@@ -532,19 +659,22 @@ function renderLearningMonitor(monitor) {
   const realizedWin = Number(lh.realized_win_rate || 0).toFixed(2);
   const avgPnl = Number(lh.realized_avg_pnl_pct || 0).toFixed(2);
 
-  brief.innerHTML = [
-    ["Route Outcomes", `realized ${realized} | operational ${operational}`],
-    ["24h Outcome Adds", `realized ${realized24} | operational ${op24}`],
-    ["Coverage (7d)", `${coverage}% (${resolved}/${eligible}) | tracked ${trackedCoverage}%`],
-    ["Realized Quality (7d)", `win ${realizedWin}% | avg ${avgPnl}%`],
-    ["Trades", `open ${Number(tr.open_total || 0)} | closed ${Number(tr.closed_total || 0)} | route-linked closed ${Number(tr.closed_with_route || 0)}`],
-    ["Last Outcome Write", `${fmtMinutes(out.last_resolved_age_min)} ago`],
-    ["GRPO Readiness", `${rd.state || "unknown"} ${rd.reasons ? `(${rd.reasons})` : ""}`],
-    ["Live Weight Updates", String(rd.apply_live_updates || "0") === "1" ? "enabled" : "disabled"],
-    ["Reconciler", `${rc.last_status || "n/a"} | last success ${rc.last_success_utc || "n/a"}`],
-  ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+  if (brief) {
+    brief.innerHTML = [
+      ["Route Outcomes", `realized ${realized} | operational ${operational}`],
+      ["24h Outcome Adds", `realized ${realized24} | operational ${op24}`],
+      ["Coverage (7d)", `${coverage}% (${resolved}/${eligible}) | tracked ${trackedCoverage}%`],
+      ["Realized Quality (7d)", `win ${realizedWin}% | avg ${avgPnl}%`],
+      ["Trades", `open ${Number(tr.open_total || 0)} | closed ${Number(tr.closed_total || 0)} | route-linked closed ${Number(tr.closed_with_route || 0)}`],
+      ["Last Outcome Write", `${fmtMinutes(out.last_resolved_age_min)} ago`],
+      ["GRPO Readiness", `${rd.state || "unknown"} ${rd.reasons ? `(${rd.reasons})` : ""}`],
+      ["Live Weight Updates", String(rd.apply_live_updates || "0") === "1" ? "enabled" : "disabled"],
+      ["Reconciler", `${rc.last_status || "n/a"} | last success ${rc.last_success_utc || "n/a"}`],
+    ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+  }
 
   const byH = Array.isArray(hz.by_horizon) ? hz.by_horizon : [];
+  if (!horizonEl) return;
   if (!byH.length) {
     horizonEl.innerHTML = `<div class="item"><span class="label">Horizon Rows</span><span>0</span></div>`;
     return;
@@ -826,6 +956,131 @@ function bindControls(controls) {
 
   const btnAware = document.getElementById("btn-check-awareness");
   if (btnAware) btnAware.onclick = async () => { await runAction("check_awareness"); await boot(); };
+}
+
+function bindPositionPlanControls(controls) {
+  const c = controlMap(controls);
+  const stopLoss = document.getElementById("pos-stop-loss-pct");
+  const trailStart = document.getElementById("pos-trail-start-pct");
+  const trailGap = document.getElementById("pos-trail-gap-pct");
+  const tpPartial = document.getElementById("pos-tp-partial-pct");
+  const tpMajor = document.getElementById("pos-tp-major-pct");
+  const cooldown = document.getElementById("pos-intent-cooldown-hours");
+  const btnSave = document.getElementById("btn-position-plan-save");
+  const status = document.getElementById("position-plan-status");
+
+  if (stopLoss) stopLoss.value = c.position_stop_loss_pct || "5";
+  if (trailStart) trailStart.value = c.position_trail_start_pct || "6";
+  if (trailGap) trailGap.value = c.position_trailing_stop_gap_pct || "2.5";
+  if (tpPartial) tpPartial.value = c.position_take_profit_partial_pct || "12";
+  if (tpMajor) tpMajor.value = c.position_take_profit_major_pct || "25";
+  if (cooldown) cooldown.value = c.position_manage_intent_cooldown_hours || "6";
+
+  if (!btnSave || btnSave.dataset.wired) return;
+  btnSave.dataset.wired = "1";
+  btnSave.onclick = async () => {
+    await updateControls({
+      position_stop_loss_pct: String(stopLoss?.value || "5"),
+      position_trail_start_pct: String(trailStart?.value || "6"),
+      position_trailing_stop_gap_pct: String(trailGap?.value || "2.5"),
+      position_take_profit_partial_pct: String(tpPartial?.value || "12"),
+      position_take_profit_major_pct: String(tpMajor?.value || "25"),
+      position_manage_intent_cooldown_hours: String(cooldown?.value || "6"),
+    });
+    if (status) status.textContent = "Saved. New settings apply on next position planner run.";
+    await runAction("run_cycle");
+    await boot();
+  };
+}
+
+function bindPositionProtectionActions(intents, snapshot, controls) {
+  const symbolEl = document.getElementById("pos-protect-symbol");
+  const stopEl = document.getElementById("pos-protect-stop-price");
+  const trailGapEl = document.getElementById("pos-protect-trail-gap");
+  const qtyPctEl = document.getElementById("pos-protect-qty-pct");
+  const dryRunEl = document.getElementById("pos-protect-dry-run");
+  const btnStop = document.getElementById("btn-pos-apply-stop");
+  const btnTrail = document.getElementById("btn-pos-apply-trailing");
+  const status = document.getElementById("pos-protect-status");
+  if (!symbolEl || !stopEl || !trailGapEl || !qtyPctEl || !dryRunEl || !btnStop || !btnTrail || !status) return;
+
+  const c = controlMap(controls || []);
+  const defaultTrailGap = Number(c.position_trailing_stop_gap_pct || 2.5);
+  if (!String(trailGapEl.value || "").trim() || Number(trailGapEl.value || 0) <= 0) {
+    trailGapEl.value = defaultTrailGap.toFixed(1);
+  }
+
+  const rows = Array.isArray(intents) ? intents : [];
+  const suggestions = {};
+  rows.forEach((r) => {
+    const sym = String(r.symbol || "").toUpperCase().trim();
+    if (!sym) return;
+    const s = Number(r.suggested_stop_price || 0);
+    if (s > 0 && !suggestions[sym]) suggestions[sym] = s;
+  });
+
+  const hlPositions = ((snapshot && snapshot.hyperliquid && snapshot.hyperliquid.positions) || [])
+    .map((p) => String(p.coin || "").toUpperCase().trim())
+    .filter((x) => !!x);
+  const intentSymbols = rows.map((r) => String(r.symbol || "").toUpperCase().trim()).filter((x) => !!x);
+  const symbols = Array.from(new Set([...hlPositions, ...intentSymbols])).sort((a, b) => a.localeCompare(b));
+
+  symbolEl.innerHTML = symbols.length
+    ? symbols.map((s) => `<option value="${s}">${s}</option>`).join("")
+    : `<option value="">No open HL symbols</option>`;
+  if (symbols.length && !symbols.includes(String(symbolEl.value || "").toUpperCase())) {
+    symbolEl.value = symbols[0];
+  }
+
+  const syncStopSuggestion = () => {
+    const sym = String(symbolEl.value || "").toUpperCase();
+    const sug = Number(suggestions[sym] || 0);
+    if (sug > 0) {
+      stopEl.value = sug.toFixed(4);
+    }
+  };
+  if (!symbolEl.dataset.wired) {
+    symbolEl.dataset.wired = "1";
+    symbolEl.addEventListener("change", syncStopSuggestion);
+  }
+  if (Number(stopEl.value || 0) <= 0) syncStopSuggestion();
+
+  const apply = async (mode) => {
+    const symbol = String(symbolEl.value || "").toUpperCase().trim();
+    if (!symbol) {
+      status.textContent = "No symbol selected";
+      return;
+    }
+    const payload = {
+      symbol,
+      mode,
+      qty_pct: Number(qtyPctEl.value || 100),
+      dry_run: String(dryRunEl.value || "0") === "1",
+      cancel_existing: true,
+    };
+    if (mode === "stop") {
+      payload.stop_price = Number(stopEl.value || 0);
+    } else {
+      payload.trailing_gap_pct = Number(trailGapEl.value || defaultTrailGap || 2.5);
+      payload.stop_price = 0;
+    }
+    status.textContent = `Submitting ${mode} protection for ${symbol}...`;
+    const out = await postJson("/api/position-protection", payload);
+    if (!out || !out.ok) {
+      status.textContent = `Failed: ${(out && (out.error || out.message)) || "unknown"}`;
+      return;
+    }
+    const sp = Number(out.stop_price || 0);
+    if (sp > 0) stopEl.value = sp.toFixed(4);
+    const intentId = out?.details?.intent_id ? ` intent ${out.details.intent_id}` : "";
+    status.textContent = out.dry_run
+      ? `Dry run OK ${symbol}: stop ${sp.toFixed(4)} qty ${Number(out.qty_to_protect || 0).toFixed(6)}`
+      : `Submitted ${mode} stop for ${symbol}: stop ${sp.toFixed(4)}${intentId}`;
+    await boot();
+  };
+
+  btnStop.onclick = async () => { await apply("stop"); };
+  btnTrail.onclick = async () => { await apply("trailing"); };
 }
 
 function renderTrackedSources(rows) {
@@ -1239,7 +1494,7 @@ async function boot() {
     pnlBreakdownCache = null;
     setupRefreshControls();
     bindPnlDrilldown();
-    const [summary, systemHealth, readiness, controls, walletConfig, exOrders, polyOrders, portfolioSnapshot, tradeDecisions, awareness, performanceCurve, tradeClaimGuard, masterOverview, trackedSources, learningMonitor, inputSources, tickerProfiles] = await Promise.all([
+    const [summary, systemHealth, readiness, controls, walletConfig, exOrders, polyOrders, portfolioSnapshot, tradeDecisions, awareness, performanceCurve, tradeClaimGuard, masterOverview, positionManagementIntents, trackedSources, learningMonitor, inputSources, tickerProfiles] = await Promise.all([
       fetchJsonSafe("/api/summary", {}),
       fetchJsonSafe("/api/system-health", { overall: "warn", checks: [] }),
       fetchJsonSafe("/api/signal-readiness", { score: 0, checks: [], blockers: [] }),
@@ -1253,6 +1508,7 @@ async function boot() {
       fetchJsonSafe("/api/performance-curve", { by_time: [], by_trade: [] }),
       fetchJsonSafe("/api/trade-claim-guard", { state: "bad", trade_ready: false, checks: [], blockers: ["endpoint unavailable"], warnings: [] }),
       fetchJsonSafe("/api/master-overview", {}),
+      fetchJsonSafe("/api/position-management-intents?limit=120", []),
       fetchJsonSafe("/api/tracked-sources", []),
       fetchJsonSafe("/api/learning-monitor", {}),
       fetchJsonSafe("/api/input-sources", []),
@@ -1260,6 +1516,8 @@ async function boot() {
     ]);
 
     runUiStep("bindControls", () => bindControls(controls));
+    runUiStep("bindPositionPlanControls", () => bindPositionPlanControls(controls));
+    runUiStep("bindPositionProtectionActions", () => bindPositionProtectionActions(positionManagementIntents || [], portfolioSnapshot || {}, controls));
     runUiStep("bindTrackedSources", () => bindTrackedSources(trackedSources || []));
     runUiStep("bindMainInputSourceControls", () => bindMainInputSourceControls(inputSources || []));
     runUiStep("bindTradeReplayFeedback", () => bindTradeReplayFeedback(inputSources || []));
@@ -1270,13 +1528,12 @@ async function boot() {
     runUiStep("renderPulse", () => renderPulse(systemHealth, readiness, controls));
     runUiStep("renderHealthOverview", () => renderHealthOverview(systemHealth, readiness, learningMonitor || {}, masterOverview || {}));
     runUiStep("renderAlerts", () => renderAlerts(systemHealth, readiness, awareness, tradeClaimGuard));
-    runUiStep("renderWallet", () => renderWallet(walletConfig));
-    runUiStep("renderAwareness", () => renderAwareness(awareness));
-    runUiStep("renderTradeClaimGuard", () => renderTradeClaimGuard(tradeClaimGuard));
+    runUiStep("renderExecutionReadiness", () => renderExecutionReadiness(walletConfig, awareness, tradeClaimGuard));
     runUiStep("renderFlow", () => renderFlow(exOrders, polyOrders));
     runUiStep("renderPortfolio", () => renderPortfolio(portfolioSnapshot));
     runUiStep("renderTradeDecisions", () => renderTradeDecisions(tradeDecisions));
-    runUiStep("renderVenueAndMissed", () => renderVenueAndMissed(masterOverview || {}));
+    runUiStep("renderExecutionOpportunity", () => renderExecutionOpportunity(masterOverview || {}, learningMonitor || {}));
+    runUiStep("renderPositionPlan", () => renderPositionPlan(positionManagementIntents || []));
     runUiStep("renderLearningMonitor", () => renderLearningMonitor(learningMonitor || {}));
     runUiStep("renderPerformanceCurve", () => renderPerformanceCurve(performanceCurve || {}));
     runUiStep("renderRiskControls", () => {

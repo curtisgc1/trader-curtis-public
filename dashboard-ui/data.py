@@ -4,6 +4,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -874,6 +875,7 @@ def get_agent_awareness() -> Dict[str, Any]:
         controls = {x["key"]: x["value"] for x in get_risk_controls()}
         poly_auto = controls.get("enable_polymarket_auto", "0") == "1"
         poly_live = controls.get("allow_polymarket_live", "0") == "1"
+        hl_auto = controls.get("enable_hyperliquid_test_auto", "0") == "1"
         x_influence_enabled = controls.get("x_influence_enabled", "1") == "1"
 
         api_env_ok = all(bool(str(env.get(k, "")).strip()) for k in ("POLY_API_KEY", "POLY_API_SECRET", "POLY_API_PASSPHRASE"))
@@ -899,6 +901,7 @@ def get_agent_awareness() -> Dict[str, Any]:
             poly_wallet = str(row[0]) if row and row[0] else ""
 
         checks.append({"name": "Polymarket Auto", "state": "good" if poly_auto else "warn", "detail": "enabled" if poly_auto else "disabled"})
+        checks.append({"name": "Hyperliquid Auto", "state": "good" if hl_auto else "warn", "detail": "enabled" if hl_auto else "disabled"})
         checks.append({"name": "Polymarket Live", "state": "good", "detail": "enabled" if poly_live else "disabled"})
         checks.append({"name": "Polymarket Wallet", "state": "good" if poly_wallet else "warn", "detail": poly_wallet or "not configured"})
         checks.append({"name": "Polymarket API Credentials", "state": "good" if api_ok else "bad", "detail": "available" if api_ok else "missing (env/keychain)"})
@@ -935,6 +938,63 @@ def get_agent_awareness() -> Dict[str, Any]:
             }
         )
 
+        pos_age = None
+        open_hl_positions = 0
+        if _table_exists(conn, "position_awareness_snapshots"):
+            pos_age = _age_minutes(_latest_value(conn, "position_awareness_snapshots", "created_at"))
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT symbol)
+                FROM position_awareness_snapshots
+                WHERE venue='hyperliquid'
+                  AND datetime(COALESCE(created_at, '1970-01-01')) >= datetime('now', '-90 minutes')
+                """
+            )
+            row = cur.fetchone()
+            open_hl_positions = int((row[0] if row and row[0] is not None else 0) or 0)
+        checks.append(
+            {
+                "name": "Position Snapshot Freshness",
+                "state": "good" if (pos_age is not None and pos_age <= 90) else ("warn" if not hl_auto else "bad"),
+                "detail": f"{pos_age} min ago" if pos_age is not None else "no snapshot data",
+            }
+        )
+        checks.append(
+            {
+                "name": "Open HL Positions Seen",
+                "state": "good" if open_hl_positions > 0 else "warn",
+                "detail": f"{open_hl_positions} position(s) in last 90m",
+            }
+        )
+
+        manage_age = None
+        if _table_exists(conn, "trade_intents"):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT created_at
+                FROM trade_intents
+                WHERE COALESCE(status,'') LIKE 'manage_%'
+                ORDER BY datetime(COALESCE(created_at, '1970-01-01')) DESC
+                LIMIT 1
+                """
+            )
+            r = cur.fetchone()
+            manage_age = _age_minutes(r[0]) if r and r[0] else None
+        manage_state = "good"
+        manage_detail = "no open positions require active manage intents"
+        if open_hl_positions > 0:
+            if manage_age is None:
+                manage_state = "bad"
+                manage_detail = "no manage intents generated for current open positions"
+            elif manage_age > 180:
+                manage_state = "warn"
+                manage_detail = f"last manage intent {manage_age} min ago (stale)"
+            else:
+                manage_detail = f"last manage intent {manage_age} min ago"
+        checks.append({"name": "Open Position Plan", "state": manage_state, "detail": manage_detail})
+
         if not api_ok:
             blockers.append("Polymarket API credentials are not available from env/keychain")
         if poly_live and not signing_ok:
@@ -947,6 +1007,14 @@ def get_agent_awareness() -> Dict[str, Any]:
             blockers.append("Tooling context check failed; agent may not be grounded on runtime tools")
         elif tooling_check["state"] == "warn":
             warnings.append("Tooling context check returned warnings; verify missing components")
+        if hl_auto and pos_age is None:
+            blockers.append("hyperliquid position snapshots missing; open-position awareness is blind")
+        elif hl_auto and pos_age is not None and pos_age > 180:
+            warnings.append("hyperliquid position snapshots are stale (>180 min)")
+        if open_hl_positions > 0 and manage_age is None:
+            blockers.append("open Hyperliquid positions detected but no management plan intents were generated")
+        elif open_hl_positions > 0 and manage_age is not None and manage_age > 180:
+            warnings.append("open Hyperliquid positions exist but management intents are stale")
 
         bad = len([c for c in checks if c["state"] == "bad"])
         warn = len([c for c in checks if c["state"] == "warn"])
@@ -1250,6 +1318,185 @@ def run_system_action(action: str) -> Dict[str, Any]:
             stderr=lf,
         )
     return {"ok": True, "action": action, "pid": proc.pid}
+
+
+def apply_position_protection(payload: Dict[str, Any]) -> Dict[str, Any]:
+    symbol = str((payload or {}).get("symbol") or "").strip().upper()
+    mode = str((payload or {}).get("mode") or "stop").strip().lower()
+    requested_stop = float((payload or {}).get("stop_price") or 0.0)
+    qty_pct = float((payload or {}).get("qty_pct") or 100.0)
+    trailing_gap_pct = float((payload or {}).get("trailing_gap_pct") or 0.0)
+    dry_run = str((payload or {}).get("dry_run") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    cancel_existing = str((payload or {}).get("cancel_existing") or "1").strip().lower() in {"1", "true", "yes", "on"}
+
+    if not symbol:
+        return {"ok": False, "error": "symbol is required"}
+    if mode not in {"stop", "trailing"}:
+        return {"ok": False, "error": "mode must be stop or trailing"}
+    qty_pct = max(0.1, min(100.0, qty_pct))
+
+    env = _load_env()
+    wallet = str(env.get("HL_WALLET_ADDRESS", "") or "").strip()
+    if not wallet:
+        return {"ok": False, "error": "HL_WALLET_ADDRESS missing"}
+
+    api_url = str(env.get("HL_API_URL", "") or "").strip().rstrip("/")
+    if not api_url:
+        api_url = "https://api.hyperliquid-testnet.xyz" if str(env.get("HL_USE_TESTNET", "0")).strip().lower() in {"1", "true", "yes", "on"} else "https://api.hyperliquid.xyz"
+    info_url = str(env.get("HL_INFO_URL", "") or "").strip().rstrip("/") or f"{api_url}/info"
+    network = "testnet" if "testnet" in api_url else "mainnet"
+
+    controls = {x["key"]: x["value"] for x in get_risk_controls()}
+    hl_live_allowed = str(controls.get("allow_hyperliquid_live", "0")) == "1"
+    if network != "testnet" and not hl_live_allowed:
+        return {"ok": False, "error": "allow_hyperliquid_live=0; refusing mainnet stop order"}
+
+    # Pull live position state directly from HL.
+    try:
+        req = urllib.request.Request(
+            info_url,
+            data=json.dumps({"type": "clearinghouseState", "user": wallet}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            state = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": f"hyperliquid state read failed: {exc}"}
+
+    position: Dict[str, Any] = {}
+    for item in (state.get("assetPositions") or []):
+        if not isinstance(item, dict):
+            continue
+        pos = item.get("position", {}) if isinstance(item.get("position"), dict) else {}
+        coin = str(pos.get("coin") or "").strip().upper()
+        if coin != symbol:
+            continue
+        szi = float(pos.get("szi") or 0.0)
+        if abs(szi) <= 1e-10:
+            continue
+        entry_price = float(pos.get("entryPx") or 0.0)
+        position_value = float(pos.get("positionValue") or 0.0)
+        mark_price = 0.0
+        if abs(position_value) > 0 and abs(szi) > 0:
+            mark_price = abs(position_value) / abs(szi)
+        if mark_price <= 0:
+            mark_price = float(pos.get("markPx") or pos.get("markPrice") or 0.0)
+        position = {
+            "symbol": coin,
+            "side": "long" if szi > 0 else "short",
+            "szi": float(szi),
+            "qty_abs": abs(float(szi)),
+            "entry_price": entry_price,
+            "mark_price": mark_price,
+            "unrealized_pnl": float(pos.get("unrealizedPnl") or 0.0),
+        }
+        break
+
+    if not position:
+        return {"ok": False, "error": f"no open HL position found for {symbol}"}
+
+    qty_abs = float(position["qty_abs"])
+    qty_to_protect = qty_abs * (qty_pct / 100.0)
+    if qty_to_protect <= 0:
+        return {"ok": False, "error": "computed qty_to_protect <= 0"}
+
+    stop_price = float(requested_stop or 0.0)
+    if mode == "trailing":
+        gap = trailing_gap_pct
+        if gap <= 0:
+            gap = float(controls.get("position_trailing_stop_gap_pct", "2.5") or 2.5)
+        mark = float(position.get("mark_price") or 0.0)
+        if mark <= 0:
+            return {"ok": False, "error": "mark price unavailable for trailing stop"}
+        if position["side"] == "long":
+            stop_price = mark * (1.0 - gap / 100.0)
+        else:
+            stop_price = mark * (1.0 + gap / 100.0)
+    elif stop_price <= 0:
+        sl_pct = float(controls.get("position_stop_loss_pct", "5") or 5.0)
+        anchor = float(position.get("entry_price") or 0.0) or float(position.get("mark_price") or 0.0)
+        if anchor <= 0:
+            return {"ok": False, "error": "entry/mark unavailable for stop fallback"}
+        if position["side"] == "long":
+            stop_price = anchor * (1.0 - abs(sl_pct) / 100.0)
+        else:
+            stop_price = anchor * (1.0 + abs(sl_pct) / 100.0)
+
+    if stop_price <= 0:
+        return {"ok": False, "error": "computed stop_price <= 0"}
+
+    exit_side = "sell" if position["side"] == "long" else "buy"
+    response = {
+        "ok": True,
+        "dry_run": dry_run,
+        "network": network,
+        "symbol": symbol,
+        "position_side": position["side"],
+        "exit_side": exit_side,
+        "qty_abs": round(qty_abs, 8),
+        "qty_to_protect": round(float(qty_to_protect), 8),
+        "qty_pct": round(float(qty_pct), 4),
+        "entry_price": round(float(position.get("entry_price") or 0.0), 8),
+        "mark_price": round(float(position.get("mark_price") or 0.0), 8),
+        "stop_price": round(float(stop_price), 8),
+        "mode": mode,
+        "cancel_existing": bool(cancel_existing),
+    }
+    if dry_run:
+        return response
+
+    helper = BASE_DIR / "scripts" / "apply_hl_protection.py"
+    if not helper.exists():
+        return {**response, "ok": False, "error": "helper script missing: scripts/apply_hl_protection.py"}
+    py = "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python"
+    if not Path(py).exists():
+        py = sys.executable or "python3"
+    cmd = [
+        py,
+        str(helper),
+        "--symbol",
+        symbol,
+        "--side",
+        exit_side,
+        "--qty",
+        str(float(qty_to_protect)),
+        "--stop-price",
+        str(float(stop_price)),
+        "--cancel-existing",
+        "1" if cancel_existing else "0",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=45,
+            cwd=str(BASE_DIR),
+        )
+    except Exception as exc:
+        return {**response, "ok": False, "error": f"stop helper launch failed: {exc}"}
+
+    raw = (proc.stdout or "").strip()
+    err = (proc.stderr or "").strip()
+    parsed: Dict[str, Any] = {}
+    try:
+        parsed = json.loads(raw) if raw else {}
+    except Exception:
+        parsed = {"ok": False, "message": "invalid helper json", "details": {"stdout": raw[:800], "stderr": err[:800]}}
+
+    ok = bool(parsed.get("ok"))
+    msg = str(parsed.get("message") or ("submitted stop order" if ok else "stop helper failed"))
+    details = parsed.get("details") if isinstance(parsed.get("details"), dict) else {"stdout": raw[:800], "stderr": err[:800]}
+    if not ok and err:
+        details["stderr"] = err[:1200]
+    return {
+        **response,
+        "ok": bool(ok),
+        "message": msg,
+        "details": details if isinstance(details, dict) else {"raw": str(details)},
+    }
 
 
 def get_bookmarks() -> Dict[str, Any]:
@@ -1588,12 +1835,22 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                 if not isinstance(item, dict):
                     continue
                 pos = item.get("position", {}) if isinstance(item.get("position"), dict) else {}
+                lev = 1.0
+                lev_raw = pos.get("leverage")
+                if isinstance(lev_raw, dict):
+                    lev = float(lev_raw.get("value") or 1.0)
+                elif lev_raw is not None:
+                    lev = float(lev_raw or 1.0)
                 positions.append(
                     {
                         "coin": pos.get("coin", ""),
                         "szi": pos.get("szi", ""),
+                        "entry_price": float(pos.get("entryPx") or 0.0),
+                        "mark_price": float(pos.get("markPx") or pos.get("markPrice") or 0.0),
                         "position_value": float(pos.get("positionValue") or 0.0),
                         "unrealized_pnl": float(pos.get("unrealizedPnl") or 0.0),
+                        "unrealized_pnl_pct": float(pos.get("returnOnEquity") or 0.0) * 100.0,
+                        "leverage": lev,
                     }
                 )
             snapshot["hyperliquid"]["positions"] = positions
@@ -2643,6 +2900,14 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "max_signal_notional_usd",
         "auto_route_limit",
         "auto_route_notional",
+        "position_stop_loss_pct",
+        "position_trail_start_pct",
+        "position_trailing_stop_gap_pct",
+        "position_take_profit_partial_pct",
+        "position_take_profit_major_pct",
+        "position_take_profit_partial_usd",
+        "position_take_profit_major_usd",
+        "position_manage_intent_cooldown_hours",
         "x_influence_enabled",
         "input_auto_reweight_enabled",
         "input_weight_min_samples",
@@ -3215,6 +3480,512 @@ def get_trade_candidates(limit: int = 50) -> List[Dict[str, Any]]:
         conn.close()
 
 
+CORE_SIGNAL_DEFS: List[Dict[str, str]] = [
+    {
+        "key": "liquidity",
+        "label": "Liquidity",
+        "description": "Entry/exit structure quality for timing and risk placement.",
+    },
+    {
+        "key": "pattern",
+        "label": "Pattern",
+        "description": "Chart pattern quality (breakout, reversal, fakeout structure).",
+    },
+    {
+        "key": "social",
+        "label": "Social",
+        "description": "Social sentiment signal pressure across monitored social feeds.",
+    },
+    {
+        "key": "external",
+        "label": "External",
+        "description": "News/event-driven context including free feeds and breakthrough events.",
+    },
+    {
+        "key": "copy",
+        "label": "Copy",
+        "description": "Copy/call style idea flow from tracked discretionary sources.",
+    },
+    {
+        "key": "strategy",
+        "label": "Strategy Engine",
+        "description": "Core strategy model score used for the final route decision.",
+    },
+    {
+        "key": "x_sources",
+        "label": "X Sources",
+        "description": "Tracked X handles as one signal family with drilldown details.",
+    },
+]
+
+CORE_FAMILY_KEYS: Dict[str, str] = {
+    "liquidity": "family:liquidity",
+    "pattern": "family:pattern",
+    "social": "family:social",
+    "external": "family:external",
+    "copy": "family:copy",
+    "strategy": "family:pipeline",
+}
+
+
+def _map_input_key_to_core(key: Any, tracked_handles: Optional[set[str]] = None) -> str:
+    k = str(key or "").strip().lower()
+    if not k:
+        return ""
+    if any(x in k for x in ("venue", "hyperliquid", "alpaca", "execution")):
+        return ""
+    if k.startswith("x:"):
+        return "x_sources"
+    if k.startswith("strategy:") or k.startswith("pipeline:") or k.startswith("family:pipeline"):
+        return "strategy"
+    if k.startswith("family:liquidity") or ":family:liquidity" in k:
+        return "liquidity"
+    if k.startswith("family:pattern") or ":family:pattern" in k:
+        return "pattern"
+    if k.startswith("family:social") or ":family:social" in k:
+        return "social"
+    if k.startswith("family:external") or ":family:external" in k:
+        return "external"
+    if k.startswith("family:copy") or ":family:copy" in k:
+        return "copy"
+    if k.startswith("source:"):
+        tail = k.split("source:", 1)[1].strip()
+        if tracked_handles and tail in tracked_handles:
+            return "x_sources"
+        if tail in {"internal", "unspecified"} or tail.startswith("manual-"):
+            return "strategy"
+        if any(x in tail for x in ("freefeed", "finviz", "event", "breakthrough", "policy", "news")):
+            return "external"
+        return "copy"
+    return ""
+
+
+def _map_source_tag_to_core(source_tag: Any, tracked_handles: set[str]) -> str:
+    tag = str(source_tag or "").strip().lower()
+    if not tag:
+        return ""
+    if tag in tracked_handles:
+        return "x_sources"
+    if tag.startswith("x:"):
+        tail = tag.split("x:", 1)[1].strip().lstrip("@")
+        if tail and tail in tracked_handles:
+            return "x_sources"
+    if tag.startswith(("freefeed:", "finviz:", "news:")):
+        return "external"
+    if any(x in tag for x in ("event", "breakthrough", "policy")):
+        return "external"
+    if "copy" in tag:
+        return "copy"
+    if "social" in tag:
+        return "social"
+    if "pattern" in tag:
+        return "pattern"
+    if "liquidity" in tag:
+        return "liquidity"
+    return "strategy"
+
+
+def _source_tag_to_input_key(source_tag: Any, tracked_handles: set[str]) -> str:
+    tag = str(source_tag or "").strip().lower()
+    if not tag:
+        return ""
+    if tag in tracked_handles:
+        return f"x:{tag}"
+    if tag.startswith("x:"):
+        tail = tag.split("x:", 1)[1].strip().lstrip("@")
+        if tail:
+            return f"x:{tail}"
+    return f"source:{tag}"
+
+
+def _candidate_token_to_input_key(token: Any, tracked_handles: set[str]) -> str:
+    raw = str(token or "").strip().lower()
+    if not raw:
+        return ""
+    if raw.startswith("@"):
+        raw = raw.lstrip("@")
+    if raw in tracked_handles:
+        return f"x:{raw}"
+    if raw.startswith(("family:", "source:", "strategy:", "pipeline:", "x:")):
+        return raw
+    if re.match(r"^[a-z0-9._:-]{2,96}$", raw):
+        return f"source:{raw}"
+    return ""
+
+
+def get_core_signal_overview(lookback_hours: int = 72, limit: int = 1200) -> Dict[str, Any]:
+    lookback = max(1, min(336, int(lookback_hours or 72)))
+    scan_limit = max(100, min(5000, int(limit or 1200)))
+    signal_rows: Dict[str, Dict[str, Any]] = {}
+    for row in CORE_SIGNAL_DEFS:
+        signal_rows[row["key"]] = {
+            "key": row["key"],
+            "label": row["label"],
+            "description": row["description"],
+            "enabled": 0,
+            "manual_weight": 1.0,
+            "auto_weight": 1.0,
+            "effective_weight": 1.0,
+            "sub_inputs_total": 0,
+            "sub_inputs_enabled": 0,
+            "recent_hits": 0,
+            "last_seen_utc": "",
+            "sub_inputs": [],
+        }
+
+    base_out = {
+        "ok": True,
+        "lookback_hours": lookback,
+        "as_of_utc": datetime.now(timezone.utc).isoformat(),
+        "signals": [signal_rows[x["key"]] for x in CORE_SIGNAL_DEFS],
+        "x_sources": [],
+    }
+    if not DB_PATH.exists():
+        return base_out
+
+    conn = _connect()
+    try:
+        cur = conn.cursor()
+        tracked_handles: set[str] = set()
+        x_sources: List[Dict[str, Any]] = []
+        x_meta_by_key: Dict[str, Dict[str, Any]] = {}
+        controls: Dict[str, Dict[str, Any]] = {}
+        source_learning: Dict[str, Dict[str, Any]] = {}
+        strategy_learning: Dict[str, Dict[str, Any]] = {}
+
+        if _table_exists(conn, "input_source_controls"):
+            cur.execute(
+                """
+                SELECT LOWER(COALESCE(source_key,'')),
+                       COALESCE(source_label,''),
+                       COALESCE(source_class,''),
+                       COALESCE(enabled,1),
+                       COALESCE(manual_weight,1.0),
+                       COALESCE(auto_weight,1.0),
+                       ROUND(COALESCE(manual_weight,1.0) * COALESCE(auto_weight,1.0), 6),
+                       COALESCE(notes,'')
+                FROM input_source_controls
+                """
+            )
+            for source_key, source_label, source_class, enabled, manual_w, auto_w, effective_w, notes in cur.fetchall():
+                sk = str(source_key or "").strip().lower()
+                if not sk:
+                    continue
+                controls[sk] = {
+                    "source_key": sk,
+                    "source_label": str(source_label or ""),
+                    "source_class": str(source_class or ""),
+                    "enabled": int(enabled or 0),
+                    "manual_weight": float(manual_w or 1.0),
+                    "auto_weight": float(auto_w or 1.0),
+                    "effective_weight": float(effective_w or 1.0),
+                    "notes": str(notes or ""),
+                }
+
+        if _table_exists(conn, "tracked_x_sources"):
+            has_x_api = _column_exists(conn, "tracked_x_sources", "x_api_enabled")
+            has_weight = _column_exists(conn, "tracked_x_sources", "source_weight")
+            x_api_expr = "COALESCE(x_api_enabled,1)" if has_x_api else "1"
+            source_weight_expr = "COALESCE(source_weight,1.0)" if has_weight else "1.0"
+            cur.execute(
+                """
+                SELECT COALESCE(handle,''), COALESCE(active,1), """
+                + x_api_expr
+                + """, COALESCE(role_copy,1), COALESCE(role_alpha,1), """
+                + source_weight_expr
+                + """
+                FROM tracked_x_sources
+                ORDER BY updated_at DESC
+                """
+            )
+            for handle, active, x_api, role_copy, role_alpha, source_weight in cur.fetchall():
+                h = _normalize_x_handle(handle)
+                if not h:
+                    continue
+                tracked_handles.add(h)
+                x_key = f"x:{h}"
+                ctl = controls.get(x_key, {})
+                manual_w = float(ctl.get("manual_weight", float(source_weight or 1.0)))
+                auto_w = float(ctl.get("auto_weight", 1.0))
+                effective_w = float(ctl.get("effective_weight", manual_w * auto_w))
+                enabled = int(active or 0) == 1 and int(x_api or 0) == 1 and int(ctl.get("enabled", 1)) == 1
+                x_sources.append(
+                    {
+                        "source_key": x_key,
+                        "source_label": str(ctl.get("source_label") or f"X @{h}"),
+                        "source_class": str(ctl.get("source_class") or "x_account"),
+                        "notes": str(ctl.get("notes") or ""),
+                        "handle": h,
+                        "active": 1 if enabled else 0,
+                        "role_copy": int(role_copy or 0),
+                        "role_alpha": int(role_alpha or 0),
+                        "source_weight": round(float(source_weight or 1.0), 4),
+                        "manual_weight": round(manual_w, 4),
+                        "auto_weight": round(auto_w, 4),
+                        "effective_weight": round(effective_w, 4),
+                        "recent_hits": 0,
+                        "last_seen_utc": "",
+                        "sample_size": 0,
+                        "win_rate": 0.0,
+                        "avg_pnl_percent": 0.0,
+                    }
+                )
+                x_meta_by_key[x_key] = {"role_copy": int(role_copy or 0), "role_alpha": int(role_alpha or 0)}
+                if x_key not in controls:
+                    controls[x_key] = {
+                        "source_key": x_key,
+                        "source_label": f"X @{h}",
+                        "source_class": "x_account",
+                        "enabled": 1 if enabled else 0,
+                        "manual_weight": float(manual_w),
+                        "auto_weight": float(auto_w),
+                        "effective_weight": float(effective_w),
+                        "notes": "",
+                    }
+
+        if _table_exists(conn, "source_learning_stats"):
+            cur.execute(
+                """
+                SELECT LOWER(COALESCE(source_tag,'')),
+                       COALESCE(sample_size,0),
+                       COALESCE(win_rate,0.0),
+                       COALESCE(avg_pnl_percent,0.0)
+                FROM source_learning_stats
+                """
+            )
+            for source_tag, sample_size, win_rate, avg_pnl_percent in cur.fetchall():
+                st = str(source_tag or "").strip().lower()
+                if not st:
+                    continue
+                source_learning[st] = {
+                    "sample_size": int(sample_size or 0),
+                    "win_rate": float(win_rate or 0.0),
+                    "avg_pnl_percent": float(avg_pnl_percent or 0.0),
+                }
+
+        if _table_exists(conn, "strategy_learning_stats"):
+            cur.execute(
+                """
+                SELECT UPPER(COALESCE(strategy_tag,'')),
+                       COALESCE(sample_size,0),
+                       COALESCE(win_rate,0.0),
+                       COALESCE(avg_pnl_percent,0.0)
+                FROM strategy_learning_stats
+                """
+            )
+            for strategy_tag, sample_size, win_rate, avg_pnl_percent in cur.fetchall():
+                st = str(strategy_tag or "").strip().upper()
+                if not st:
+                    continue
+                strategy_learning[st] = {
+                    "sample_size": int(sample_size or 0),
+                    "win_rate": float(win_rate or 0.0),
+                    "avg_pnl_percent": float(avg_pnl_percent or 0.0),
+                }
+
+        route_hits: Dict[str, int] = {}
+        route_last_seen: Dict[str, str] = {}
+        input_hits: Dict[str, int] = {}
+        input_last_seen: Dict[str, str] = {}
+        if _table_exists(conn, "signal_routes"):
+            cur.execute(
+                """
+                SELECT LOWER(COALESCE(source_tag,'')), COALESCE(routed_at,'')
+                FROM signal_routes
+                WHERE datetime(COALESCE(routed_at, '1970-01-01')) >= datetime('now', ?)
+                ORDER BY datetime(COALESCE(routed_at, '1970-01-01')) DESC
+                LIMIT ?
+                """,
+                (f"-{lookback} hour", scan_limit),
+            )
+            for source_tag, routed_at in cur.fetchall():
+                core = _map_source_tag_to_core(source_tag, tracked_handles)
+                if not core:
+                    continue
+                route_hits[core] = int(route_hits.get(core, 0) or 0) + 1
+                ts = str(routed_at or "")
+                if ts and (not route_last_seen.get(core) or ts > route_last_seen.get(core, "")):
+                    route_last_seen[core] = ts
+                input_key = _source_tag_to_input_key(source_tag, tracked_handles)
+                if input_key:
+                    input_hits[input_key] = int(input_hits.get(input_key, 0) or 0) + 1
+                    if ts and (not input_last_seen.get(input_key) or ts > input_last_seen.get(input_key, "")):
+                        input_last_seen[input_key] = ts
+
+        candidate_hits: Dict[str, int] = {}
+        candidate_last_seen: Dict[str, str] = {}
+        if _table_exists(conn, "trade_candidates"):
+            cur.execute(
+                """
+                SELECT COALESCE(generated_at,''), COALESCE(input_breakdown_json,'[]'), COALESCE(evidence_json,'[]')
+                FROM trade_candidates
+                WHERE datetime(COALESCE(generated_at, '1970-01-01')) >= datetime('now', ?)
+                ORDER BY datetime(COALESCE(generated_at, '1970-01-01')) DESC
+                LIMIT ?
+                """,
+                (f"-{lookback} hour", scan_limit),
+            )
+            for generated_at, input_breakdown_raw, evidence_raw in cur.fetchall():
+                ts = str(generated_at or "")
+                keys: List[str] = []
+                for item in _parse_input_breakdown_json(str(input_breakdown_raw or "[]")):
+                    kk = str(item.get("key") or "").strip()
+                    if kk:
+                        keys.append(kk)
+                try:
+                    evidence = json.loads(str(evidence_raw or "[]"))
+                    if isinstance(evidence, list):
+                        for ev in evidence:
+                            evs = str(ev or "").strip()
+                            if evs:
+                                keys.append(evs)
+                except Exception:
+                    pass
+                for k in keys:
+                    input_key = _candidate_token_to_input_key(k, tracked_handles)
+                    if not input_key:
+                        continue
+                    core = _map_input_key_to_core(input_key, tracked_handles=tracked_handles)
+                    if not core:
+                        continue
+                    candidate_hits[core] = int(candidate_hits.get(core, 0) or 0) + 1
+                    if ts and (not candidate_last_seen.get(core) or ts > candidate_last_seen.get(core, "")):
+                        candidate_last_seen[core] = ts
+                    input_hits[input_key] = int(input_hits.get(input_key, 0) or 0) + 1
+                    if ts and (not input_last_seen.get(input_key) or ts > input_last_seen.get(input_key, "")):
+                        input_last_seen[input_key] = ts
+
+        for key, row in signal_rows.items():
+            family_key = CORE_FAMILY_KEYS.get(key, "")
+            if family_key:
+                family = controls.get(family_key, {})
+                if family:
+                    row["enabled"] = int(family.get("enabled", 1))
+                    row["manual_weight"] = round(float(family.get("manual_weight", 1.0)), 4)
+                    row["auto_weight"] = round(float(family.get("auto_weight", 1.0)), 4)
+                    row["effective_weight"] = round(float(family.get("effective_weight", 1.0)), 4)
+                else:
+                    row["enabled"] = 1
+
+            row["recent_hits"] = int(route_hits.get(key, 0) or 0) + int(candidate_hits.get(key, 0) or 0)
+            row["last_seen_utc"] = route_last_seen.get(key, "") or candidate_last_seen.get(key, "")
+
+        sub_inputs_by_core: Dict[str, List[Dict[str, Any]]] = {k: [] for k in signal_rows.keys()}
+        for sk, ctl in controls.items():
+            core = _map_input_key_to_core(sk, tracked_handles=tracked_handles)
+            if not core:
+                continue
+            sample_size = 0
+            win_rate = 0.0
+            avg_pnl_pct = 0.0
+            role_copy = 0
+            role_alpha = 0
+            strategy_tag = ""
+            if sk.startswith("source:"):
+                tag = sk.split("source:", 1)[1].strip()
+                stats = source_learning.get(tag, {})
+                sample_size = int(stats.get("sample_size", 0))
+                win_rate = float(stats.get("win_rate", 0.0))
+                avg_pnl_pct = float(stats.get("avg_pnl_percent", 0.0))
+            elif sk.startswith("x:"):
+                tag = sk.split("x:", 1)[1].strip()
+                stats = source_learning.get(tag, {})
+                sample_size = int(stats.get("sample_size", 0))
+                win_rate = float(stats.get("win_rate", 0.0))
+                avg_pnl_pct = float(stats.get("avg_pnl_percent", 0.0))
+                roles = x_meta_by_key.get(sk, {})
+                role_copy = int(roles.get("role_copy", 0))
+                role_alpha = int(roles.get("role_alpha", 0))
+            elif sk.startswith("strategy:"):
+                m = re.match(r"^strategy:([^:]+)", sk)
+                strategy_tag = str((m.group(1) if m else "") or "").upper()
+                stats = strategy_learning.get(strategy_tag, {})
+                sample_size = int(stats.get("sample_size", 0))
+                win_rate = float(stats.get("win_rate", 0.0))
+                avg_pnl_pct = float(stats.get("avg_pnl_percent", 0.0))
+            elif sk.startswith("pipeline:"):
+                strategy_tag = sk.split("pipeline:", 1)[1].strip().upper()
+                stats = strategy_learning.get(strategy_tag, {})
+                sample_size = int(stats.get("sample_size", 0))
+                win_rate = float(stats.get("win_rate", 0.0))
+                avg_pnl_pct = float(stats.get("avg_pnl_percent", 0.0))
+
+            sub_inputs_by_core[core].append(
+                {
+                    "source_key": sk,
+                    "source_label": str(ctl.get("source_label") or _input_friendly_name(sk)),
+                    "source_class": str(ctl.get("source_class") or ""),
+                    "help": _input_friendly_help(sk),
+                    "enabled": int(ctl.get("enabled", 1)),
+                    "manual_weight": round(float(ctl.get("manual_weight", 1.0)), 4),
+                    "auto_weight": round(float(ctl.get("auto_weight", 1.0)), 4),
+                    "effective_weight": round(float(ctl.get("effective_weight", 1.0)), 4),
+                    "recent_hits": int(input_hits.get(sk, 0) or 0),
+                    "last_seen_utc": input_last_seen.get(sk, ""),
+                    "sample_size": sample_size,
+                    "win_rate": round(win_rate, 2),
+                    "avg_pnl_percent": round(avg_pnl_pct, 4),
+                    "score_pct": round(win_rate, 2) if sample_size > 0 else 0.0,
+                    "strategy_tag": strategy_tag,
+                    "role_copy": role_copy,
+                    "role_alpha": role_alpha,
+                    "notes": str(ctl.get("notes") or ""),
+                }
+            )
+
+        for key, row in signal_rows.items():
+            subs = sorted(
+                sub_inputs_by_core.get(key, []),
+                key=lambda x: (int(x.get("recent_hits", 0) or 0), float(x.get("effective_weight", 1.0) or 1.0)),
+                reverse=True,
+            )
+            row["sub_inputs"] = subs[:200]
+            row["sub_inputs_total"] = len(subs)
+            row["sub_inputs_enabled"] = len([x for x in subs if int(x.get("enabled", 0)) == 1])
+
+        x_by_handle = {str(x.get("handle") or ""): x for x in x_sources}
+        for handle, payload in x_by_handle.items():
+            key = f"x:{handle}"
+            payload["recent_hits"] = int(input_hits.get(key, 0) or 0)
+            payload["last_seen_utc"] = input_last_seen.get(key, "")
+            stats = source_learning.get(handle, {})
+            payload["sample_size"] = int(stats.get("sample_size", 0))
+            payload["win_rate"] = round(float(stats.get("win_rate", 0.0)), 2)
+            payload["avg_pnl_percent"] = round(float(stats.get("avg_pnl_percent", 0.0)), 4)
+
+        x_sorted = sorted(
+            x_by_handle.values(),
+            key=lambda x: (int(x.get("recent_hits", 0)), float(x.get("effective_weight", 1.0))),
+            reverse=True,
+        )
+
+        x_active = [x for x in x_sorted if int(x.get("active", 0)) == 1]
+        x_row = signal_rows["x_sources"]
+        x_row["enabled"] = 1 if x_active else 0
+        x_row["sub_inputs_total"] = len(x_sorted)
+        x_row["sub_inputs_enabled"] = len(x_active)
+        if x_active:
+            x_row["manual_weight"] = round(sum(float(x.get("manual_weight", 1.0)) for x in x_active) / len(x_active), 4)
+            x_row["auto_weight"] = round(sum(float(x.get("auto_weight", 1.0)) for x in x_active) / len(x_active), 4)
+            x_row["effective_weight"] = round(sum(float(x.get("effective_weight", 1.0)) for x in x_active) / len(x_active), 4)
+        else:
+            x_row["manual_weight"] = 1.0
+            x_row["auto_weight"] = 1.0
+            x_row["effective_weight"] = 1.0
+        x_row["recent_hits"] = int(route_hits.get("x_sources", 0) or 0) + int(candidate_hits.get("x_sources", 0) or 0)
+        x_row["last_seen_utc"] = route_last_seen.get("x_sources", "") or candidate_last_seen.get("x_sources", "")
+
+        return {
+            "ok": True,
+            "lookback_hours": lookback,
+            "as_of_utc": datetime.now(timezone.utc).isoformat(),
+            "signals": [signal_rows[x["key"]] for x in CORE_SIGNAL_DEFS],
+            "x_sources": x_sorted[:200],
+        }
+    finally:
+        conn.close()
+
+
 def get_trade_intents(limit: int = 200) -> List[Dict[str, Any]]:
     if not DB_PATH.exists():
         return []
@@ -3233,6 +4004,50 @@ def get_trade_intents(limit: int = 200) -> List[Dict[str, Any]]:
             (limit,),
         )
         return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_position_management_intents(limit: int = 120) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "trade_intents"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT created_at, venue, symbol, side, qty, notional, status, details
+            FROM trade_intents
+            WHERE COALESCE(status,'') LIKE 'manage_%'
+            ORDER BY datetime(COALESCE(created_at, '1970-01-01')) DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+        for row in rows:
+            action = str(row.get("status") or "").replace("manage_", "").replace("_", " ").strip()
+            row["action"] = action or "manage"
+            row["confidence"] = 0.0
+            row["pnl_pct"] = 0.0
+            row["upnl_usd"] = 0.0
+            row["reason"] = ""
+            row["suggested_stop_price"] = 0.0
+            row["leverage"] = 1.0
+            try:
+                d = json.loads(str(row.get("details") or "{}"))
+                if isinstance(d, dict):
+                    row["confidence"] = round(float(d.get("confidence", 0.0) or 0.0), 4)
+                    row["pnl_pct"] = round(float(d.get("pnl_pct", 0.0) or 0.0), 4)
+                    row["upnl_usd"] = round(float(d.get("upnl_usd", 0.0) or 0.0), 4)
+                    row["reason"] = str(d.get("reason") or "")
+                    row["suggested_stop_price"] = round(float(d.get("suggested_stop_price", 0.0) or 0.0), 6)
+                    row["leverage"] = round(float(d.get("leverage", 1.0) or 1.0), 4)
+            except Exception:
+                pass
+        return rows
     finally:
         conn.close()
 

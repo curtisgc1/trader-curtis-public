@@ -123,6 +123,37 @@ ON CONFLICT(ticker) DO UPDATE SET
   - `missed_opportunity_max_runtime_seconds`
   - `horizon_resolver_max_runtime_seconds`
 
+## Dashboard Position Protection (HL)
+
+The dashboard now supports live position protection actions for Hyperliquid open perps:
+
+- View per-position:
+  - leverage
+  - unrealized PnL (USD + %)
+- Configure planner thresholds in `Open Position Plan`:
+  - `position_stop_loss_pct`
+  - `position_trail_start_pct`
+  - `position_trailing_stop_gap_pct`
+  - `position_take_profit_partial_pct`
+  - `position_take_profit_major_pct`
+  - `position_manage_intent_cooldown_hours`
+- Submit protection orders from dashboard:
+  - `Apply Stop`
+  - `Apply Trailing`
+  - optional `Dry Run`
+  - optional cancel/replace existing reduce-only trigger stops for symbol
+
+Execution path:
+- UI -> `POST /api/position-protection`
+- API computes live position-aware parameters (side/qty/stop)
+- helper script `scripts/apply_hl_protection.py` calls adapter
+- adapter submits reduce-only trigger stop via Hyperliquid and writes `trade_intents` (`status='submitted_stop'`)
+
+Notes:
+- Mainnet protection submissions require `allow_hyperliquid_live=1`.
+- Testnet (`HL_USE_TESTNET=1`) allows submissions without mainnet live enable.
+- Trigger prices are normalized to exchange price precision rules before submit.
+
 ## Kaggle Role
 
 Kaggle is used to complement training/alignment data, not as live execution truth.

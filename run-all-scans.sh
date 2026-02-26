@@ -114,6 +114,14 @@ else
 fi
 echo ""
 
+echo "🧭 BUILDING OPEN POSITION MANAGEMENT PLAN..."
+if command -v python3.11 >/dev/null 2>&1; then
+  python3.11 /Users/Shared/curtis/trader-curtis/manage_open_positions.py 2>/dev/null || true
+else
+  python3 /Users/Shared/curtis/trader-curtis/manage_open_positions.py 2>/dev/null || true
+fi
+echo ""
+
 echo "📊 RANKING SOURCES..."
 /Users/Shared/curtis/trader-curtis/source_ranker.py 2>/dev/null || true
 /Users/Shared/curtis/trader-curtis/score_polymarket_wallets.py 2>/dev/null || true

@@ -10,8 +10,9 @@ import os
 import sqlite3
 import subprocess
 import time
+import math
 from datetime import datetime, timezone
-from decimal import ROUND_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -350,6 +351,38 @@ def _fetch_hl_universe(env: Dict[str, str]) -> Tuple[bool, str, set]:
     return True, "ok", names
 
 
+def _hl_parse_embedded_errors(order_result: Dict) -> list[str]:
+    response_obj = (order_result or {}).get("response")
+    response_obj = response_obj if isinstance(response_obj, dict) else {}
+    data_obj = response_obj.get("data")
+    data_obj = data_obj if isinstance(data_obj, dict) else {}
+    statuses = data_obj.get("statuses", [])
+    embedded_errors: list[str] = []
+    for st in statuses:
+        if isinstance(st, dict) and st.get("error"):
+            embedded_errors.append(str(st.get("error")))
+    return embedded_errors
+
+
+def _hl_size_decimals(meta: Dict, symbol: str) -> int:
+    sz_decimals = 5
+    for asset in (meta.get("universe", []) if isinstance(meta, dict) else []):
+        if str(asset.get("name", "")).upper() == symbol:
+            sz_decimals = int(asset.get("szDecimals", 5))
+            break
+    return sz_decimals
+
+
+def _hl_normalize_price(px: float) -> float:
+    v = float(px or 0.0)
+    if v <= 0:
+        return 0.0
+    digits_left = int(math.floor(math.log10(abs(v))) + 1) if v >= 1 else 0
+    decimals = max(0, 5 - digits_left)
+    decimals = min(decimals, 6)
+    return float(round(v, decimals))
+
+
 def hyperliquid_test_intent(symbol: str, side: str, notional_usd: float) -> Tuple[bool, str, Dict]:
     """
     Intentionally records a $-sized test intent and verifies asset availability.
@@ -470,11 +503,7 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
         intent_id = record_intent("hyperliquid", symbol, side, 0.0, float(notional_usd), "failed", details)
         return False, f"no mid price for {symbol}", {"intent_id": intent_id, **details}
 
-    sz_decimals = 5
-    for asset in (meta.get("universe", []) if isinstance(meta, dict) else []):
-        if str(asset.get("name", "")).upper() == symbol:
-            sz_decimals = int(asset.get("szDecimals", 5))
-            break
+    sz_decimals = _hl_size_decimals(meta, symbol)
 
     # Round UP to valid size precision so tiny notionals do not underflow to 0.
     raw_size = Decimal(str(float(notional_usd) / mid))
@@ -550,15 +579,7 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
         fail_intent_id = record_intent("hyperliquid", symbol, side, size, float(notional_usd), "failed", fail_details)
         return False, "HL exchange returned error", {"intent_id": fail_intent_id, "network": network, "result": order_result}
 
-    response_obj = (order_result or {}).get("response")
-    response_obj = response_obj if isinstance(response_obj, dict) else {}
-    data_obj = response_obj.get("data")
-    data_obj = data_obj if isinstance(data_obj, dict) else {}
-    statuses = data_obj.get("statuses", [])
-    embedded_errors = []
-    for st in statuses:
-        if isinstance(st, dict) and st.get("error"):
-            embedded_errors.append(str(st.get("error")))
+    embedded_errors = _hl_parse_embedded_errors(order_result)
     if embedded_errors:
         # Persist explicit failed intent with exchange-side validation error.
         fail_details = {
@@ -594,3 +615,250 @@ def hyperliquid_submit_notional_live(symbol: str, side: str, notional_usd: float
         },
     )
     return True, "submitted", {"intent_id": intent_id, "network": network, "mid": mid, "size": size, "result": order_result}
+
+
+def hyperliquid_submit_reduce_only_stop_live(
+    symbol: str,
+    side: str,
+    qty: float,
+    stop_price: float,
+    is_market: bool = True,
+    cancel_existing: bool = True,
+) -> Tuple[bool, str, Dict]:
+    """
+    Submit a reduce-only stop trigger order on Hyperliquid for an existing position.
+    side: "buy" closes short, "sell" closes long
+    """
+    env = load_env()
+    private_key = env.get("HL_AGENT_PRIVATE_KEY")
+    account_address = env.get("HL_WALLET_ADDRESS")
+    api_url, _info_url, network = _hl_runtime_urls(env)
+    symbol = symbol.upper().strip()
+    side_norm = str(side or "").strip().lower()
+    is_buy = side_norm in {"buy", "long"}
+
+    if not HL_DEPS_OK:
+        details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": qty,
+            "stop_price": stop_price,
+            "reason": "missing dependencies: eth_account/hyperliquid",
+        }
+        intent_id = record_intent("hyperliquid", symbol, side_norm, float(qty), 0.0, "failed", details)
+        return False, "hyperliquid dependencies not installed (eth_account/hyperliquid)", {"intent_id": intent_id, **details}
+    if not private_key:
+        return False, "missing HL_AGENT_PRIVATE_KEY", {"network": network}
+    if qty <= 0:
+        return False, "qty must be > 0", {"network": network}
+    if stop_price <= 0:
+        return False, "stop_price must be > 0", {"network": network}
+
+    try:
+        wallet = Account.from_key(private_key)
+    except Exception as exc:
+        return False, f"invalid HL private key: {exc}", {}
+
+    configured_account = str(account_address or "").strip()
+    signer_address = wallet.address
+    if not configured_account:
+        account_address = signer_address
+
+    try:
+        info = Info(base_url=api_url, skip_ws=True, timeout=15)
+        mids = info.all_mids()
+        mid = float(mids.get(symbol, 0) or 0)
+        meta = info.meta()
+    except Exception as exc:
+        details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": qty,
+            "stop_price": stop_price,
+            "reason": str(exc),
+        }
+        intent_id = record_intent("hyperliquid", symbol, side_norm, float(qty), 0.0, "failed", details)
+        return False, f"failed to fetch HL market data: {exc}", {"intent_id": intent_id, **details}
+
+    if mid <= 0:
+        details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": qty,
+            "stop_price": stop_price,
+            "reason": "no mid price",
+        }
+        intent_id = record_intent("hyperliquid", symbol, side_norm, float(qty), 0.0, "failed", details)
+        return False, f"no mid price for {symbol}", {"intent_id": intent_id, **details}
+
+    sz_decimals = _hl_size_decimals(meta, symbol)
+    quantum = Decimal(10) ** Decimal(-sz_decimals)
+    size = float(Decimal(str(float(qty))).quantize(quantum, rounding=ROUND_DOWN))
+    if size <= 0:
+        details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": qty,
+            "rounded_size": size,
+            "sz_decimals": sz_decimals,
+            "stop_price": stop_price,
+            "reason": "rounded size <= 0",
+        }
+        intent_id = record_intent("hyperliquid", symbol, side_norm, float(qty), 0.0, "failed", details)
+        return False, "rounded size <= 0", {"intent_id": intent_id, **details}
+
+    trigger_px = _hl_normalize_price(float(stop_price))
+    if trigger_px <= 0:
+        details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": qty,
+            "stop_price": stop_price,
+            "reason": "invalid normalized trigger price",
+        }
+        intent_id = record_intent("hyperliquid", symbol, side_norm, float(qty), 0.0, "failed", details)
+        return False, "invalid trigger price", {"intent_id": intent_id, **details}
+
+    # Use trigger price as limit anchor; required by exchange validation for trigger orders.
+    limit_px = float(trigger_px)
+    order_type = {"trigger": {"triggerPx": float(trigger_px), "isMarket": bool(is_market), "tpsl": "sl"}}
+
+    canceled_oids: list[int] = []
+    try:
+        exchange = Exchange(
+            wallet=wallet,
+            base_url=api_url,
+            account_address=account_address or None,
+            timeout=20,
+        )
+
+        if cancel_existing:
+            try:
+                open_orders = info.open_orders(account_address or wallet.address)
+                for o in (open_orders if isinstance(open_orders, list) else []):
+                    if not isinstance(o, dict):
+                        continue
+                    coin = str(o.get("coin") or o.get("name") or "").upper()
+                    if coin != symbol:
+                        continue
+                    reduce_only = bool(o.get("reduceOnly") or o.get("reduce_only") or False)
+                    is_trigger = bool(o.get("isTrigger") or o.get("triggerPx") or o.get("trigger_px"))
+                    if not reduce_only or not is_trigger:
+                        continue
+                    oid_raw = o.get("oid")
+                    if oid_raw is None:
+                        continue
+                    oid = int(oid_raw)
+                    cancel_res = exchange.cancel(symbol, oid)
+                    if isinstance(cancel_res, dict) and str(cancel_res.get("status", "")).lower() != "ok":
+                        continue
+                    canceled_oids.append(oid)
+            except Exception:
+                # Non-fatal: submission can still proceed.
+                pass
+
+        order_result = exchange.order(
+            name=symbol,
+            is_buy=is_buy,
+            sz=size,
+            limit_px=float(limit_px),
+            order_type=order_type,
+            reduce_only=True,
+        )
+    except Exception as exc:
+        details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": float(size),
+            "stop_price": float(stop_price),
+            "trigger_px": float(trigger_px),
+            "limit_px": float(limit_px),
+            "side": side_norm,
+            "reason": str(exc),
+            "canceled_oids": canceled_oids,
+        }
+        intent_id = record_intent("hyperliquid", symbol, side_norm, float(size), 0.0, "failed", details)
+        return False, f"HL stop submit failed: {exc}", {"intent_id": intent_id, **details}
+
+    if not isinstance(order_result, dict):
+        fail_details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": float(size),
+            "stop_price": float(stop_price),
+            "trigger_px": float(trigger_px),
+            "limit_px": float(limit_px),
+            "side": side_norm,
+            "error": f"unexpected HL response type: {type(order_result).__name__}",
+            "live_order_result": str(order_result),
+            "canceled_oids": canceled_oids,
+        }
+        fail_intent_id = record_intent("hyperliquid", symbol, side_norm, float(size), 0.0, "failed", fail_details)
+        return False, "HL unexpected response payload", {"intent_id": fail_intent_id, "result": order_result}
+
+    top_status = str((order_result or {}).get("status", "")).lower()
+    if top_status == "err":
+        fail_details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": float(size),
+            "stop_price": float(stop_price),
+            "trigger_px": float(trigger_px),
+            "limit_px": float(limit_px),
+            "side": side_norm,
+            "error": str((order_result or {}).get("response") or "exchange returned err"),
+            "live_order_result": order_result,
+            "canceled_oids": canceled_oids,
+        }
+        fail_intent_id = record_intent("hyperliquid", symbol, side_norm, float(size), 0.0, "failed", fail_details)
+        return False, "HL exchange returned error", {"intent_id": fail_intent_id, "result": order_result}
+
+    embedded_errors = _hl_parse_embedded_errors(order_result)
+    if embedded_errors:
+        fail_details = {
+            "symbol": symbol,
+            "network": network,
+            "qty": float(size),
+            "stop_price": float(stop_price),
+            "trigger_px": float(trigger_px),
+            "limit_px": float(limit_px),
+            "side": side_norm,
+            "error": "; ".join(embedded_errors),
+            "live_order_result": order_result,
+            "canceled_oids": canceled_oids,
+        }
+        fail_intent_id = record_intent("hyperliquid", symbol, side_norm, float(size), 0.0, "failed", fail_details)
+        return False, f"HL exchange rejected stop: {embedded_errors[0]}", {"intent_id": fail_intent_id, "result": order_result}
+
+    intent_id = record_intent(
+        venue="hyperliquid",
+        symbol=symbol,
+        side="buy" if is_buy else "sell",
+        qty=float(size),
+        notional=0.0,
+        status="submitted_stop",
+        details={
+            "network": network,
+            "configured_account": configured_account,
+            "effective_account": account_address,
+            "trigger_stop_price": float(stop_price),
+            "trigger_px": float(trigger_px),
+            "limit_px": float(limit_px),
+            "is_market": bool(is_market),
+            "reduce_only": True,
+            "canceled_oids": canceled_oids,
+            "live_order_result": order_result,
+            "mid": mid,
+        },
+    )
+    return True, "submitted stop order", {
+        "intent_id": intent_id,
+        "network": network,
+        "mid": mid,
+        "size": float(size),
+        "stop_price": float(stop_price),
+        "trigger_px": float(trigger_px),
+        "limit_px": float(limit_px),
+        "canceled_oids": canceled_oids,
+        "result": order_result,
+    }
