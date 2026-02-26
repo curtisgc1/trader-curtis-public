@@ -1,12 +1,33 @@
 #!/usr/bin/env python3
 """
 Auto-reweight input sources from historical outcomes.
+
+Sources are scored against multiple time horizons:
+  24h  = 1-day (scalp)
+  168h = 7-day (swing)
+  336h = 14-day (medium)
+  720h = 30-day (long-term)
+
+Horizon stats are written to input_source_controls.notes as JSON so the dashboard
+can display per-input performance by time horizon.
+
+auto_weight blends 24h and 168h win rates equally when both have samples.
+Falls back to all-time win rate when horizon data is thin.
 """
 
+import json
 import sqlite3
 from pathlib import Path
+from typing import Dict, Tuple
 
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
+
+HORIZON_LABELS: Dict[int, str] = {
+    24: "1d",
+    168: "7d",
+    336: "14d",
+    720: "30d",
+}
 
 
 def table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -170,8 +191,107 @@ def main() -> int:
                 if enabled_flag == 0:
                     disabled += 1
 
+        # ── Horizon-aware reweighting from source_horizon_learning_stats ──
+        # Reads wins/losses per source per horizon (1d, 7d, 14d, 30d).
+        # Stores horizon breakdown in notes JSON for dashboard visibility.
+        # Updates auto_weight with blended 1d+7d score when data is sufficient.
+        horizon_updates = 0
+        if table_exists(conn, "source_horizon_learning_stats"):
+            # Aggregate horizon stats per source_tag
+            cur.execute(
+                """
+                SELECT source_tag, horizon_hours, wins, losses, pushes, win_rate, sample_size
+                FROM source_horizon_learning_stats
+                WHERE horizon_hours IN (24, 168, 336, 720)
+                ORDER BY source_tag, horizon_hours
+                """
+            )
+            horizon_map: Dict[str, Dict[int, Dict]] = {}
+            for tag, h_hours, wins, losses, pushes, win_rate_h, sample_h in cur.fetchall():
+                t = str(tag or "").strip()
+                if not t:
+                    continue
+                if t not in horizon_map:
+                    horizon_map[t] = {}
+                horizon_map[t][int(h_hours)] = {
+                    "wins": int(wins or 0),
+                    "losses": int(losses or 0),
+                    "pushes": int(pushes or 0),
+                    "win_rate": round(float(win_rate_h or 0.0), 1),
+                    "sample": int(sample_h or 0),
+                }
+
+            for tag, horizons in horizon_map.items():
+                # Build notes JSON with per-horizon breakdown
+                horizon_notes: Dict[str, Dict] = {}
+                for h_hours, stats in horizons.items():
+                    label = HORIZON_LABELS.get(h_hours, f"{h_hours}h")
+                    horizon_notes[label] = stats
+
+                # Compute blended auto_weight from 1d and 7d win rates (primary trading horizons)
+                d1 = horizons.get(24, {})
+                d7 = horizons.get(168, {})
+                d1_wr = float(d1.get("win_rate", 0.0))
+                d7_wr = float(d7.get("win_rate", 0.0))
+                d1_n = int(d1.get("sample", 0))
+                d7_n = int(d7.get("sample", 0))
+
+                # Only update auto_weight if we have enough horizon samples
+                if d1_n >= min_samples or d7_n >= min_samples:
+                    total_n = d1_n + d7_n
+                    blended_wr = (
+                        (d1_wr * d1_n + d7_wr * d7_n) / total_n
+                        if total_n > 0 else 50.0
+                    )
+                    blended_n = max(d1_n, d7_n)
+                    w = _weight_from_perf(blended_wr, blended_n, min_samples, floor, ceiling)
+                    enabled_flag = 0 if (auto_disable_threshold > 0 and blended_n >= min_samples and w < auto_disable_threshold) else 1
+
+                    notes_str = json.dumps({
+                        "horizons": horizon_notes,
+                        "blended_1d7d_win_rate": round(blended_wr, 1),
+                        "auto_weight_source": "horizon_blend_1d7d",
+                    }, separators=(",", ":"))
+
+                    key = f"source:{tag.lower()}"
+                    conn.execute(
+                        """
+                        INSERT INTO input_source_controls
+                        (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+                        VALUES (datetime('now'), datetime('now'), ?, ?, 'source_tag', ?, 1.0, ?, ?)
+                        ON CONFLICT(source_key) DO UPDATE SET
+                          updated_at=datetime('now'),
+                          enabled=excluded.enabled,
+                          auto_weight=excluded.auto_weight,
+                          notes=excluded.notes
+                        """,
+                        (key, f"Source {tag}", int(enabled_flag), float(w), notes_str),
+                    )
+                    horizon_updates += 1
+                else:
+                    # Not enough data to update weight — just store the horizon notes
+                    notes_str = json.dumps({
+                        "horizons": horizon_notes,
+                        "auto_weight_source": "insufficient_samples",
+                    }, separators=(",", ":"))
+                    key = f"source:{tag.lower()}"
+                    conn.execute(
+                        """
+                        INSERT INTO input_source_controls
+                        (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+                        VALUES (datetime('now'), datetime('now'), ?, ?, 'source_tag', 1, 1.0, 1.0, ?)
+                        ON CONFLICT(source_key) DO UPDATE SET
+                          updated_at=datetime('now'),
+                          notes=excluded.notes
+                        """,
+                        (key, f"Source {tag}", notes_str),
+                    )
+
         conn.commit()
-        print(f"INPUT_REWEIGHT updates={updates} disabled={disabled} min_samples={min_samples} floor={floor} ceiling={ceiling}")
+        print(
+            f"INPUT_REWEIGHT updates={updates} horizon_updates={horizon_updates} "
+            f"disabled={disabled} min_samples={min_samples} floor={floor} ceiling={ceiling}"
+        )
         return 0
     finally:
         conn.close()

@@ -816,6 +816,276 @@ function renderPnlBreakdown(data) {
   );
 }
 
+function renderExchangePnl(data) {
+  const summaryEl = document.getElementById("exchange-pnl-summary");
+  const closedEl = document.getElementById("exchange-closed-trades");
+  const actionsEl = document.getElementById("exchange-agent-actions");
+  if (!summaryEl) return;
+
+  const exchanges = data.exchanges || {};
+  const pnlColor = v => v > 0 ? "color:#4ade80" : v < 0 ? "color:#f87171" : "";
+
+  // Per-exchange summary tiles
+  summaryEl.innerHTML = Object.entries(exchanges).map(([key, ex]) => {
+    const realized = ex.realized_pnl || 0;
+    const unrealized = ex.unrealized_pnl || 0;
+    const total = realized + unrealized;
+    const openPositions = (ex.open_details || []).map(p =>
+      `<span style="font-size:0.78em;opacity:0.7;margin-left:8px;">${p.symbol} ${p.side} ${p.unrealized_pnl_pct > 0 ? "+" : ""}${p.unrealized_pnl_pct}% ($${p.unrealized_pnl_usd}) · ${p.action || ""}</span>`
+    ).join("");
+    return `<div class="item" style="flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0;border-bottom:1px solid #1e293b;">
+      <div style="display:flex;gap:16px;align-items:center;">
+        <span class="label">${ex.label}</span>
+        <span style="${pnlColor(total)}">Total ${total >= 0 ? "+" : ""}$${total.toFixed(2)}</span>
+        ${realized !== 0 ? `<span style="font-size:0.82em;opacity:0.7;">Realized $${realized.toFixed(2)}</span>` : ""}
+        ${unrealized !== 0 ? `<span style="font-size:0.82em;opacity:0.7;${pnlColor(unrealized)}">Unrealized $${unrealized.toFixed(2)}</span>` : ""}
+        <span style="font-size:0.8em;opacity:0.6;">${ex.trades_closed || 0} closed · ${ex.open_positions || 0} open · ${ex.win_rate || 0}% win rate</span>
+      </div>
+      ${openPositions ? `<div style="display:flex;flex-wrap:wrap;">${openPositions}</div>` : ""}
+    </div>`;
+  }).join("") || `<div class="item"><span>No exchange data available</span></div>`;
+
+  // Closed trades table
+  const closed = data.closed_trades || [];
+  if (closedEl) {
+    closedEl.innerHTML = closed.length ? `
+      <div class="row header"><div>ID</div><div>Ticker</div><div>Side</div><div>Entry</div><div>Exit</div><div>P&amp;L</div><div>P&amp;L %</div><div>Closed</div></div>
+      ${closed.map(t => {
+        const id = t.lookup_id || t.route_id || (t.trade_id||"").slice(0,12) || "—";
+        return `<div class="row">
+          <div style="font-size:0.78em;opacity:0.7;cursor:pointer;" title="Click to look up" onclick="document.getElementById('id-lookup-input').value='${id}';document.getElementById('btn-id-lookup').click();">${id}</div>
+          <div><b>${t.ticker}</b></div>
+          <div>${t.side}</div>
+          <div>$${Number(t.entry_price||0).toFixed(2)}</div>
+          <div>$${Number(t.exit_price||0).toFixed(2)}</div>
+          <div style="${pnlColor(t.pnl)}">$${Number(t.pnl||0).toFixed(2)}</div>
+          <div style="${pnlColor(t.pnl_percent)}">${Number(t.pnl_percent||0).toFixed(2)}%</div>
+          <div style="font-size:0.78em;opacity:0.7;">${(t.closed_at||"").slice(0,10)}</div>
+        </div>`;
+      }).join("")}` : `<div class="empty">No closed trades</div>`;
+  }
+
+  // Agent actions
+  const actions = data.agent_actions || [];
+  const summaryLabel = document.getElementById("agent-actions-summary");
+  if (summaryLabel) summaryLabel.textContent = `Actions (${actions.length})`;
+  if (actionsEl) {
+    const typeIcon = t => ({
+      stop_placed: "🛑", take_profit_alert: "🎯", order_filled: "✅",
+      reassess_tighten: "⚠️", reassess_exit: "🔴", reassess_take_profit: "💰",
+      veto_hold: "🛡️",
+    }[t] || "•");
+    actionsEl.innerHTML = actions.map(a => `
+      <div class="flow-item" style="padding:5px 0;border-bottom:1px solid #1e293b;">
+        <span style="font-size:1em;margin-right:6px;">${typeIcon(a.action_type)}</span>
+        <span><b>${a.symbol}</b> ${a.side || ""} · <span style="opacity:0.7;font-size:0.82em;">${a.description}</span></span>
+        <span style="float:right;font-size:0.75em;opacity:0.5;">${(a.acted_at||"").slice(11,16)} ${(a.acted_at||"").slice(0,10)}</span>
+      </div>`).join("") || `<div class="empty">No agent actions yet</div>`;
+  }
+}
+
+function setupIdLookup() {
+  const input = document.getElementById("id-lookup-input");
+  const btn = document.getElementById("btn-id-lookup");
+  const statusEl = document.getElementById("id-lookup-status");
+  const resultsEl = document.getElementById("id-lookup-results");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+
+  // Generation counter — incremented on every new lookup so stale async
+  // callbacks from a previous call do nothing and don't corrupt the DOM.
+  let gen = 0;
+
+  const doLookup = async () => {
+    const q = (input?.value || "").trim();
+    if (!q) return;
+    const myGen = ++gen;
+    statusEl.textContent = "Looking up…";
+    resultsEl.innerHTML = "";
+    try {
+      const data = await fetchJsonSafe(`/api/id-lookup?id=${encodeURIComponent(q)}`, {});
+      if (myGen !== gen) return; // a newer lookup started — abort
+      if (!data.ok || !data.results?.length) {
+        statusEl.textContent = `No results for "${q}"`;
+        return;
+      }
+      statusEl.textContent = `${data.results.length} result(s) for "${q}"`;
+
+      // Extract route_id to fetch full trade explanation
+      const routeResult = data.results.find(r => r.route_id || r.type === "trade_by_route");
+      const routeId = routeResult?.route_id;
+
+      // Render basic results first
+      resultsEl.innerHTML = data.results.map(r => {
+        if (r.type === "intent" || r.type === "intent_by_ticker") {
+          let details = "";
+          try {
+            const d = JSON.parse(r.details || "{}");
+            if (d.signals) {
+              const sigs = Object.entries(d.signals)
+                .filter(([k]) => k !== "net")
+                .map(([k, v]) => `${k}: ${v.score > 0 ? "+" : ""}${v.score} (${v.reason})`)
+                .join(" · ");
+              details = `net=${d.net_score} | ${sigs}`;
+            } else if (d.reason) {
+              details = d.reason;
+            }
+          } catch {}
+          return `<div style="padding:8px 0;border-bottom:1px solid #1e293b;">
+            <div><span class="label">intent #${r.id}</span> <b>${r.symbol||"—"}</b> ${r.side||""} · <code>${r.status}</code> · ${(r.created_at||"").slice(0,16)}</div>
+            ${details ? `<div style="font-size:0.82em;opacity:0.7;margin-top:4px;">${details}</div>` : ""}
+          </div>`;
+        }
+        if (r.type === "trade" || r.type === "trade_by_route") {
+          const pnl = r.pnl_percent != null ? ` · PnL <b style="${Number(r.pnl_percent)>=0?'color:#4ade80':'color:#f87171'}">${Number(r.pnl_percent).toFixed(2)}%</b>` : "";
+          return `<div style="padding:8px 0;border-bottom:1px solid #1e293b;">
+            <span class="label">${r.route_id ? `route #${r.route_id}` : "trade"}</span>
+            <b>${r.ticker||"—"}</b> ${r.entry_side||""} · <code>${r.status}</code> · entry $${r.entry_price||"—"}${pnl} · ${(r.entry_date||"").slice(0,10)}
+          </div>`;
+        }
+        return "";
+      }).join("");
+
+      // If we have a route_id, fetch and render the full trade explanation
+      if (routeId) {
+        const loadId = `te-loading-${myGen}`;
+        resultsEl.innerHTML += `<div id="${loadId}" style="opacity:0.5;padding:8px 0;">Loading signal breakdown…</div>`;
+        const ex = await fetchJsonSafe(`/api/trade-explain?identifier=${routeId}`, {});
+        if (myGen !== gen) return; // stale — a newer lookup took over
+        document.getElementById(loadId)?.remove();
+
+        if (ex && ex.ok) {
+          const c = ex.candidate || {};
+          const rt = ex.route || {};
+          const outcome = ex.outcome || {};
+          const inputs = (c.input_breakdown || []);
+          const pnlColor = outcome.pnl_percent >= 0 ? "color:#4ade80" : "color:#f87171";
+
+          resultsEl.innerHTML += `
+            <div style="margin-top:12px;padding:12px;background:#0f172a;border-radius:6px;border:1px solid #1e293b;">
+              <div style="font-size:0.95em;line-height:1.6;margin-bottom:10px;">${ex.simple_explanation || ""}</div>
+
+              <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:0.82em;">
+                <span>Score <b>${Number(rt.score||0).toFixed(1)}</b></span>
+                <span>Source <b>${rt.source_tag||"—"}</b></span>
+                <span>Direction <b>${rt.direction||"—"}</b></span>
+                <span>Decision <b>${rt.decision||"—"}</b></span>
+                ${outcome.resolution ? `<span style="${pnlColor}">Outcome <b>${outcome.resolution?.toUpperCase()} ${Number(outcome.pnl_percent||0).toFixed(2)}%</b></span>` : ""}
+              </div>
+
+              ${inputs.length ? `
+              <div style="font-size:0.82em;font-weight:600;opacity:0.6;margin-bottom:4px;">INPUTS THAT TRIGGERED THIS TRADE</div>
+              ${inputs.map(inp => {
+                const isPipeline = inp.key === "family:pipeline";
+                const pipeBreakdown = isPipeline ? (c.pipeline_breakdown || []) : [];
+                const evItems = isPipeline ? (c.evidence_items || []) : [];
+                // parse non-pipeline evidence items (external + liquidity_map)
+                const evExtra = evItems.filter(e => !e.startsWith("pipeline:")).map(e => {
+                  if (e.startsWith("liquidity_map:")) {
+                    const parts = e.replace("liquidity_map:","").split(":");
+                    const rr = (parts[1]||"").replace("rr=","");
+                    return `<div style="padding:3px 0 3px 12px;font-size:0.82em;border-left:2px solid #0ea5e9;margin:2px 0;opacity:0.8;">
+                      📍 Liquidity Map: <b>${parts[0]||e}</b>${rr ? ` · R:R <b>${rr}</b>` : ""}
+                    </div>`;
+                  }
+                  if (e.startsWith("external:")) {
+                    return `<div style="padding:3px 0 3px 12px;font-size:0.82em;border-left:2px solid #8b5cf6;margin:2px 0;opacity:0.7;">
+                      🌐 External: ${e.replace("external:","").replace(/:/g," › ")}
+                    </div>`;
+                  }
+                  return `<div style="padding:3px 0 3px 12px;font-size:0.82em;opacity:0.6;margin:2px 0;">${e}</div>`;
+                }).join("");
+                const pipeHtml = pipeBreakdown.length ? `
+                  <details style="margin-top:4px;">
+                    <summary style="font-size:0.82em;cursor:pointer;opacity:0.7;padding:2px 0;">▶ ${pipeBreakdown.length} strategy sub-signal${pipeBreakdown.length>1?"s":""} fired</summary>
+                    <div style="margin-top:4px;">
+                    ${pipeBreakdown.map(p => `
+                      <div style="padding:5px 0 5px 12px;border-left:2px solid #22c55e;margin:3px 0;">
+                        <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;">
+                          <span style="font-weight:600;font-size:0.85em;">${p.pipeline_id}</span>
+                          <span style="font-size:0.8em;opacity:0.6;">${p.direction||""}</span>
+                          <span style="font-size:0.85em;">score <b>${Number(p.score||0).toFixed(1)}</b></span>
+                          <span style="font-size:0.8em;opacity:0.5;">${(p.generated_at||"").slice(0,16)}</span>
+                        </div>
+                        <div style="font-size:0.8em;opacity:0.7;margin-top:2px;">${p.rationale||""}</div>
+                        ${p.source ? `<div style="font-size:0.75em;opacity:0.4;margin-top:1px;">src: ${p.source.length>80?p.source.slice(0,80)+"…":p.source}</div>` : ""}
+                      </div>`).join("")}
+                    </div>
+                  </details>` : "";
+                return `<div style="padding:5px 0;border-bottom:1px solid #1e293b;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="min-width:160px;opacity:0.8;">${inp.name||inp.key}</span>
+                    <div style="flex:1;background:#1e293b;border-radius:3px;height:6px;">
+                      <div style="width:${Math.min(100, Math.round((inp.value||0)*200))}%;background:#3b82f6;height:6px;border-radius:3px;"></div>
+                    </div>
+                    <span style="min-width:50px;text-align:right;">${Number(inp.value||0).toFixed(3)}</span>
+                    <span style="opacity:0.5;min-width:60px;">wt ${Number(inp.weight||1).toFixed(2)}</span>
+                    <span style="opacity:0.4;font-size:0.9em;max-width:220px;">${inp.help||""}</span>
+                  </div>
+                  ${pipeHtml}${evExtra}
+                </div>`;
+              }).join("")}` : ""}
+
+              ${c.confirmations > 0 ? `<div style="font-size:0.82em;opacity:0.6;margin-top:6px;">Confirmations: <b>${c.confirmations}</b> · Pattern: <b>${c.pattern_type||"none"}</b> (${Number(c.pattern_score||0).toFixed(2)}) · Ext confidence: <b>${Number(c.external_confidence||0).toFixed(2)}</b></div>` : ""}
+              ${c.rationale ? `<div style="margin-top:8px;font-size:0.78em;opacity:0.5;font-family:monospace;">${c.rationale}</div>` : ""}
+            </div>`;
+        }
+      }
+
+    } catch (e) {
+      if (myGen === gen) statusEl.textContent = `Error: ${e.message}`;
+    }
+  };
+
+  btn.onclick = doLookup;
+  input?.addEventListener("keydown", e => { if (e.key === "Enter") doLookup(); });
+
+  // Quick-select dropdown: populate when exchange-pnl loads, selecting fills the input
+  const quickSel = document.getElementById("id-lookup-quick");
+  if (quickSel) {
+    quickSel.addEventListener("change", () => {
+      const v = quickSel.value;
+      if (v && input) { input.value = v; doLookup(); quickSel.value = ""; }
+    });
+  }
+}
+
+function populateIdLookupDropdown(exchangeData) {
+  const winsGroup = document.getElementById("id-lookup-wins");
+  const lossesGroup = document.getElementById("id-lookup-losses");
+  const openGroup = document.getElementById("id-lookup-open");
+  if (!winsGroup || !lossesGroup) return;
+
+  const closed = (exchangeData.closed_trades || []);
+  const wins = closed.filter(t => t.pnl > 0).sort((a, b) => b.pnl_percent - a.pnl_percent);
+  // Only include actual entry positions as losses (buy entries, or routed sell/short positions)
+  // Excludes closing-leg orders (alpaca_unmatched :close: entries, sell-side without route)
+  const losses = closed.filter(t => t.pnl <= 0 && (t.side === 'buy' || t.route_id != null))
+    .sort((a, b) => a.pnl_percent - b.pnl_percent);
+
+  winsGroup.innerHTML = wins.map(t => {
+    const id = t.lookup_id || t.route_id || t.trade_id || t.ticker;
+    const label = `${t.ticker} ${t.side} +${t.pnl_percent.toFixed(2)}% ($${t.pnl.toFixed(2)}) — ${id}`;
+    return `<option value="${id}">${label}</option>`;
+  }).join("");
+
+  lossesGroup.innerHTML = losses.map(t => {
+    const id = t.lookup_id || t.route_id || t.trade_id || t.ticker;
+    const label = `${t.ticker} ${t.side} ${t.pnl_percent.toFixed(2)}% ($${t.pnl.toFixed(2)}) — ${id}`;
+    return `<option value="${id}">${label}</option>`;
+  }).join("");
+
+  // Open positions from live_positions
+  const livePosAll = Object.values(exchangeData.live_positions || {}).flat();
+  if (openGroup) {
+    openGroup.innerHTML = livePosAll.map(p => {
+      const id = p.symbol;
+      const pnl = p.unrealized_pnl_pct >= 0 ? `+${p.unrealized_pnl_pct}%` : `${p.unrealized_pnl_pct}%`;
+      return `<option value="${id}">${p.symbol} ${p.side} ${pnl} (${p.venue || "HL"})</option>`;
+    }).join("");
+  }
+}
+
 function setupRefreshControls() {
   const btn = document.getElementById("btn-dashboard-refresh");
   const auto = document.getElementById("auto-refresh-toggle");
@@ -871,6 +1141,56 @@ function bindPnlDrilldown() {
 
 async function updateControls(updates) {
   await postJson("/api/risk-controls", { updates });
+}
+
+function renderPremiumGate(controls) {
+  const c = controlMap(controls);
+  const get = (k, def) => String(c[k] !== undefined ? c[k] : def);
+
+  // Populate checkboxes
+  const cb = (id, key, def) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = get(key, def) === "1";
+  };
+  cb("pg-kw-stocks",  "premium_gate_kw_stocks",  "1");
+  cb("pg-kw-crypto",  "premium_gate_kw_crypto",   "0");
+  cb("pg-liq-stocks", "premium_gate_liq_stocks",  "1");
+  cb("pg-liq-crypto", "premium_gate_liq_crypto",  "1");
+  cb("pg-mom-stocks", "premium_gate_mom_stocks",  "1");
+  cb("pg-mom-crypto", "premium_gate_mom_crypto",  "1");
+
+  // Populate min-required selectors
+  const sel = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) el.value = get(key, "0");
+  };
+  sel("pg-stocks-min", "premium_gate_stocks_min");
+  sel("pg-crypto-min", "premium_gate_crypto_min");
+
+  // Save button
+  const btn = document.getElementById("btn-premium-gate-save");
+  const status = document.getElementById("premium-gate-status");
+  if (!btn) return;
+  btn.onclick = async () => {
+    const val = (id) => document.getElementById(id)?.checked ? "1" : "0";
+    const sval = (id) => document.getElementById(id)?.value ?? "0";
+    const updates = {
+      premium_gate_kw_stocks:  val("pg-kw-stocks"),
+      premium_gate_kw_crypto:  val("pg-kw-crypto"),
+      premium_gate_liq_stocks: val("pg-liq-stocks"),
+      premium_gate_liq_crypto: val("pg-liq-crypto"),
+      premium_gate_mom_stocks: val("pg-mom-stocks"),
+      premium_gate_mom_crypto: val("pg-mom-crypto"),
+      premium_gate_stocks_min: sval("pg-stocks-min"),
+      premium_gate_crypto_min: sval("pg-crypto-min"),
+    };
+    if (status) status.textContent = "Saving…";
+    const res = await postJson("/api/risk-controls", { updates });
+    if (status) status.textContent = res.ok !== false
+      ? "Saved. Will apply on next generate_trade_candidates run."
+      : `Error: ${res.error || "save failed"}`;
+    setTimeout(() => { if (status) status.textContent = ""; }, 4000);
+  };
 }
 
 async function runAction(action) {
@@ -1493,7 +1813,9 @@ async function boot() {
     setStatus("loading");
     pnlBreakdownCache = null;
     setupRefreshControls();
+    setupIdLookup();
     bindPnlDrilldown();
+    fetchJsonSafe("/api/exchange-pnl", {}).then(d => { renderExchangePnl(d || {}); populateIdLookupDropdown(d || {}); });
     const [summary, systemHealth, readiness, controls, walletConfig, exOrders, polyOrders, portfolioSnapshot, tradeDecisions, awareness, performanceCurve, tradeClaimGuard, masterOverview, positionManagementIntents, trackedSources, learningMonitor, inputSources, tickerProfiles] = await Promise.all([
       fetchJsonSafe("/api/summary", {}),
       fetchJsonSafe("/api/system-health", { overall: "warn", checks: [] }),
@@ -1539,6 +1861,7 @@ async function boot() {
     runUiStep("renderRiskControls", () => {
       renderTable("risk-controls", controls, ["Key", "Value", "Updated"], ["key", "value", "updated_at"]);
     });
+    runUiStep("renderPremiumGate", () => renderPremiumGate(controls));
     runUiStep("renderTrackedSources", () => renderTrackedSources(trackedSources || []));
     runUiStep("renderMainInputSources", () => renderMainInputSources(inputSources || []));
     runUiStep("renderTickerProfiles", () => renderTickerProfiles(tickerProfiles || []));

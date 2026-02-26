@@ -1,156 +1,187 @@
 #!/bin/bash
 # Complete Trader Curtis Sentiment Suite
 # Runs all scanners and generates report
+# Errors are captured — no silent failures
 
-echo "═══════════════════════════════════════════════════"
-echo "  TRADER CURTIS - COMPLETE SENTIMENT ANALYSIS"
-echo "═══════════════════════════════════════════════════"
-echo ""
+set -o pipefail
 
-# StockTwits
-echo "🔍 SCANNING STOCKTWITS..."
-node /Users/Shared/curtis/trader-curtis/integrated-scanner.js 2>/dev/null
-echo ""
+DB="/Users/Shared/curtis/trader-curtis/data/trades.db"
+LOG_DIR="/Users/Shared/curtis/trader-curtis/logs"
+RUN_LOG="$LOG_DIR/last-scan-$(date +%Y%m%d-%H%M%S).log"
+mkdir -p "$LOG_DIR"
 
-# Reddit
-echo "🔍 SCANNING REDDIT..."
-node /Users/Shared/curtis/trader-curtis/reddit-scanner.js 2>/dev/null
-echo ""
+FAILURES=()
+PASS=0
+FAIL=0
 
-echo "📰 RUNNING PIPELINE F (FINVIZ FREE RSS)..."
-/Users/Shared/curtis/trader-curtis/pipeline_f_finviz.py 2>/dev/null || true
-echo ""
+# Record pipeline run status to pipeline_runtime_state table
+record_run() {
+    local key="$1" status="$2" detail="$3"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    sqlite3 "$DB" \
+        "INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('run:${key}:status','${status}','${ts}')
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;
+         INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('run:${key}:last_run','${ts}','${ts}')
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;
+         INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('run:${key}:detail','${detail}','${ts}')
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;" 2>/dev/null || true
+}
 
-# X/Twitter (if bird configured)
-if command -v bird &> /dev/null; then
-    echo "🔍 CHECKING X/TWITTER..."
-    bird search "trading OR stock OR market" -n 5 2>/dev/null | head -20
+# Run a pipeline script, capture errors, log health
+run_step() {
+    local label="$1" key="$2"
+    shift 2
+    local cmd=("$@")
+
+    echo "  → ${label}..."
+    local err_output
+    err_output=$("${cmd[@]}" 2>&1)
+    local rc=$?
+
+    if [ $rc -eq 0 ]; then
+        echo "    ✅ OK"
+        record_run "$key" "ok" ""
+        PASS=$((PASS + 1))
+    else
+        echo "    ❌ FAILED (exit $rc)"
+        # Show last 3 lines of error for diagnosis
+        echo "$err_output" | tail -3 | sed 's/^/       /'
+        record_run "$key" "error:$rc" "$(echo "$err_output" | tail -1 | tr '\n' ' ' | cut -c1-200)"
+        FAILURES+=("$label")
+        FAIL=$((FAIL + 1))
+    fi
+    echo "$err_output" >> "$RUN_LOG" 2>&1
     echo ""
+}
+
+echo "═══════════════════════════════════════════════════"
+echo "  TRADER CURTIS — SCAN $(date '+%Y-%m-%d %H:%M')"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+# ── SOCIAL / SENTIMENT ────────────────────────────────
+echo "── SOCIAL FEEDS ─────────────────────────────────"
+run_step "StockTwits scanner"  "stocktwits"  node /Users/Shared/curtis/trader-curtis/integrated-scanner.js
+run_step "Reddit scanner"      "reddit"      node /Users/Shared/curtis/trader-curtis/reddit-scanner.js
+run_step "Pipeline F (Finviz)" "pipeline_f"  /Users/Shared/curtis/trader-curtis/pipeline_f_finviz.py
+
+if command -v bird &> /dev/null; then
+    run_step "X/Twitter (bird)"   "x_bird"  bird search "trading OR stock OR market" -n 5
 fi
 
-echo "🔗 INGESTING BOOKMARK THESES (PIPELINE D)..."
-/Users/Shared/curtis/trader-curtis/pipeline_d_bookmarks.py 2>/dev/null || true
+# ── SIGNAL PIPELINES ──────────────────────────────────
+echo "── SIGNAL PIPELINES ─────────────────────────────"
+run_step "Pipeline D (Bookmarks)"  "pipeline_d"  /Users/Shared/curtis/trader-curtis/pipeline_d_bookmarks.py
+run_step "Pipeline X (X handles)"  "pipeline_x"  /Users/Shared/curtis/trader-curtis/pipeline_x_handle_bridge.py
+run_step "Pipeline A (Liquidity)"  "pipeline_a"  /Users/Shared/curtis/trader-curtis/pipeline_a_liquidity.py
+run_step "Chart Liquidity"         "pipeline_chart" /Users/Shared/curtis/trader-curtis/pipeline_chart_liquidity.py
+run_step "Pipeline H (Kyle W)"     "pipeline_h"  /Users/Shared/curtis/trader-curtis/pipeline_h_kyle_williams.py
+run_step "Pipeline G (Weather)"    "pipeline_g"  /Users/Shared/curtis/trader-curtis/pipeline_g_weather.py
+run_step "Pipeline B (Innovation)" "pipeline_b"  /Users/Shared/curtis/trader-curtis/pipeline_b_innovation.py
+run_step "Pipeline E (Breakthroughs)" "pipeline_e" /Users/Shared/curtis/trader-curtis/pipeline_e_breakthroughs.py
+run_step "Pipeline C (Events)"     "pipeline_c"  /Users/Shared/curtis/trader-curtis/pipeline_c_event.py
+run_step "Event alert engine"      "event_alerts" /Users/Shared/curtis/trader-curtis/event_alert_engine.py
+
+# ── POLYMARKET ────────────────────────────────────────
+echo "── POLYMARKET ───────────────────────────────────"
+run_step "Polymarket pipeline"     "polymarket"  /Users/Shared/curtis/trader-curtis/pipeline_polymarket.py
+run_step "Wallet activity ingest"  "pm_wallets"  /Users/Shared/curtis/trader-curtis/ingest_polymarket_wallet_activity.py
+run_step "Wallet scorer"           "pm_scores"   /Users/Shared/curtis/trader-curtis/score_polymarket_wallets.py
+run_step "MM snapshots"            "pm_mm"       /Users/Shared/curtis/trader-curtis/polymarket_mm_engine.py
+
+# ── CANDIDATE GENERATION ──────────────────────────────
+echo "── CANDIDATE GENERATION ─────────────────────────"
+run_step "Reweight input sources"  "reweight"    /Users/Shared/curtis/trader-curtis/reweight_input_sources.py
+run_step "Generate trade candidates" "candidates" /Users/Shared/curtis/trader-curtis/generate_trade_candidates.py
+run_step "Kelly signal"            "kelly"       /Users/Shared/curtis/trader-curtis/kelly_signal.py
+run_step "Align to Polymarket"     "pm_align"    /Users/Shared/curtis/trader-curtis/align_high_signal_polymarket.py
+
+CANDIDATE_COUNT=$(sqlite3 "$DB" "SELECT count(*) FROM trade_candidates;" 2>/dev/null)
+echo "  → Candidates in DB: ${CANDIDATE_COUNT:-0}"
+record_run "candidates" "ok" "count=${CANDIDATE_COUNT:-0}"
 echo ""
 
-echo "🐦 RUNNING PIPELINE X (TRACKED HANDLE BRIDGE)..."
-/Users/Shared/curtis/trader-curtis/pipeline_x_handle_bridge.py 2>/dev/null || true
-echo ""
+# ── ROUTING & EXECUTION ───────────────────────────────
+echo "── ROUTING & EXECUTION ──────────────────────────"
+ROUTE_LIMIT=$(sqlite3 "$DB" "SELECT value FROM execution_controls WHERE key='auto_route_limit' LIMIT 1;" 2>/dev/null)
+ROUTE_NOTIONAL=$(sqlite3 "$DB" "SELECT value FROM execution_controls WHERE key='auto_route_notional' LIMIT 1;" 2>/dev/null)
+[ -z "$ROUTE_LIMIT" ] && ROUTE_LIMIT=24
+[ -z "$ROUTE_NOTIONAL" ] && ROUTE_NOTIONAL=75
 
-echo "⚡ RUNNING PIPELINE A (LIQUIDITY SCALP)..."
-/Users/Shared/curtis/trader-curtis/pipeline_a_liquidity.py 2>/dev/null || true
-echo ""
+run_step "Signal router (paper)"   "router"  /Users/Shared/curtis/trader-curtis/signal_router.py --mode paper --limit "$ROUTE_LIMIT" --notional "$ROUTE_NOTIONAL"
+run_step "Execution worker (paper)" "exec_worker" /Users/Shared/curtis/trader-curtis/execution_worker.py
+run_step "Polymarket execution"    "pm_exec" /Users/Shared/curtis/trader-curtis/scripts/run_polymarket_exec.sh
 
-echo "📈 RUNNING CHART LIQUIDITY PIPELINE..."
-/Users/Shared/curtis/trader-curtis/pipeline_chart_liquidity.py 2>/dev/null || true
-echo ""
+# ── POSITION MANAGEMENT ───────────────────────────────
+echo "── POSITION MANAGEMENT ──────────────────────────"
+if command -v python3.11 >/dev/null 2>&1; then PY=python3.11; else PY=python3; fi
+run_step "Alpaca order sync"       "alpaca_sync"  $PY /Users/Shared/curtis/trader-curtis/sync_alpaca_order_status.py
+run_step "Open position mgmt"      "pos_mgmt"     $PY /Users/Shared/curtis/trader-curtis/manage_open_positions.py
+run_step "Execute position intents" "pos_intents"  $PY /Users/Shared/curtis/trader-curtis/execute_position_intents.py
 
-echo "🧭 RUNNING PIPELINE H (KYLE WILLIAMS)..."
-/Users/Shared/curtis/trader-curtis/pipeline_h_kyle_williams.py 2>/dev/null || true
-echo ""
+# ── LEARNING & SCORING ────────────────────────────────
+echo "── LEARNING & SCORING ───────────────────────────"
+run_step "Source ranker"           "source_rank"   /Users/Shared/curtis/trader-curtis/source_ranker.py
 
-echo "👀 INGESTING TRACKED POLYMARKET WALLET ACTIVITY..."
-/Users/Shared/curtis/trader-curtis/ingest_polymarket_wallet_activity.py 2>/dev/null || true
-echo ""
+# Heavy resolvers (Alpaca price lookups for counterfactual + horizon scoring) run once per day.
+# Every 4h scan: fast feedback only. Once per day (age >= 20h): full resolve with price lookups.
+LAST_HEAVY=$(sqlite3 "$DB" "SELECT value FROM pipeline_runtime_state WHERE key='run:heavy_resolvers:last_run';" 2>/dev/null)
+NOW_EPOCH=$(date +%s)
+LAST_EPOCH=0
+if [ -n "$LAST_HEAVY" ]; then
+  LAST_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$LAST_HEAVY" +%s 2>/dev/null || echo 0)
+fi
+AGE_HOURS=$(( (NOW_EPOCH - LAST_EPOCH) / 3600 ))
 
-echo "🗳️ RUNNING POLYMARKET PIPELINE..."
-/Users/Shared/curtis/trader-curtis/pipeline_polymarket.py || true
-echo ""
-
-echo "🌤️ RUNNING PIPELINE G (WEATHER PROBS)..."
-/Users/Shared/curtis/trader-curtis/pipeline_g_weather.py 2>/dev/null || true
-echo ""
-
-echo "🧬 RUNNING PIPELINE B (LONG-TERM INNOVATION)..."
-/Users/Shared/curtis/trader-curtis/pipeline_b_innovation.py 2>/dev/null || true
-echo ""
-
-echo "🚀 RUNNING PIPELINE E (BREAKTHROUGHS)..."
-/Users/Shared/curtis/trader-curtis/pipeline_e_breakthroughs.py 2>/dev/null || true
-echo ""
-
-echo "🚨 BUILDING EVENT ALERTS..."
-/Users/Shared/curtis/trader-curtis/event_alert_engine.py 2>/dev/null || true
-echo ""
-
-echo "🌍 RUNNING PIPELINE C (EVENT ALPHA)..."
-/Users/Shared/curtis/trader-curtis/pipeline_c_event.py 2>/dev/null || true
-echo ""
-
-echo "🧠 BUILDING TRADE CANDIDATES..."
-/Users/Shared/curtis/trader-curtis/reweight_input_sources.py 2>/dev/null || true
-/Users/Shared/curtis/trader-curtis/generate_trade_candidates.py 2>/dev/null || true
-echo ""
-
-echo "🎯 ALIGNING HIGH-SIGNAL PLAYS TO POLYMARKET..."
-/Users/Shared/curtis/trader-curtis/align_high_signal_polymarket.py 2>/dev/null || true
-echo ""
-
-echo "🧮 BUILDING POLYMARKET MM SNAPSHOTS..."
-/Users/Shared/curtis/trader-curtis/polymarket_mm_engine.py 2>/dev/null || true
-echo ""
-
-ROUTE_LIMIT=$(sqlite3 /Users/Shared/curtis/trader-curtis/data/trades.db "SELECT value FROM execution_controls WHERE key='auto_route_limit' LIMIT 1;" 2>/dev/null)
-ROUTE_NOTIONAL=$(sqlite3 /Users/Shared/curtis/trader-curtis/data/trades.db "SELECT value FROM execution_controls WHERE key='auto_route_notional' LIMIT 1;" 2>/dev/null)
-if [ -z "$ROUTE_LIMIT" ]; then ROUTE_LIMIT=24; fi
-if [ -z "$ROUTE_NOTIONAL" ]; then ROUTE_NOTIONAL=75; fi
-
-echo "🛡️ APPLYING EXECUTION GUARDS + ROUTING..."
-/Users/Shared/curtis/trader-curtis/signal_router.py --mode paper --limit "$ROUTE_LIMIT" --notional "$ROUTE_NOTIONAL" 2>/dev/null || true
-echo ""
-
-echo "📤 EXECUTING APPROVED ROUTES (PAPER WORKER)..."
-/Users/Shared/curtis/trader-curtis/execution_worker.py 2>/dev/null || true
-echo ""
-
-echo "🗳️ POLYMARKET EXECUTION..."
-/Users/Shared/curtis/trader-curtis/scripts/run_polymarket_exec.sh || true
-echo ""
-
-echo "🔄 SYNCING ALPACA ORDER STATUS..."
-if command -v python3.11 >/dev/null 2>&1; then
-  python3.11 /Users/Shared/curtis/trader-curtis/sync_alpaca_order_status.py 2>/dev/null || true
+if [ "$AGE_HOURS" -ge 20 ]; then
+  echo "  → Full resolve pass (heavy resolvers, last ran ${AGE_HOURS}h ago)"
+  run_step "Learning feedback (full)" "learning" /Users/Shared/curtis/trader-curtis/update_learning_feedback.py
+  TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  sqlite3 "$DB" "INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('run:heavy_resolvers:last_run','${TS}','${TS}') ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;" 2>/dev/null || true
 else
-  python3 /Users/Shared/curtis/trader-curtis/sync_alpaca_order_status.py 2>/dev/null || true
+  echo "  → Fast feedback only (heavy resolvers ran ${AGE_HOURS}h ago, skipping price lookups)"
+  run_step "Learning feedback (fast)" "learning" env SKIP_HEAVY_RESOLVERS=1 /Users/Shared/curtis/trader-curtis/update_learning_feedback.py
 fi
-echo ""
 
-echo "🧭 BUILDING OPEN POSITION MANAGEMENT PLAN..."
-if command -v python3.11 >/dev/null 2>&1; then
-  python3.11 /Users/Shared/curtis/trader-curtis/manage_open_positions.py 2>/dev/null || true
-else
-  python3 /Users/Shared/curtis/trader-curtis/manage_open_positions.py 2>/dev/null || true
-fi
-echo ""
+run_step "Auto-tuner"              "auto_tune"     /Users/Shared/curtis/trader-curtis/auto_tune_controls.py
 
-echo "📊 RANKING SOURCES..."
-/Users/Shared/curtis/trader-curtis/source_ranker.py 2>/dev/null || true
-/Users/Shared/curtis/trader-curtis/score_polymarket_wallets.py 2>/dev/null || true
-echo ""
+# ── MAINTENANCE ───────────────────────────────────────
+echo "── MAINTENANCE ──────────────────────────────────"
+run_step "Table retention"         "maintain"  /Users/Shared/curtis/trader-curtis/maintain_tables.py
+run_step "Wallet config sync"      "wallet_sync" /Users/Shared/curtis/trader-curtis/sync_wallet_config.py
 
-echo "🧹 APPLYING TABLE RETENTION..."
-/Users/Shared/curtis/trader-curtis/maintain_tables.py 2>/dev/null || true
-echo ""
-
-echo "🔐 SYNCING WALLET CONFIG..."
-/Users/Shared/curtis/trader-curtis/sync_wallet_config.py 2>/dev/null || true
-echo ""
-
-echo "📚 UPDATING LEARNING FEEDBACK..."
-SKIP_HEAVY_RESOLVERS=1 /Users/Shared/curtis/trader-curtis/update_learning_feedback.py 2>/dev/null || true
-echo ""
-
-echo "🛠️ RUNNING AUTO-TUNER..."
-/Users/Shared/curtis/trader-curtis/auto_tune_controls.py 2>/dev/null || true
-echo ""
-
-echo "🧾 TRADE CLAIM GUARD..."
-/Users/Shared/curtis/trader-curtis/scripts/trade_claim_guard.sh || true
-echo ""
-
-echo "🩺 PIPELINE DIGEST CHECK..."
+# ── VERIFICATION ──────────────────────────────────────
+echo "── VERIFICATION ─────────────────────────────────"
+/Users/Shared/curtis/trader-curtis/scripts/trade_claim_guard.sh 2>/dev/null || true
 /Users/Shared/curtis/trader-curtis/scripts/pipeline_digest_check.sh 2>/dev/null || true
 echo ""
 
+# ── SUMMARY ───────────────────────────────────────────
+TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 echo "═══════════════════════════════════════════════════"
-echo "  ANALYSIS COMPLETE"
+echo "  SCAN COMPLETE — $TS"
+echo "  ✅ Passed: $PASS  ❌ Failed: $FAIL"
+if [ ${#FAILURES[@]} -gt 0 ]; then
+    echo ""
+    echo "  FAILED STEPS:"
+    for f in "${FAILURES[@]}"; do
+        echo "    • $f"
+    done
+    echo ""
+    echo "  Full log: $RUN_LOG"
+fi
 echo "═══════════════════════════════════════════════════"
+
+# Write scan summary to DB
+sqlite3 "$DB" \
+    "INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('scan:last_run','${TS}','${TS}')
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;
+     INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('scan:last_pass_count','${PASS}','${TS}')
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;
+     INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('scan:last_fail_count','${FAIL}','${TS}')
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;
+     INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('scan:last_fail_steps','$(IFS=,; echo "${FAILURES[*]}")','${TS}')
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;" 2>/dev/null || true
+
+exit $FAIL

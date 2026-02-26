@@ -82,11 +82,13 @@ def _hgrm_target(pnl_pct: float, route_score: float, predicted_direction: str) -
     }
 
 
-def _internal_rows(include_operational: bool) -> List[Dict[str, Any]]:
+def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[Dict[str, Any]]:
     conn = sqlite3.connect(str(DB_PATH))
     try:
         cur = conn.cursor()
         where = "1=1" if include_operational else "COALESCE(ro.outcome_type,'realized')='realized'"
+        if wins_only:
+            where += " AND COALESCE(ro.resolution,'') = 'win'"
         cur.execute(
             f"""
             SELECT
@@ -144,6 +146,94 @@ def _internal_rows(include_operational: bool) -> List[Dict[str, Any]]:
                         "source_tag": source_tag,
                         "strategy_tag": strategy_tag,
                         "pnl_percent": float(pnl_pct or 0.0),
+                        "trade_taken": True,
+                    },
+                }
+            )
+        return rows
+    finally:
+        conn.close()
+
+
+def _counterfactual_wins(horizon_hours: int = 24) -> List[Dict[str, Any]]:
+    """
+    Load WINS from route_outcomes_horizons for routes the agent did NOT take.
+    These are calls the signal pipeline made correctly but were blocked by thresholds.
+    Wins here improve input rankings (source_tag performance) and GRPO training quality.
+
+    Only includes resolution='win' — losses are excluded to avoid training on noise.
+    horizon_hours: which horizon to use as primary truth (default 24h = 1-day).
+    """
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+        cur = conn.cursor()
+        # Check table exists
+        cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='route_outcomes_horizons'")
+        if not cur.fetchone():
+            return []
+        cur.execute(
+            """
+            SELECT
+              h.route_id,
+              h.ticker,
+              h.source_tag,
+              h.venue,
+              h.direction,
+              h.decision,
+              h.pnl_percent,
+              h.horizon_hours,
+              h.evaluated_at,
+              h.outcome_type,
+              COALESCE(rf.strategy_tag, '') as strategy_tag,
+              COALESCE(rf.route_score, 0.0) as route_score
+            FROM route_outcomes_horizons h
+            LEFT JOIN route_feedback_features rf ON rf.route_id = h.route_id
+            WHERE h.resolution = 'win'
+              AND h.horizon_hours = ?
+              AND COALESCE(h.pnl_percent, 0) > 0
+            ORDER BY datetime(h.evaluated_at) ASC
+            """,
+            (int(horizon_hours),),
+        )
+        rows = []
+        for (
+            route_id, ticker, source_tag, venue, direction, decision,
+            pnl_pct, h_hours, evaluated_at, outcome_type, strategy_tag, route_score
+        ) in cur.fetchall():
+            pnl = float(pnl_pct or 0.0)
+            target = _hgrm_target(pnl, float(route_score or 0.0), str(direction or ""))
+            was_taken = str(decision or "").lower() == "approved"
+            prompt = (
+                "You are an event-driven trader evaluating a signal that was flagged by the pipeline.\n"
+                f"Ticker: {ticker}\n"
+                f"Venue: {venue}\n"
+                f"Source: {source_tag}\n"
+                f"Strategy: {strategy_tag}\n"
+                f"Route score: {float(route_score or 0.0):.2f}\n"
+                f"Horizon: {h_hours}h\n"
+                f"Trade taken by agent: {'yes' if was_taken else 'no (threshold blocked)'}\n"
+                "Task: output direction (long/short/neutral), expected move strength (weak/strong), and concise rationale."
+            )
+            rows.append(
+                {
+                    "group_id": f"counterfactual:{int(route_id)}:h{h_hours}",
+                    "timestamp": str(evaluated_at or ""),
+                    "source": "counterfactual_win",
+                    "outcome_type": str(outcome_type or "counterfactual"),
+                    "horizon_hours": int(h_hours),
+                    "trade_taken": was_taken,
+                    "prompt": prompt,
+                    "target": target,
+                    "meta": {
+                        "route_id": int(route_id),
+                        "ticker": ticker,
+                        "venue": venue,
+                        "source_tag": source_tag,
+                        "strategy_tag": strategy_tag,
+                        "pnl_percent": pnl,
+                        "horizon_hours": int(h_hours),
+                        "trade_taken": was_taken,
+                        "decision": str(decision or ""),
                     },
                 }
             )
@@ -307,12 +397,31 @@ def main() -> int:
     parser.add_argument("--include-operational", action="store_true", help="Include operational outcomes (not recommended)")
     parser.add_argument("--no-internal", action="store_true", help="Exclude internal outcomes")
     parser.add_argument("--no-kaggle-table", action="store_true", help="Exclude rows from polymarket_kaggle_markets table")
+    parser.add_argument("--no-counterfactual", action="store_true", help="Exclude counterfactual wins from non-taken routes")
+    parser.add_argument("--wins-only", action="store_true",
+                        help="Only include winning calls in GRPO training (recommended). "
+                             "Losses excluded — model learns from what worked, not what didn't.")
+    parser.add_argument("--counterfactual-horizon", type=int, default=24,
+                        help="Which horizon (hours) to use for counterfactual wins (default: 24 = 1 day)")
     parser.add_argument("--eval-ratio", type=float, default=0.1)
     args = parser.parse_args()
 
     rows: List[Dict[str, Any]] = []
+
+    # Internal realized/operational outcomes from taken trades
     if not bool(args.no_internal):
-        rows.extend(_internal_rows(include_operational=bool(args.include_operational)))
+        rows.extend(_internal_rows(
+            include_operational=bool(args.include_operational),
+            wins_only=bool(args.wins_only),
+        ))
+
+    # Counterfactual wins: calls the pipeline made correctly but agent didn't take
+    # These teach the model what good signals look like regardless of threshold decisions
+    if not bool(args.no_counterfactual):
+        cf_rows = _counterfactual_wins(horizon_hours=int(args.counterfactual_horizon))
+        rows.extend(cf_rows)
+
+    # Kaggle Polymarket historical markets
     if not bool(args.no_kaggle_table):
         rows.extend(_kaggle_table_rows())
     if args.kaggle_file:
@@ -326,21 +435,28 @@ def main() -> int:
     _write_jsonl(train_path, train)
     _write_jsonl(eval_path, eval_rows)
 
+    cf_taken = sum(1 for r in rows if r.get("source") == "counterfactual_win" and r.get("trade_taken"))
+    cf_not_taken = sum(1 for r in rows if r.get("source") == "counterfactual_win" and not r.get("trade_taken"))
+
     summary = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "total_rows": len(rows),
         "train_rows": len(train),
         "eval_rows": len(eval_rows),
+        "wins_only": bool(args.wins_only),
         "include_operational": bool(args.include_operational),
+        "counterfactual_horizon_hours": int(args.counterfactual_horizon),
         "kaggle_file": args.kaggle_file or "",
         "sources": {
-            "internal": sum(1 for r in rows if r.get("source") == "internal"),
+            "internal_taken": sum(1 for r in rows if r.get("source") == "internal"),
+            "counterfactual_wins_taken": cf_taken,
+            "counterfactual_wins_not_taken": cf_not_taken,
             "kaggle_polymarket": sum(1 for r in rows if r.get("source") == "kaggle_polymarket"),
         },
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-    print(json.dumps(summary))
+    print(json.dumps(summary, indent=2))
     print(f"Wrote: {train_path}")
     print(f"Wrote: {eval_path}")
     print(f"Wrote: {summary_path}")

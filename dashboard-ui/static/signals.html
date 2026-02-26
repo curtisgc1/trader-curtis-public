@@ -11,87 +11,202 @@
       <header class="top">
         <div>
           <h1>Signals</h1>
-          <p class="sub">Routing, quant gating, execution flow, and pipeline signal quality</p>
+          <p class="sub">Core signal families only, plus optional deep diagnostics.</p>
           <p class="sub"><a href="/">Main</a> • <a href="/consensus">Consensus</a> • <a href="/learning">Learning</a> • <a href="/polymarket">Polymarket</a></p>
         </div>
         <div class="status" id="status-pill">loading</div>
       </header>
 
       <section class="grid">
-        <div class="card">
-          <h2>Signal Readiness</h2>
-          <div id="signal-readiness" class="table"></div>
-          <div class="controls">
-            <div id="action-status" class="control-warning"></div>
-            <div class="control-actions">
-              <button id="btn-validate-signals">Run Dry-Run Validation</button>
-            </div>
+        <div class="card span-2">
+          <h2>Core Signals In Use</h2>
+          <div class="sub">Click the arrow on any signal to expand sub-inputs, scores, and inline controls.</div>
+          <div id="core-signals-summary" class="health" style="margin-top:8px;"></div>
+          <div id="core-signals-list" style="margin-top:8px;"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Trade Replay + Feedback</h2>
+          <div class="sub">Paste a trade identifier, get a plain-English explanation, then choose the specific input you want to boost/downrank.</div>
+          <div class="control-row" style="margin-top:8px;">
+            <label for="trade-review-identifier" title="Use route ID or trade ID, for example: 1099 or route_1099.">Trade Identifier</label>
+            <input id="trade-review-identifier" type="text" placeholder="1099 or route_1099" />
+          </div>
+          <div class="control-actions">
+            <button id="btn-trade-review-load">Load Trade</button>
+          </div>
+          <div id="trade-review-status" class="control-warning"></div>
+          <div id="trade-review-explain" class="health"></div>
+          <div id="trade-review-inputs" class="table" style="margin-top:8px;"></div>
+          <div class="control-row" style="margin-top:8px;">
+            <label for="trade-review-input-key-select" title="Pick the exact input you want this feedback to modify.">Input To Adjust</label>
+            <select id="trade-review-input-key-select"></select>
+          </div>
+          <div class="control-row">
+            <label for="trade-review-action" title="Boost doubles weight, Downrank halves weight. Neutral stores feedback without weight change.">Feedback Action</label>
+            <select id="trade-review-action">
+              <option value="boost">Boost (2x)</option>
+              <option value="downrank">Downrank (0.5x)</option>
+              <option value="neutral">Neutral (store only)</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label for="trade-review-apply-now" title="Yes applies now. No queues this review for weekly apply.">Apply Now</label>
+            <select id="trade-review-apply-now">
+              <option value="1">Yes</option>
+              <option value="0">No (weekly)</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label for="trade-review-notes">Notes</label>
+            <input id="trade-review-notes" type="text" placeholder="why you boosted/downranked this input" />
+          </div>
+          <div class="control-actions">
+            <button id="btn-trade-review-submit">Save Feedback</button>
+            <button id="btn-trade-review-weekly">Run Weekly Apply</button>
           </div>
         </div>
-        <div class="card span-2">
-          <h2>Signal Routes</h2>
-          <div id="signal-routes" class="table"></div>
-        </div>
         <div class="card">
-          <h2>Source Scores</h2>
-          <div id="source-scores" class="table"></div>
+          <h2>How To Use</h2>
+          <div class="health">
+            <div class="item"><span class="label">1</span><span>Load a trade by ID</span></div>
+            <div class="item"><span class="label">2</span><span>Read simple explanation</span></div>
+            <div class="item"><span class="label">3</span><span>Pick one input to adjust</span></div>
+            <div class="item"><span class="label">4</span><span>Save feedback now or weekly</span></div>
+          </div>
         </div>
       </section>
 
+      <!-- ═══ KELLY SIGNALS ═══ -->
       <section class="grid">
         <div class="card span-2">
-          <h2>Pipeline Signals (A/B/C/E)</h2>
-          <div id="pipeline-signals" class="table"></div>
+          <h2>Kelly Signal — Position Sizing</h2>
+          <div class="sub">Edge × Convexity × Risk Management. Kelly fraction = (p×b − (1−p)) / b. Only trade when Kelly > 0. Quarter Kelly applied by default.</div>
+          <div id="kelly-portfolio-budget" class="health" style="margin:8px 0;"></div>
+          <div id="kelly-signals-table" class="table"></div>
         </div>
         <div class="card">
-          <h2>Bookmark Theses</h2>
-          <div id="bookmark-theses" class="table"></div>
+          <h2>Kelly Guide</h2>
+          <div class="health">
+            <div class="item"><span class="label">p</span><span>Win probability from historical outcomes</span></div>
+            <div class="item"><span class="label">b</span><span>Payout ratio: avg win% / avg loss%</span></div>
+            <div class="item"><span class="label">Kelly%</span><span>(p×b − (1−p)) / b — optimal capital fraction</span></div>
+            <div class="item"><span class="label">¼ Kelly</span><span>Fractional Kelly applied (25%) for humility</span></div>
+            <div class="item"><span class="label">Convexity</span><span>b ≥ 5 excellent · ≥ 2 good · &lt; 1 concave (avoid)</span></div>
+            <div class="item"><span class="label">Budget</span><span>Sum of ¼Kelly across all positions ≤ 20% portfolio</span></div>
+            <div class="item"><span class="label">skip</span><span>Negative EV — don't bet</span></div>
+            <div class="item"><span class="label">warmup</span><span>Thin data — treat as informational only</span></div>
+          </div>
         </div>
       </section>
 
+      <!-- ═══ MISSED WINS ═══ -->
       <section class="grid">
         <div class="card span-2">
-          <h2>Breakthrough Events (E)</h2>
-          <div id="breakthrough-events" class="table"></div>
+          <h2>Missed Wins <span id="missed-wins-count" style="font-size:0.8em;font-weight:normal;opacity:0.6;"></span></h2>
+          <div class="sub">Signals we saw but didn't trade — that would have won. Upvote to boost the source weight; downvote to flag it as luck. Updates input rankings immediately.</div>
+          <div style="display:flex;gap:12px;align-items:center;margin:10px 0 6px;">
+            <label style="font-size:0.82em;opacity:0.7;">Horizon</label>
+            <select id="missed-wins-horizon" style="font-size:0.82em;">
+              <option value="24">1 day</option>
+              <option value="168">7 days</option>
+              <option value="336">14 days</option>
+              <option value="720">30 days</option>
+            </select>
+            <button id="btn-missed-wins-reload" style="font-size:0.82em;padding:3px 10px;">Reload</button>
+          </div>
+          <div id="missed-wins-stats" class="health" style="margin-bottom:8px;"></div>
+          <div id="missed-wins-table" class="table"></div>
         </div>
         <div class="card">
-          <h2>Mapped Breakthrough Tickers</h2>
-          <div id="breakthrough-map" class="table"></div>
+          <h2>Input Horizon Performance</h2>
+          <div class="sub">Win rates per input source across time horizons. Helps identify sources that are better for scalps vs long-term holds.</div>
+          <div id="horizon-ratings-table" class="table"></div>
         </div>
       </section>
 
-      <section class="grid">
-        <div class="card span-2">
-          <h2>Execution Orders</h2>
-          <div id="execution-orders" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Event Alerts</h2>
-          <div id="event-alerts" class="table"></div>
-        </div>
-      </section>
+      <details id="advanced-signals" class="card advanced-panel">
+        <summary>Advanced Diagnostics (optional)</summary>
+        <div class="advanced-body">
+          <section class="grid">
+            <div class="card">
+              <h2>Signal Readiness</h2>
+              <div id="signal-readiness" class="table"></div>
+              <div class="controls">
+                <div id="action-status" class="control-warning"></div>
+                <div class="control-actions">
+                  <button id="btn-validate-signals">Run Dry-Run Validation</button>
+                </div>
+              </div>
+            </div>
+            <div class="card span-2">
+              <h2>Signal Routes</h2>
+              <div id="signal-routes" class="table"></div>
+            </div>
+            <div class="card">
+              <h2>Source Scores</h2>
+              <div id="source-scores" class="table"></div>
+            </div>
+          </section>
 
-      <section class="grid">
-        <div class="card span-2">
-          <h2>Quant Validations</h2>
-          <div id="quant-validations" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Chart Liquidity</h2>
-          <div id="chart-liquidity" class="table"></div>
-        </div>
-      </section>
+          <section class="grid">
+            <div class="card span-2">
+              <h2>Pipeline Signals (A/B/C/E)</h2>
+              <div id="pipeline-signals" class="table"></div>
+            </div>
+            <div class="card">
+              <h2>Bookmark Theses</h2>
+              <div id="bookmark-theses" class="table"></div>
+            </div>
+          </section>
 
-      <section class="grid">
-        <div class="card span-2">
-          <h2>Causal Allocator Decisions</h2>
-          <div id="allocator-decisions" class="table"></div>
+          <section class="grid">
+            <div class="card span-2">
+              <h2>Breakthrough Events (E)</h2>
+              <div id="breakthrough-events" class="table"></div>
+            </div>
+            <div class="card">
+              <h2>Mapped Breakthrough Tickers</h2>
+              <div id="breakthrough-map" class="table"></div>
+            </div>
+          </section>
+
+          <section class="grid">
+            <div class="card span-2">
+              <h2>Execution Orders</h2>
+              <div id="execution-orders" class="table"></div>
+            </div>
+            <div class="card">
+              <h2>Event Alerts</h2>
+              <div id="event-alerts" class="table"></div>
+            </div>
+          </section>
+
+          <section class="grid">
+            <div class="card span-2">
+              <h2>Quant Validations</h2>
+              <div id="quant-validations" class="table"></div>
+            </div>
+            <div class="card">
+              <h2>Chart Liquidity</h2>
+              <div id="chart-liquidity" class="table"></div>
+            </div>
+          </section>
+
+          <section class="grid" style="margin-bottom:0;">
+            <div class="card span-2">
+              <h2>Causal Allocator Decisions</h2>
+              <div id="allocator-decisions" class="table"></div>
+            </div>
+            <div class="card">
+              <h2>Allocator Summary</h2>
+              <div id="allocator-summary" class="table"></div>
+            </div>
+          </section>
         </div>
-        <div class="card">
-          <h2>Allocator Summary</h2>
-          <div id="allocator-summary" class="table"></div>
-        </div>
-      </section>
+      </details>
     </div>
 
     <script src="/static/signals.js"></script>

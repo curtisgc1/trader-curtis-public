@@ -28,7 +28,18 @@ def main() -> int:
             """
         )
         if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trade_candidates'").fetchone():
-            cur.execute("DELETE FROM trade_candidates")
+            # Keep a rolling candidate window for dashboard diagnostics and replay tools.
+            cur.execute(
+                """
+                DELETE FROM trade_candidates
+                WHERE id NOT IN (
+                  SELECT id
+                  FROM trade_candidates
+                  ORDER BY datetime(COALESCE(generated_at, '1970-01-01')) DESC, id DESC
+                  LIMIT 2000
+                )
+                """
+            )
         if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='polymarket_candidates'").fetchone():
             cur.execute(
                 """

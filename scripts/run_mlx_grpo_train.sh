@@ -157,7 +157,11 @@ DATA_DIR="$ROOT/datasets/mlx_grpo_lora"
 mkdir -p "$(dirname "$ADAPTER_PATH")" "$DATA_DIR"
 
 log "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] mlx_grpo_train=prepare"
-"$PY_BIN" "$ROOT/training/grpo/build_grpo_dataset.py" --include-operational | tee -a "$LOG_FILE"
+# Build dataset: wins-only + counterfactual wins from non-taken routes (all horizons)
+# --wins-only: only successful calls go into training data — model learns what works
+# --include-operational: use operationally-resolved outcomes in addition to realized
+# --counterfactual-horizon 24: use 1-day horizon for counterfactual wins
+"$PY_BIN" "$ROOT/training/grpo/build_grpo_dataset.py" --include-operational --wins-only --counterfactual-horizon 24 | tee -a "$LOG_FILE"
 "$PY_BIN" "$ROOT/training/grpo/build_mlx_lora_dataset.py" --out-dir "$DATA_DIR" | tee -a "$LOG_FILE"
 
 TRAIN_ROWS="0"

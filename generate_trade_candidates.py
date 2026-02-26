@@ -65,6 +65,9 @@ def seed_input_source_controls(conn: sqlite3.Connection) -> None:
         ("family:copy", "Copy Signals", "family"),
         ("family:pipeline", "Pipeline Signals", "family"),
         ("family:liquidity", "Liquidity Map", "family"),
+        ("family:kyle_williams", "Kyle Williams Setup", "family"),
+        ("family:momentum", "Momentum Rank", "family"),
+        ("family:event_alpha", "Event Alpha (Macro/Geo)", "family"),
     ]
     for key, label, klass in seeds:
         conn.execute(
@@ -235,6 +238,7 @@ def strategy_weight_for(
 
 def main() -> int:
     conn = sqlite3.connect(str(DB_PATH), timeout=20.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=20000")
     try:
         ensure_candidates_table(conn)
@@ -254,6 +258,18 @@ def main() -> int:
         liq_min_conf = float(controls.get("liquidity_min_confidence", "0.60") or 0.60)
         liq_min_rr = float(controls.get("liquidity_min_rr", "2.0") or 2.0)
         x_influence_enabled = str(controls.get("x_influence_enabled", "1")).strip() == "1"
+
+        # Premium Gate config (loaded once, applied per ticker)
+        # Defaults: off (0) — enabled by user via dashboard checkboxes
+        pg_stocks_min = int(float(controls.get("premium_gate_stocks_min", "0") or 0))
+        pg_crypto_min = int(float(controls.get("premium_gate_crypto_min", "0") or 0))
+        # Which of the 3 premium signals participate per asset class
+        pg_kw_stocks  = str(controls.get("premium_gate_kw_stocks",  "1")).strip() == "1"
+        pg_kw_crypto  = str(controls.get("premium_gate_kw_crypto",  "0")).strip() == "1"
+        pg_liq_stocks = str(controls.get("premium_gate_liq_stocks", "1")).strip() == "1"
+        pg_liq_crypto = str(controls.get("premium_gate_liq_crypto", "1")).strip() == "1"
+        pg_mom_stocks = str(controls.get("premium_gate_mom_stocks", "1")).strip() == "1"
+        pg_mom_crypto = str(controls.get("premium_gate_mom_crypto", "1")).strip() == "1"
 
         sentiment = {}
         if table_exists(conn, "unified_social_sentiment"):
@@ -302,15 +318,65 @@ def main() -> int:
             )
 
         pipeline_signals = {}
+        kyle_williams_signals = {}
+        event_alpha_signals = {}
         if table_exists(conn, "pipeline_signals"):
+            # Exclude:
+            #   CHART_LIQUIDITY — already captured by family:liquidity
+            #   KYLE_WILLIAMS   — has its own family below
+            #   B_LONGTERM      — redundant with family:social + family:copy (same X handles + innovation watchlist)
+            #   E_BREAKTHROUGH  — redundant with family:external (same Google News RSS → keyword → ticker lists)
             pipeline_signals = latest_map(
                 cur,
                 """
                 SELECT asset, score, direction, pipeline_id, generated_at
                 FROM pipeline_signals
                 WHERE status = 'new'
+                  AND UPPER(pipeline_id) NOT IN ('CHART_LIQUIDITY', 'KYLE_WILLIAMS', 'B_LONGTERM', 'E_BREAKTHROUGH')
                 ORDER BY generated_at DESC
                 """,
+            )
+            # Kyle Williams signals — first_red_day_short and similar setups
+            kyle_williams_signals = latest_map(
+                cur,
+                """
+                SELECT asset, score, direction, pipeline_id, generated_at
+                FROM pipeline_signals
+                WHERE status = 'new'
+                  AND UPPER(pipeline_id) = 'KYLE_WILLIAMS'
+                ORDER BY generated_at DESC
+                """,
+            )
+            # C_EVENT — unique macro/geo regime signals (tariff shock → SPY, geopolitical → BTC)
+            # Promoted to its own family:event_alpha — no other signal covers macro regime risk
+            event_alpha_signals = latest_map(
+                cur,
+                """
+                SELECT asset, score, direction, pipeline_id, generated_at
+                FROM pipeline_signals
+                WHERE status = 'new'
+                  AND UPPER(pipeline_id) = 'C_EVENT'
+                ORDER BY generated_at DESC
+                """,
+            )
+            # Clean up stale controls that are no longer generated:
+            # - strategy_family cross-products (30+ entries that cluttered the accordion)
+            # - pipeline:* entries for excluded/promoted strategies
+            # - source:internal / source:unspecified / source:manual-* (default fallback noise, never real signals)
+            conn.execute("DELETE FROM input_source_controls WHERE source_class = 'strategy_family'")
+            conn.execute(
+                "DELETE FROM input_source_controls WHERE source_class = 'pipeline'"
+                " AND UPPER(source_key) IN ("
+                " 'PIPELINE:B_LONGTERM','PIPELINE:E_BREAKTHROUGH',"
+                " 'PIPELINE:CHART_LIQUIDITY','PIPELINE:KYLE_WILLIAMS','PIPELINE:C_EVENT',"
+                " 'PIPELINE:UNSPECIFIED'"
+                ")"
+            )
+            conn.execute(
+                "DELETE FROM input_source_controls"
+                " WHERE source_class = 'source_tag'"
+                " AND (LOWER(source_key) IN ('source:internal','source:unspecified')"
+                "  OR source_key LIKE 'source:manual-%')"
             )
 
         chart_liq = {}
@@ -325,13 +391,35 @@ def main() -> int:
                 """,
             )
 
+        # Load latest momentum batch (top 100 stocks + top 10 crypto)
+        momentum_map: dict = {}
+        crypto_tickers: set = set()
+        if table_exists(conn, "momentum_signals"):
+            cur.execute(
+                """
+                SELECT ticker, momentum_score, rank, rank_of, asset_class
+                FROM momentum_signals
+                WHERE batch_ts = (SELECT MAX(batch_ts) FROM momentum_signals)
+                """
+            )
+            for row in cur.fetchall():
+                ticker = row[0]
+                if ticker not in momentum_map:
+                    momentum_map[ticker] = row[1:]
+                if str(row[4] or "").lower() == "crypto":
+                    crypto_tickers.add(ticker)
+
         tickers = (
             set(sentiment.keys())
             | set(patterns.keys())
             | set(external.keys())
             | set(copy_signals.keys())
             | set(pipeline_signals.keys())
+            | set(kyle_williams_signals.keys())
+            | set(event_alpha_signals.keys())
             | set(chart_liq.keys())
+            # momentum_map intentionally NOT added to tickers — it only boosts
+            # existing candidates; doesn't generate candidates on its own
         )
         rows = []
 
@@ -360,6 +448,28 @@ def main() -> int:
                 pipe_direction = pipeline_signals[ticker][1] or "unknown"
                 pipe_source = str(pipeline_signals[ticker][2] or "")
 
+            # Kyle Williams signals (first_red_day_short etc.) — own family
+            kw_score = 0.0
+            kw_direction = "unknown"
+            kw_hit = ticker in kyle_williams_signals
+            if kw_hit:
+                kw_score = float(kyle_williams_signals[ticker][0] or 0.0)
+                kw_direction = kyle_williams_signals[ticker][1] or "unknown"
+
+            # C_EVENT — macro/geo regime signal (own family:event_alpha)
+            ea_score = 0.0
+            ea_direction = "unknown"
+            ea_hit = ticker in event_alpha_signals
+            if ea_hit:
+                ea_score = float(event_alpha_signals[ticker][0] or 0.0)
+                ea_direction = event_alpha_signals[ticker][1] or "unknown"
+
+            # Momentum rank signal
+            mom_score = 0.0
+            mom_hit = ticker in momentum_map
+            if mom_hit:
+                mom_score = float(momentum_map[ticker][0] or 0.0)
+
             liq_hit = False
             liq_pattern = ""
             liq_rr = 0.0
@@ -382,7 +492,9 @@ def main() -> int:
             copy_lower = str(copy_source or "").strip().lower()
             pipe_upper = str(pipe_source or "").strip().upper()
             pattern_key = f"pattern:{pattern_type}" if pattern_type and pattern_type != "none" else ""
-            ext_key = f"source:{ext_lower}" if ext_lower else ""
+            # Only register external source key if it's a real source (not the internal default fallback)
+            _ext_is_real = ext_lower and ext_lower not in {"internal", "unspecified"} and not ext_lower.startswith("manual-")
+            ext_key = f"source:{ext_lower}" if _ext_is_real else ""
             copy_key = f"source:{copy_lower}" if copy_lower else ""
             pipe_key = f"pipeline:{pipe_upper}" if pipe_upper else ""
             x_key = f"x:{ext_lower}" if ext_lower else ""
@@ -395,14 +507,6 @@ def main() -> int:
                 add_seen_control(conn, copy_key, f"Source {copy_source}", "source_tag")
             if pipe_key:
                 add_seen_control(conn, pipe_key, f"Pipeline {pipe_upper}", "pipeline")
-            if pipe_upper:
-                for fam in ("family:social", "family:pattern", "family:external", "family:copy", "family:pipeline", "family:liquidity"):
-                    add_seen_control(
-                        conn,
-                        f"strategy:{pipe_upper}:{fam}",
-                        f"Strategy {pipe_upper} x {fam.replace('family:', '').replace('_', ' ').title()}",
-                        "strategy_family",
-                    )
             if x_key and ext_lower in tracked_sources:
                 add_seen_control(conn, x_key, f"X @{ext_lower}", "x_account")
 
@@ -424,11 +528,14 @@ def main() -> int:
             c_external *= (w_ext_specific * w_ext_strategy)
             breakdown.append({"key": "family:external", "base": round(ext_conf * 0.20, 6), "weight": round(w_ext_family * w_ext_specific * w_ext_strategy, 6), "value": round(c_external, 6)})
 
-            c_pipeline, w_pipe_family = contribution(input_controls, "family:pipeline", (pipe_score / 100.0) * 0.25)
-            w_pipe_specific = weight_for(input_controls, pipe_key) if pipe_key else 1.0
-            w_pipe_strategy = strategy_weight_for(input_controls, pipe_upper, "family:pipeline")
-            c_pipeline *= (w_pipe_specific * w_pipe_strategy)
-            breakdown.append({"key": "family:pipeline", "base": round((pipe_score / 100.0) * 0.25, 6), "weight": round(w_pipe_family * w_pipe_specific * w_pipe_strategy, 6), "value": round(c_pipeline, 6)})
+            # Only score pipeline if there's an actual signal — default 50 is noise, not a signal
+            c_pipeline = 0.0
+            if ticker in pipeline_signals:
+                c_pipeline, w_pipe_family = contribution(input_controls, "family:pipeline", (pipe_score / 100.0) * 0.25)
+                w_pipe_specific = weight_for(input_controls, pipe_key) if pipe_key else 1.0
+                w_pipe_strategy = strategy_weight_for(input_controls, pipe_upper, "family:pipeline")
+                c_pipeline *= (w_pipe_specific * w_pipe_strategy)
+                breakdown.append({"key": "family:pipeline", "base": round((pipe_score / 100.0) * 0.25, 6), "weight": round(w_pipe_family * w_pipe_specific * w_pipe_strategy, 6), "value": round(c_pipeline, 6)})
 
             copy_component = 0.0
             if copy_source:
@@ -457,7 +564,40 @@ def main() -> int:
                     x_component = 0.05 * w_x
                     breakdown.append({"key": x_key, "base": 0.05, "weight": round(w_x, 6), "value": round(x_component, 6)})
 
-            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component
+            # Kyle Williams setup (first_red_day_short, ext_vs_vwap etc.) — own family
+            c_kw = 0.0
+            if kw_hit and kw_score > 0:
+                c_kw, w_kw = contribution(input_controls, "family:kyle_williams", (kw_score / 100.0) * 0.22)
+                breakdown.append({
+                    "key": "family:kyle_williams",
+                    "base": round((kw_score / 100.0) * 0.22, 6),
+                    "weight": round(w_kw, 6),
+                    "value": round(c_kw, 6),
+                })
+
+            # C_EVENT macro/geo regime — own family:event_alpha (e.g. tariff shock → SPY short)
+            c_event_alpha = 0.0
+            if ea_hit and ea_score > 0:
+                c_event_alpha, w_ea = contribution(input_controls, "family:event_alpha", (ea_score / 100.0) * 0.20)
+                breakdown.append({
+                    "key": "family:event_alpha",
+                    "base": round((ea_score / 100.0) * 0.20, 6),
+                    "weight": round(w_ea, 6),
+                    "value": round(c_event_alpha, 6),
+                })
+
+            # Momentum rank (top 100 stocks / top 10 crypto) — confirmation bonus
+            c_mom = 0.0
+            if mom_hit and mom_score > 0:
+                c_mom, w_mom = contribution(input_controls, "family:momentum", mom_score * 0.12)
+                breakdown.append({
+                    "key": "family:momentum",
+                    "base": round(mom_score * 0.12, 6),
+                    "weight": round(w_mom, 6),
+                    "value": round(c_mom, 6),
+                })
+
+            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_kw + c_event_alpha + c_mom
             final_score = round(min(max(blended, 0.0), 1.0) * 100.0, 2)
 
             direction = pattern_direction
@@ -465,8 +605,16 @@ def main() -> int:
                 direction = ext_direction if ext_direction != "unknown" else copy_direction
             if direction == "unknown" and pipe_direction != "unknown":
                 direction = pipe_direction
+            if direction == "unknown" and kw_direction != "unknown":
+                direction = kw_direction
+            if direction == "unknown" and ea_direction != "unknown":
+                direction = ea_direction
 
             source_tag = ext_source if ext_source != "internal" else (copy_source or pipe_source or "internal")
+            if source_tag == "internal" and kw_hit:
+                source_tag = "KYLE_WILLIAMS"
+            if source_tag == "internal" and ea_hit:
+                source_tag = "C_EVENT"
             evidence = []
             if ticker in sentiment:
                 evidence.append("social_sentiment")
@@ -482,15 +630,40 @@ def main() -> int:
                 evidence.append(f"liquidity_map:{liq_pattern}:rr={liq_rr}")
             if x_influence_enabled and ext_lower in tracked_sources:
                 evidence.append(f"x:{ext_lower}")
+            if kw_hit:
+                evidence.append("pipeline:KYLE_WILLIAMS")
+            if ea_hit:
+                evidence.append("event_alpha:C_EVENT")
+            if mom_hit:
+                evidence.append(f"momentum:rank_{momentum_map[ticker][1]}_of_{momentum_map[ticker][2]}")
 
             confirmations = len(set([e.split(":")[0] if ":" in e else e for e in evidence]))
-            sources_total = 6
+            sources_total = 9  # social, pattern, external, copy, pipeline, liquidity, kyle_williams, event_alpha, momentum
             consensus_ratio = round(min(1.0, confirmations / max(1, sources_total)), 4)
             consensus_flag = 1 if (
                 confirmations >= min_confirmations
                 and consensus_ratio >= min_ratio
                 and final_score >= min_score
             ) else 0
+
+            # Premium Gate: if enabled for this asset class, require min N of
+            # (kyle_williams, liquidity, momentum) to have fired — otherwise block the trade.
+            # Gate only blocks (sets consensus_flag=0); it never promotes a trade.
+            asset_class = "crypto" if ticker in crypto_tickers else "stock"
+            pg_min = pg_stocks_min if asset_class == "stock" else pg_crypto_min
+            if pg_min > 0 and consensus_flag == 1:
+                pg_hits = 0
+                if asset_class == "stock":
+                    if pg_kw_stocks  and kw_hit:  pg_hits += 1
+                    if pg_liq_stocks and liq_hit:  pg_hits += 1
+                    if pg_mom_stocks and mom_hit:  pg_hits += 1
+                else:
+                    if pg_kw_crypto  and kw_hit:  pg_hits += 1
+                    if pg_liq_crypto and liq_hit:  pg_hits += 1
+                    if pg_mom_crypto and mom_hit:  pg_hits += 1
+                if pg_hits < pg_min:
+                    consensus_flag = 0
+                    evidence.append(f"premium_gate:blocked:{pg_hits}/{pg_min}")
 
             top_inputs = sorted(breakdown, key=lambda x: float(x.get("value", 0.0)), reverse=True)[:3]
             top_desc = ", ".join([f"{x.get('key')}={float(x.get('value', 0.0)):.3f}" for x in top_inputs]) or "none"

@@ -47,6 +47,46 @@
         </div>
       </section>
 
+      <section class="grid">
+        <div class="card span-2">
+          <h2>ID Lookup</h2>
+          <div class="sub">Trade ID, route ID, intent ID, or ticker symbol — finds trades, intents, and reassessment actions.</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+            <input id="id-lookup-input" type="text" placeholder="e.g. 109, route_218, TSLA" style="flex:1;min-width:160px;" />
+            <select id="id-lookup-quick" style="flex:1;min-width:160px;">
+              <option value="">— Quick select trade —</option>
+              <optgroup id="id-lookup-wins" label="✅ Wins"></optgroup>
+              <optgroup id="id-lookup-losses" label="❌ Losses"></optgroup>
+              <optgroup id="id-lookup-open" label="📂 Open Positions"></optgroup>
+            </select>
+            <button id="btn-id-lookup">Look Up</button>
+          </div>
+          <div id="id-lookup-status" class="control-warning" style="margin-top:4px;"></div>
+          <div id="id-lookup-results" style="margin-top:8px;"></div>
+        </div>
+      </section>
+
+      <!-- ═══ EXCHANGE P&L ═══ -->
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Exchange P&amp;L</h2>
+          <div class="sub">Realized + unrealized per venue. Agent actions show what the system did vs what triggered naturally.</div>
+          <div id="exchange-pnl-summary" class="health" style="margin-top:8px;"></div>
+          <details style="margin-top:10px;">
+            <summary>Closed Trades</summary>
+            <div id="exchange-closed-trades" class="table" style="margin-top:6px;"></div>
+          </details>
+        </div>
+        <div class="card">
+          <h2>Agent Actions</h2>
+          <div class="sub">Stops placed, alerts sent, reassessments — what the agent actually did.</div>
+          <details style="margin-top:8px;">
+            <summary id="agent-actions-summary">Actions</summary>
+            <div id="exchange-agent-actions" class="flow-list" style="margin-top:6px;"></div>
+          </details>
+        </div>
+      </section>
+
       <section class="grid" id="pnl-drilldown-wrap" style="display:none;">
         <div class="card span-2">
           <h2>Closed Trade Drilldown</h2>
@@ -317,6 +357,60 @@
             <div class="control-actions"><button id="btn-input-source-save-main">Save Weight</button></div>
             <div id="input-source-status-main" class="control-warning"></div>
             <div id="input-sources-list-main" class="table" style="margin-top:8px;"></div>
+          </details>
+
+          <details id="premium-gate-details" style="margin-top:8px;">
+            <summary>Premium Confirmation Gate</summary>
+            <div class="sub" style="margin-top:6px;">When enabled, a trade must hit the minimum number of these high-conviction signals or it won't be routed. Polymarket uses a separate pipeline — configure it there.</div>
+            <table id="premium-gate-table" style="margin-top:10px;border-collapse:collapse;width:100%;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:4px 8px;font-weight:600;">Signal</th>
+                  <th style="text-align:center;padding:4px 8px;font-weight:600;">Stocks</th>
+                  <th style="text-align:center;padding:4px 8px;font-weight:600;">Crypto</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:4px 8px;">Kyle Williams Setup</td>
+                  <td style="text-align:center;padding:4px 8px;"><input type="checkbox" id="pg-kw-stocks" /></td>
+                  <td style="text-align:center;padding:4px 8px;"><input type="checkbox" id="pg-kw-crypto" /></td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 8px;">Liquidity Map</td>
+                  <td style="text-align:center;padding:4px 8px;"><input type="checkbox" id="pg-liq-stocks" /></td>
+                  <td style="text-align:center;padding:4px 8px;"><input type="checkbox" id="pg-liq-crypto" /></td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 8px;">Momentum Rank</td>
+                  <td style="text-align:center;padding:4px 8px;"><input type="checkbox" id="pg-mom-stocks" /></td>
+                  <td style="text-align:center;padding:4px 8px;"><input type="checkbox" id="pg-mom-crypto" /></td>
+                </tr>
+                <tr style="border-top:1px solid #333;margin-top:4px;">
+                  <td style="padding:8px 8px 4px;font-weight:600;">Min required</td>
+                  <td style="text-align:center;padding:8px 8px 4px;">
+                    <select id="pg-stocks-min" style="width:80px;">
+                      <option value="0">Off</option>
+                      <option value="1">1 of</option>
+                      <option value="2">2 of</option>
+                      <option value="3">3 of</option>
+                    </select>
+                  </td>
+                  <td style="text-align:center;padding:8px 8px 4px;">
+                    <select id="pg-crypto-min" style="width:80px;">
+                      <option value="0">Off</option>
+                      <option value="1">1 of</option>
+                      <option value="2">2 of</option>
+                      <option value="3">3 of</option>
+                    </select>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="control-actions" style="margin-top:8px;">
+              <button id="btn-premium-gate-save">Save Gate Config</button>
+            </div>
+            <div id="premium-gate-status" class="control-warning" style="margin-top:4px;"></div>
           </details>
 
           <details style="margin-top:8px;">

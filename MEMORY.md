@@ -17,6 +17,7 @@
 | R2 | 🔴 | Rule | Require 2+ sources >70 for entry (Feb 21) | 70 |
 | S2 | 🔵 | System | ClickHouse archive operational (Feb 18) | 60 |
 | E1 | 🟢 | Execution | 30 trades archived, 0% win rate, -$53,179 loss | 80 |
+| SYS1 | 🔵 | System | Trade lifecycle wired Feb 25: manage_open_positions→execute_position_intents | 80 |
 
 ## Trading Rules
 
@@ -165,6 +166,28 @@
 - `political_monitor_free.py` - Main scanner (FREE)
 - `tasks/monitor-*.md` - Implementation tasks
 - `POLITICAL_ALPHA_SETUP.md` - Full setup guide
+
+## Trade Lifecycle
+
+### SYS1 | 🔵 Trade Lifecycle Wired (Feb 25, 2026)
+
+**Problem Fixed:** Agent was opening trades but never closing/managing them.
+
+**How it works now (every heartbeat cycle):**
+1. `manage_open_positions.py` → fetches live HL positions, writes `trade_intents` (manage_trail_stop_tighten / manage_reduce_or_exit / manage_take_profit_*)
+2. `execute_position_intents.py` → reads pending intents and executes:
+   - Trail/stop → submits reduce-only stop order via `apply_hl_protection.py`
+   - Take profit → sends iMessage alert to Curtis (requires manual confirm)
+
+**Intent status flow:**
+`manage_*` → `executing` → `submitted_stop` | `alert_sent` | `failed`
+
+**Verify open intents:**
+```bash
+sqlite3 data/trades.db "SELECT id,symbol,side,qty,status,json_extract(details,'$.pnl_pct') FROM trade_intents WHERE status LIKE 'manage_%' OR status='alert_sent' ORDER BY id DESC LIMIT 20;"
+```
+
+**CRITICAL: Never claim to have closed a trade without a DB record.**
 
 ## Pattern Learning System
 

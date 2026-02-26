@@ -1,4 +1,0 @@
-Processing configuration file '/Users/shared/curtis/trader-curtis/data/config.xml'.
-2026.02.18 22:02:38.804677 [ 1414727 ] {} <Warning> Application: Logging to console but received signal to close log file (ignoring).
-2026.02.18 22:02:38.866616 [ 1414732 ] {} <Warning> Context: Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
-2026.02.19 08:15:57.807717 [ 1414727 ] {} <Warning> Application: Logging to console but received signal to close log file (ignoring).

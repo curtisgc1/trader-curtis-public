@@ -1,9 +1,0 @@
-{
-  "generated_at": "2026-02-25T07:01:10.217748+00:00",
-  "source_train_file": "/Users/Shared/curtis/trader-curtis/datasets/grpo_train.jsonl",
-  "source_eval_file": "/Users/Shared/curtis/trader-curtis/datasets/grpo_eval.jsonl",
-  "train_rows": 3880,
-  "valid_rows": 215,
-  "test_rows": 216,
-  "out_dir": "/Users/Shared/curtis/trader-curtis/datasets/mlx_grpo_lora"
-}

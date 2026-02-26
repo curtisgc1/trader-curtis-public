@@ -70,6 +70,11 @@ from data import (
     upsert_input_source_control,
     upsert_ticker_trade_profile,
     upsert_tracked_polymarket_wallet,
+    get_source_horizon_ratings,
+    get_counterfactual_wins,
+    submit_counterfactual_feedback,
+    get_kelly_signals,
+    get_exchange_pnl_summary,
 )
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -310,6 +315,67 @@ def api_trade_intents():
     return jsonify(get_trade_intents())
 
 
+@app.get("/api/id-lookup")
+def api_id_lookup():
+    """Universal ID lookup — accepts trade_id, route_id (int or 'route_N'), or intent_id."""
+    import sqlite3 as _sqlite3
+    from pathlib import Path as _Path
+    raw = str(request.args.get("id", "") or "").strip()
+    if not raw:
+        return jsonify({"ok": False, "error": "no id"})
+
+    db = _Path(app.root_path).parent / "data" / "trades.db"
+    conn = _sqlite3.connect(str(db), timeout=10)
+    conn.row_factory = _sqlite3.Row
+    results = []
+
+    # Normalise: strip 'route_' / 'intent_' prefix
+    numeric = raw.lstrip("route_").lstrip("intent_")
+    try:
+        num = int(numeric)
+    except ValueError:
+        num = None
+
+    # 1. trade_intents by id
+    if num is not None:
+        rows = conn.execute(
+            "SELECT id, created_at, venue, symbol, side, qty, notional, status, details FROM trade_intents WHERE id=?",
+            (num,)
+        ).fetchall()
+        for r in rows:
+            results.append({"type": "intent", **dict(r)})
+
+    # 2. trades by route_id
+    if num is not None:
+        rows = conn.execute(
+            "SELECT trade_id, ticker, entry_side, entry_date, entry_price, exit_price, status, pnl_percent, route_id FROM trades WHERE route_id=?",
+            (num,)
+        ).fetchall()
+        for r in rows:
+            results.append({"type": "trade_by_route", **dict(r)})
+
+    # 3. trades by trade_id (string match)
+    rows = conn.execute(
+        "SELECT trade_id, ticker, entry_side, entry_date, entry_price, exit_price, status, pnl_percent, route_id FROM trades WHERE trade_id=? OR trade_id LIKE ?",
+        (raw, f"%{raw}%")
+    ).fetchall()
+    for r in rows:
+        if not any(x.get("trade_id") == r["trade_id"] for x in results):
+            results.append({"type": "trade", **dict(r)})
+
+    # 4. trade_intents by symbol (if raw looks like a ticker)
+    if raw.upper() == raw and len(raw) <= 6 and raw.isalpha():
+        rows = conn.execute(
+            "SELECT id, created_at, venue, symbol, side, status, details FROM trade_intents WHERE symbol=? ORDER BY created_at DESC LIMIT 10",
+            (raw.upper(),)
+        ).fetchall()
+        for r in rows:
+            results.append({"type": "intent_by_ticker", **dict(r)})
+
+    conn.close()
+    return jsonify({"ok": True, "query": raw, "results": results})
+
+
 @app.get("/api/position-management-intents")
 def api_position_management_intents():
     limit = int(request.args.get("limit", 120))
@@ -485,6 +551,39 @@ def api_consensus_candidates():
 @app.get("/api/source-ratings")
 def api_source_ratings():
     return jsonify(get_source_ratings())
+
+
+@app.get("/api/source-horizon-ratings")
+def api_source_horizon_ratings():
+    return jsonify(get_source_horizon_ratings())
+
+
+@app.get("/api/counterfactual-wins")
+def api_counterfactual_wins():
+    horizon = int(request.args.get("horizon_hours", 24))
+    limit = int(request.args.get("limit", 200))
+    return jsonify(get_counterfactual_wins(limit=limit, horizon_hours=horizon))
+
+
+@app.get("/api/kelly-signals")
+def api_kelly_signals():
+    return jsonify(get_kelly_signals())
+
+
+@app.get("/api/exchange-pnl")
+def api_exchange_pnl():
+    return jsonify(get_exchange_pnl_summary())
+
+
+@app.post("/api/counterfactual-feedback")
+def api_counterfactual_feedback():
+    data = request.get_json(force=True) or {}
+    return jsonify(submit_counterfactual_feedback(
+        route_id=int(data.get("route_id", 0)),
+        horizon_hours=int(data.get("horizon_hours", 24)),
+        feedback=str(data.get("feedback", "pending")),
+        notes=str(data.get("notes", "")),
+    ))
 
 
 if __name__ == "__main__":

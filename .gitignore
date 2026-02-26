@@ -1,22 +1,43 @@
 # Large data directories
 clickhouse_data/
-.clawvault/checkpoints/
-datasets/kaggle/_archive_test/
+clickhouse_logs/
+
+# Agent state (clawvault runtime)
+.clawvault/
+.clawvault-index.json
+.clawvault.json
+
+# Agent runtime files
+alerts/
+handoffs/
+memory/
+lessons/
+reports/
+
+# ML datasets (large)
+datasets/
+models/
 
 # Logs
-dashboard-ui/logs/*.log
-logs/*.log
+dashboard-ui/logs/
+logs/
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
 
+# Vim swap files
+*.swp
+*.swo
+
 # Local env
 .env
 .env.local
 
-# Database journals
+# SQLite WAL files
+*.db-shm
+*.db-wal
 *.db-journal
 
 # OS files
@@ -24,4 +45,6 @@ __pycache__/
 
 # Database files
 data/*.db
-data/*.db-journal
+
+# Agent heartbeat/memory (runtime)
+HEARTBEAT.md

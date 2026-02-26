@@ -2495,7 +2495,10 @@ def get_trade_explain(identifier: str) -> Dict[str, Any]:
                     "resolved_at": str(row[4] or ""),
                 }
 
-        candidate = {"rationale": "", "input_breakdown": [], "generated_at": "", "score": 0.0}
+        candidate = {"rationale": "", "input_breakdown": [], "generated_at": "", "score": 0.0,
+                     "evidence_items": [], "pipeline_breakdown": [],
+                     "sentiment_score": None, "pattern_type": "", "pattern_score": None,
+                     "external_confidence": None, "confirmations": 0}
         if _table_exists(conn, "trade_candidates"):
             ticker = str(trade.get("ticker") or "")
             route_ts = str(route.get("routed_at") or "")
@@ -2503,7 +2506,12 @@ def get_trade_explain(identifier: str) -> Dict[str, Any]:
                 if route_ts:
                     cur.execute(
                         """
-                        SELECT COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]'), COALESCE(generated_at,''), COALESCE(score,0)
+                        SELECT COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]'),
+                               COALESCE(generated_at,''), COALESCE(score,0),
+                               COALESCE(evidence_json,'[]'), COALESCE(source_tag,''),
+                               COALESCE(sentiment_score,0), COALESCE(pattern_type,''),
+                               COALESCE(pattern_score,0), COALESCE(external_confidence,0),
+                               COALESCE(confirmations,0)
                         FROM trade_candidates
                         WHERE UPPER(COALESCE(ticker,''))=?
                         ORDER BY ABS(julianday(COALESCE(generated_at,'1970-01-01')) - julianday(?)) ASC
@@ -2514,7 +2522,12 @@ def get_trade_explain(identifier: str) -> Dict[str, Any]:
                 else:
                     cur.execute(
                         """
-                        SELECT COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]'), COALESCE(generated_at,''), COALESCE(score,0)
+                        SELECT COALESCE(rationale,''), COALESCE(input_breakdown_json,'[]'),
+                               COALESCE(generated_at,''), COALESCE(score,0),
+                               COALESCE(evidence_json,'[]'), COALESCE(source_tag,''),
+                               COALESCE(sentiment_score,0), COALESCE(pattern_type,''),
+                               COALESCE(pattern_score,0), COALESCE(external_confidence,0),
+                               COALESCE(confirmations,0)
                         FROM trade_candidates
                         WHERE UPPER(COALESCE(ticker,''))=?
                         ORDER BY datetime(COALESCE(generated_at,'1970-01-01')) DESC
@@ -2524,12 +2537,75 @@ def get_trade_explain(identifier: str) -> Dict[str, Any]:
                     )
                 row = cur.fetchone()
                 if row:
+                    import json as _json
+                    try:
+                        ev_raw = _json.loads(row[4] or "[]")
+                        evidence_items = ev_raw if isinstance(ev_raw, list) else []
+                    except Exception:
+                        evidence_items = []
+
                     candidate = {
                         "rationale": str(row[0] or ""),
                         "input_breakdown": _parse_input_breakdown_json(str(row[1] or "[]")),
                         "generated_at": str(row[2] or ""),
                         "score": float(row[3] or 0.0),
+                        "evidence_items": evidence_items,
+                        "pipeline_breakdown": [],
+                        "sentiment_score": float(row[6] or 0.0),
+                        "pattern_type": str(row[7] or ""),
+                        "pattern_score": float(row[8] or 0.0),
+                        "external_confidence": float(row[9] or 0.0),
+                        "confirmations": int(row[10] or 0),
                     }
+
+                    # Resolve pipeline sub-signals from evidence_json
+                    # Handles both "pipeline:C_EVENT" (old) and "event_alpha:C_EVENT" (new promoted family)
+                    if evidence_items and _table_exists(conn, "pipeline_signals"):
+                        pipeline_ids = [
+                            e.split(":", 1)[1] for e in evidence_items
+                            if isinstance(e, str) and (e.startswith("pipeline:") or e.startswith("event_alpha:"))
+                        ]
+                        pipe_breakdown = []
+                        for pid in pipeline_ids:
+                            q_ts = str(route.get("routed_at") or row[2] or "")
+                            if q_ts:
+                                cur.execute(
+                                    """
+                                    SELECT pipeline_id, COALESCE(score,0), COALESCE(confidence,0),
+                                           COALESCE(rationale,''), COALESCE(source_refs,''),
+                                           COALESCE(direction,''), COALESCE(generated_at,'')
+                                    FROM pipeline_signals
+                                    WHERE UPPER(pipeline_id)=UPPER(?) AND UPPER(asset)=UPPER(?)
+                                    ORDER BY ABS(julianday(generated_at) - julianday(?)) ASC
+                                    LIMIT 1
+                                    """,
+                                    (pid, ticker, q_ts),
+                                )
+                            else:
+                                cur.execute(
+                                    """
+                                    SELECT pipeline_id, COALESCE(score,0), COALESCE(confidence,0),
+                                           COALESCE(rationale,''), COALESCE(source_refs,''),
+                                           COALESCE(direction,''), COALESCE(generated_at,'')
+                                    FROM pipeline_signals
+                                    WHERE UPPER(pipeline_id)=UPPER(?) AND UPPER(asset)=UPPER(?)
+                                    ORDER BY datetime(generated_at) DESC
+                                    LIMIT 1
+                                    """,
+                                    (pid, ticker),
+                                )
+                            ps = cur.fetchone()
+                            if ps:
+                                pipe_breakdown.append({
+                                    "pipeline_id": str(ps[0] or ""),
+                                    "score": float(ps[1] or 0.0),
+                                    "confidence": float(ps[2] or 0.0),
+                                    "rationale": str(ps[3] or ""),
+                                    "source": str(ps[4] or ""),
+                                    "direction": str(ps[5] or ""),
+                                    "generated_at": str(ps[6] or ""),
+                                })
+                        candidate["pipeline_breakdown"] = pipe_breakdown
 
         pnl = float(outcome.get("pnl") if outcome.get("pnl") is not None else trade.get("pnl", 0.0))
         if pnl > 0:
@@ -2943,6 +3019,15 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "kaggle_max_files_per_run",
         "kaggle_max_rows_per_file",
         "threshold_override_unlocked",
+        # Premium Confirmation Gate
+        "premium_gate_stocks_min",
+        "premium_gate_crypto_min",
+        "premium_gate_kw_stocks",
+        "premium_gate_kw_crypto",
+        "premium_gate_liq_stocks",
+        "premium_gate_liq_crypto",
+        "premium_gate_mom_stocks",
+        "premium_gate_mom_crypto",
     }
     if not DB_PATH.exists():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -3516,6 +3601,26 @@ CORE_SIGNAL_DEFS: List[Dict[str, str]] = [
         "label": "X Sources",
         "description": "Tracked X handles as one signal family with drilldown details.",
     },
+    {
+        "key": "kelly",
+        "label": "Kelly Sizing",
+        "description": "Position sizing guide per candidate. Kelly% = (p×b−(1−p))/b. Quarter Kelly applied. Shows portfolio budget used.",
+    },
+    {
+        "key": "kyle_williams",
+        "label": "Kyle Williams Setup",
+        "description": "First-red-day short and extension setups. Fires when a momentum leader extends above VWAP for 2+ green days then shows first reversal candle. Signals scored by ext_vs_vwap and prior green day count.",
+    },
+    {
+        "key": "momentum",
+        "label": "Momentum Rank",
+        "description": "Is this ticker in the top 100 momentum leaders (Qullamaggie-style)? Stocks: Finviz screener — small-cap+, above 50-day SMA, up 10%+ last quarter, sorted by 52-week performance. Crypto: CoinGecko top 10 by 30-day price change. Rank 1 = strongest leader.",
+    },
+    {
+        "key": "event_alpha",
+        "label": "Event Alpha (Macro/Geo)",
+        "description": "Macro and geopolitical regime signals — tariff shock, geopolitical escalation, rate surprises. Fires on BTC and SPY. Unique: no other family covers macro regime risk. Scores average 73+.",
+    },
 ]
 
 CORE_FAMILY_KEYS: Dict[str, str] = {
@@ -3525,6 +3630,10 @@ CORE_FAMILY_KEYS: Dict[str, str] = {
     "external": "family:external",
     "copy": "family:copy",
     "strategy": "family:pipeline",
+    "kelly": "family:kelly",
+    "kyle_williams": "family:kyle_williams",
+    "momentum": "family:momentum",
+    "event_alpha": "family:event_alpha",
 }
 
 
@@ -3542,12 +3651,20 @@ def _map_input_key_to_core(key: Any, tracked_handles: Optional[set[str]] = None)
         return "liquidity"
     if k.startswith("family:pattern") or ":family:pattern" in k:
         return "pattern"
-    if k.startswith("family:social") or ":family:social" in k:
+    if k.startswith("family:social") or ":family:social" in k or k.startswith("social:"):
         return "social"
     if k.startswith("family:external") or ":family:external" in k:
         return "external"
     if k.startswith("family:copy") or ":family:copy" in k:
         return "copy"
+    if k.startswith("kelly:") or k.startswith("family:kelly"):
+        return "kelly"
+    if k.startswith("family:kyle_williams") or k.startswith("kyle_williams:"):
+        return "kyle_williams"
+    if k.startswith("family:momentum") or k.startswith("momentum:"):
+        return "momentum"
+    if k.startswith("family:event_alpha") or k.startswith("event_alpha:"):
+        return "event_alpha"
     if k.startswith("source:"):
         tail = k.split("source:", 1)[1].strip()
         if tracked_handles and tail in tracked_handles:
@@ -3857,6 +3974,7 @@ def get_core_signal_overview(lookback_hours: int = 72, limit: int = 1200) -> Dic
 
         for key, row in signal_rows.items():
             family_key = CORE_FAMILY_KEYS.get(key, "")
+            row["family_source_key"] = family_key  # expose to dashboard for save
             if family_key:
                 family = controls.get(family_key, {})
                 if family:
@@ -3974,6 +4092,61 @@ def get_core_signal_overview(lookback_hours: int = 72, limit: int = 1200) -> Dic
             x_row["effective_weight"] = 1.0
         x_row["recent_hits"] = int(route_hits.get("x_sources", 0) or 0) + int(candidate_hits.get("x_sources", 0) or 0)
         x_row["last_seen_utc"] = route_last_seen.get("x_sources", "") or candidate_last_seen.get("x_sources", "")
+
+        # ── Kelly signal family ──────────────────────────────────────────────
+        kelly_row = signal_rows["kelly"]
+        if _table_exists(conn, "kelly_signals"):
+            cur.execute(
+                """
+                SELECT ticker, direction, source_tag, win_prob, avg_win_pct, avg_loss_pct,
+                       payout_ratio, kelly_fraction, frac_kelly, ev_percent,
+                       sample_size, verdict, verdict_reason, computed_at
+                FROM kelly_signals
+                WHERE computed_at = (SELECT MAX(computed_at) FROM kelly_signals)
+                ORDER BY
+                  CASE verdict WHEN 'pass' THEN 0 WHEN 'warmup' THEN 1 WHEN 'warn' THEN 2 ELSE 3 END,
+                  frac_kelly DESC
+                """
+            )
+            kelly_rows = cur.fetchall()
+            kelly_sub: List[Dict[str, Any]] = []
+            passes = 0
+            for (kticker, kdir, ksrc, wp, aw, al, b, kf, fk, ev,
+                 ksamp, kverdict, kreason, kts) in kelly_rows:
+                is_pass = kverdict in ("pass", "warmup")
+                if is_pass:
+                    passes += 1
+                label = f"{kticker} {str(kdir or '').upper()} [{kverdict}]"
+                src_key = f"kelly:{str(kticker or '').lower()}:{str(kdir or '').lower()}"
+                kelly_sub.append({
+                    "source_key": src_key,
+                    "source_label": label,
+                    "source_class": "kelly",
+                    "enabled": 1 if is_pass else 0,
+                    # repurpose weight fields for Kelly metrics
+                    "manual_weight": round(float(kf or 0.0), 4),     # full Kelly%
+                    "auto_weight": round(float(b or 0.0), 4),         # payout ratio b
+                    "effective_weight": round(float(fk or 0.0), 4),   # ¼Kelly%
+                    "notes": (
+                        f"p={round(float(wp or 0)*100,1)}% "
+                        f"b={round(float(b or 0),2)} "
+                        f"EV={round(float(ev or 0),2)}% "
+                        f"src={ksrc} {kreason}"
+                    ),
+                    "recent_hits": int(ksamp or 0),
+                    "last_seen_utc": str(kts or ""),
+                    "score_pct": round(float(ev or 0.0), 2),   # EV% as score
+                    "win_rate": round(float(wp or 0.0) * 100, 1),  # win prob %
+                })
+
+            kelly_row["sub_inputs"] = kelly_sub
+            kelly_row["sub_inputs_total"] = len(kelly_sub)
+            kelly_row["sub_inputs_enabled"] = passes
+            # enabled comes from input_source_controls (family:kelly) — don't override it
+            if kelly_sub:
+                kelly_row["recent_hits"] = len(kelly_sub)
+                kelly_row["last_seen_utc"] = kelly_sub[0].get("last_seen_utc", "")
+                # effective_weight stays as manual_weight * auto_weight from family controls — don't override
 
         return {
             "ok": True,
@@ -4930,6 +5103,9 @@ def _seed_input_sources_from_runtime(conn: sqlite3.Connection) -> None:
         ("family:copy", "Copy Signals", "family"),
         ("family:pipeline", "Pipeline Signals", "family"),
         ("family:liquidity", "Liquidity Map", "family"),
+        ("family:kyle_williams", "Kyle Williams Setup", "family"),
+        ("family:momentum", "Momentum Rank", "family"),
+        ("family:event_alpha", "Event Alpha (Macro/Geo)", "family"),
     ]
     cur = conn.cursor()
     if _table_exists(conn, "tracked_x_sources"):
@@ -4944,11 +5120,13 @@ def _seed_input_sources_from_runtime(conn: sqlite3.Connection) -> None:
             tag = str(s or "").strip()
             if tag:
                 keys.append((f"source:{tag.lower()}", f"Source {tag}", "source_tag"))
+    # Strategies promoted to own families, removed as redundant, or generic placeholders
+    _excluded_pipeline_tags = {"CHART_LIQUIDITY", "KYLE_WILLIAMS", "B_LONGTERM", "E_BREAKTHROUGH", "C_EVENT", "UNSPECIFIED", ""}
     if _table_exists(conn, "strategy_learning_stats"):
         cur.execute("SELECT DISTINCT strategy_tag FROM strategy_learning_stats")
         for (s,) in cur.fetchall():
             tag = str(s or "").strip()
-            if tag:
+            if tag and tag.upper() not in _excluded_pipeline_tags:
                 keys.append((f"pipeline:{tag.upper()}", f"Pipeline {tag}", "pipeline"))
     seen = set()
     for key, label, klass in keys:
@@ -5645,5 +5823,512 @@ def get_source_ratings(limit: int = 50) -> List[Dict[str, Any]]:
 
         rows.sort(key=lambda x: (int(x.get("sample_size") or 0), float(x.get("win_rate") or 0.0)), reverse=True)
         return rows[:limit]
+    finally:
+        conn.close()
+
+
+def get_source_horizon_ratings(limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Source performance broken down by time horizon: 1d, 7d, 14d, 30d.
+    Used in the dashboard to show which inputs are best for scalps vs long-term.
+    Includes both taken trades and counterfactual wins from non-taken routes.
+    """
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "source_horizon_learning_stats"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+              source_tag,
+              horizon_hours,
+              wins,
+              losses,
+              pushes,
+              round(win_rate, 1) AS win_rate,
+              sample_size
+            FROM source_horizon_learning_stats
+            WHERE horizon_hours IN (24, 168, 336, 720)
+              AND sample_size > 0
+            ORDER BY source_tag, horizon_hours
+            """,
+        )
+        # Pivot to one row per source with horizon columns
+        source_map: Dict[str, Dict] = {}
+        horizon_labels = {24: "1d", 168: "7d", 336: "14d", 720: "30d"}
+        for tag, h_hours, wins, losses, pushes, win_rate, sample in cur.fetchall():
+            t = str(tag or "").strip()
+            if not t:
+                continue
+            if t not in source_map:
+                source_map[t] = {"source": t, "total_sample": 0}
+            label = horizon_labels.get(int(h_hours), f"{h_hours}h")
+            source_map[t][f"{label}_wins"] = int(wins or 0)
+            source_map[t][f"{label}_losses"] = int(losses or 0)
+            source_map[t][f"{label}_win_rate"] = float(win_rate or 0.0)
+            source_map[t][f"{label}_sample"] = int(sample or 0)
+            source_map[t]["total_sample"] = max(
+                int(source_map[t].get("total_sample", 0)),
+                int(sample or 0),
+            )
+        rows = sorted(source_map.values(), key=lambda x: int(x.get("total_sample", 0)), reverse=True)
+        return rows[:limit]
+    finally:
+        conn.close()
+
+
+def get_counterfactual_wins(limit: int = 200, horizon_hours: int = 24) -> Dict[str, Any]:
+    """
+    Non-traded signals that would have been winners.
+    These are routes the pipeline flagged but the agent didn't take (threshold blocked).
+    Also includes taken trades that were wins for comparison.
+
+    Returns rows + aggregate stats per source.
+    User can upvote (confirm win) or downvote (false positive) each entry.
+    Upvoted wins boost that source's auto_weight in input_source_controls.
+    """
+    if not DB_PATH.exists():
+        return {"rows": [], "stats": {}}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "route_outcomes_horizons"):
+            return {"rows": [], "stats": {}}
+
+        cur = conn.cursor()
+
+        # Ensure feedback table exists
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS counterfactual_feedback (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              route_id INTEGER NOT NULL,
+              horizon_hours INTEGER NOT NULL,
+              feedback TEXT NOT NULL DEFAULT 'pending',
+              feedback_at TEXT,
+              notes TEXT NOT NULL DEFAULT '',
+              UNIQUE(route_id, horizon_hours)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cf_feedback_route ON counterfactual_feedback(route_id, horizon_hours)"
+        )
+        conn.commit()
+
+        cur.execute(
+            """
+            SELECT
+              h.route_id,
+              h.ticker,
+              h.source_tag,
+              h.venue,
+              h.direction,
+              h.decision,
+              h.pnl_percent,
+              h.horizon_hours,
+              h.routed_at,
+              h.evaluated_at,
+              h.resolution,
+              h.outcome_type,
+              h.entry_price,
+              h.eval_price,
+              COALESCE(rf.route_score, 0.0) AS route_score,
+              COALESCE(rf.strategy_tag, '') AS strategy_tag,
+              COALESCE(cf.feedback, 'pending') AS user_feedback,
+              COALESCE(cf.notes, '') AS feedback_notes
+            FROM route_outcomes_horizons h
+            LEFT JOIN route_feedback_features rf ON rf.route_id = h.route_id
+            LEFT JOIN counterfactual_feedback cf ON cf.route_id = h.route_id AND cf.horizon_hours = h.horizon_hours
+            WHERE h.resolution = 'win'
+              AND h.horizon_hours = ?
+              AND COALESCE(h.pnl_percent, 0) > 0
+            ORDER BY h.pnl_percent DESC
+            LIMIT ?
+            """,
+            (int(horizon_hours), limit),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+
+        # Stats by source
+        stats_by_source: Dict[str, Dict] = {}
+        for r in rows:
+            src = str(r.get("source_tag") or "unknown")
+            taken = str(r.get("decision") or "").lower() == "approved"
+            if src not in stats_by_source:
+                stats_by_source[src] = {
+                    "source": src,
+                    "total_wins": 0,
+                    "taken_wins": 0,
+                    "not_taken_wins": 0,
+                    "upvoted": 0,
+                    "downvoted": 0,
+                    "avg_pnl_pct": 0.0,
+                    "_pnl_sum": 0.0,
+                }
+            stats_by_source[src]["total_wins"] += 1
+            if taken:
+                stats_by_source[src]["taken_wins"] += 1
+            else:
+                stats_by_source[src]["not_taken_wins"] += 1
+            fb = str(r.get("user_feedback") or "pending")
+            if fb == "upvote":
+                stats_by_source[src]["upvoted"] += 1
+            elif fb == "downvote":
+                stats_by_source[src]["downvoted"] += 1
+            stats_by_source[src]["_pnl_sum"] += float(r.get("pnl_percent") or 0.0)
+
+        for s in stats_by_source.values():
+            n = s["total_wins"]
+            s["avg_pnl_pct"] = round(s["_pnl_sum"] / n, 2) if n > 0 else 0.0
+            del s["_pnl_sum"]
+
+        stats_list = sorted(stats_by_source.values(), key=lambda x: x["total_wins"], reverse=True)
+        return {
+            "rows": rows,
+            "stats": stats_list,
+            "horizon_hours": horizon_hours,
+            "total": len(rows),
+        }
+    finally:
+        conn.close()
+
+
+def submit_counterfactual_feedback(route_id: int, horizon_hours: int, feedback: str, notes: str = "") -> Dict[str, Any]:
+    """
+    Record user upvote/downvote on a counterfactual win.
+
+    feedback: 'upvote' | 'downvote' | 'pending'
+
+    Upvotes are treated as confirmed wins and will boost the source's auto_weight
+    the next time reweight_input_sources.py runs.
+    Downvotes flag the signal as a false positive — reduces source weight.
+    """
+    if feedback not in {"upvote", "downvote", "pending"}:
+        return {"ok": False, "error": "feedback must be upvote, downvote, or pending"}
+    if not DB_PATH.exists():
+        return {"ok": False, "error": "db not found"}
+    conn = _connect()
+    try:
+        from datetime import datetime, timezone
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS counterfactual_feedback (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              route_id INTEGER NOT NULL,
+              horizon_hours INTEGER NOT NULL,
+              feedback TEXT NOT NULL DEFAULT 'pending',
+              feedback_at TEXT,
+              notes TEXT NOT NULL DEFAULT '',
+              UNIQUE(route_id, horizon_hours)
+            )
+            """
+        )
+        ts = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """
+            INSERT INTO counterfactual_feedback(route_id, horizon_hours, feedback, feedback_at, notes)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(route_id, horizon_hours) DO UPDATE SET
+              feedback=excluded.feedback,
+              feedback_at=excluded.feedback_at,
+              notes=excluded.notes
+            """,
+            (int(route_id), int(horizon_hours), feedback, ts, str(notes or "")),
+        )
+        conn.commit()
+
+        # Immediately adjust auto_weight for the source if upvote/downvote
+        source_tag = ""
+        if _table_exists(conn, "route_outcomes_horizons"):
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT source_tag FROM route_outcomes_horizons WHERE route_id=? AND horizon_hours=? LIMIT 1",
+                (int(route_id), int(horizon_hours)),
+            )
+            row = cur.fetchone()
+            if row:
+                source_tag = str(row[0] or "").strip()
+
+        if source_tag and feedback in {"upvote", "downvote"} and _table_exists(conn, "input_source_controls"):
+            key = f"source:{source_tag.lower()}"
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT auto_weight FROM input_source_controls WHERE source_key=? LIMIT 1",
+                (key,),
+            )
+            existing = cur.fetchone()
+            current_w = float(existing[0] if existing else 1.0)
+            nudge = 0.05 if feedback == "upvote" else -0.05
+            new_w = round(max(0.4, min(2.0, current_w + nudge)), 6)
+            conn.execute(
+                """
+                INSERT INTO input_source_controls
+                (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+                VALUES (datetime('now'), datetime('now'), ?, ?, 'source_tag', 1, 1.0, ?, '')
+                ON CONFLICT(source_key) DO UPDATE SET
+                  updated_at=datetime('now'),
+                  auto_weight=excluded.auto_weight
+                """,
+                (key, f"Source {source_tag}", new_w),
+            )
+            conn.commit()
+
+        return {
+            "ok": True,
+            "route_id": route_id,
+            "horizon_hours": horizon_hours,
+            "feedback": feedback,
+            "source_tag": source_tag,
+        }
+    finally:
+        conn.close()
+
+
+def get_kelly_signals(limit: int = 50) -> Dict[str, Any]:
+    """
+    Latest Kelly scores for all trade candidates.
+
+    Returns:
+      rows          — per-candidate Kelly breakdown
+      portfolio     — budget summary (used/remaining/max)
+      summary       — counts by verdict
+    """
+    if not DB_PATH.exists():
+        return {"rows": [], "portfolio": {}, "summary": {}}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "kelly_signals"):
+            return {"rows": [], "portfolio": {}, "summary": {}}
+
+        cur = conn.cursor()
+        # Latest batch: all rows from the most recent computed_at
+        cur.execute(
+            """
+            SELECT
+              ticker, direction, source_tag, horizon_hours,
+              win_prob, avg_win_pct, avg_loss_pct,
+              payout_ratio, kelly_fraction, frac_kelly,
+              convexity_score, ev_percent, sample_size,
+              verdict, verdict_reason, computed_at
+            FROM kelly_signals
+            WHERE computed_at = (SELECT MAX(computed_at) FROM kelly_signals)
+            ORDER BY
+              CASE verdict WHEN 'pass' THEN 0 WHEN 'warmup' THEN 1 WHEN 'warn' THEN 2 ELSE 3 END,
+              ev_percent DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = _rows_to_dicts(cur, cur.fetchall())
+
+        # Portfolio budget from pipeline_runtime_state
+        portfolio: Dict[str, Any] = {}
+        if _table_exists(conn, "pipeline_runtime_state"):
+            cur.execute(
+                "SELECT key, value FROM pipeline_runtime_state WHERE key LIKE 'kelly_%'",
+            )
+            for key, val in cur.fetchall():
+                k = key.replace("kelly_", "", 1)
+                try:
+                    portfolio[k] = float(val)
+                except (ValueError, TypeError):
+                    portfolio[k] = val
+
+        # Verdict summary
+        summary: Dict[str, int] = {}
+        for r in rows:
+            v = str(r.get("verdict") or "unknown")
+            summary[v] = summary.get(v, 0) + 1
+
+        return {"rows": rows, "portfolio": portfolio, "summary": summary}
+    finally:
+        conn.close()
+
+
+def get_exchange_pnl_summary() -> Dict[str, Any]:
+    """
+    Per-exchange P&L summary with agent action attribution.
+
+    Returns:
+      exchanges: dict of venue -> { realized_pnl, unrealized_pnl, trades_won, trades_lost,
+                                    win_rate, closed_trades, open_positions }
+      agent_actions: recent intents that were acted on (stops placed, alerts sent, entries)
+      closed_trades: recent closed trades with closed_by attribution
+    """
+    if not DB_PATH.exists():
+        return {"exchanges": {}, "agent_actions": [], "closed_trades": []}
+
+    conn = _connect()
+    try:
+        cur = conn.cursor()
+
+        # ── 1. Alpaca realized P&L from trades table ──────────────────────────
+        alpaca_realized = {"total_pnl": 0.0, "wins": 0, "losses": 0, "trades": []}
+        if _table_exists(conn, "trades"):
+            cur.execute("""
+                SELECT ticker, entry_side, entry_price, exit_price,
+                       pnl, pnl_percent, status, entry_date, last_sync, broker_order_id, route_id, trade_id
+                FROM trades
+                WHERE status = 'closed' AND pnl IS NOT NULL
+                ORDER BY last_sync DESC
+                LIMIT 100
+            """)
+            for row in cur.fetchall():
+                ticker, side, entry_px, exit_px, pnl, pnl_pct, status, entry_date, last_sync, broker_id, route_id, trade_id = row
+                alpaca_realized["total_pnl"] += float(pnl or 0)
+                if (pnl or 0) > 0:
+                    alpaca_realized["wins"] += 1
+                else:
+                    alpaca_realized["losses"] += 1
+                # Build a clean lookup ID: prefer route_id, fall back to trade_id
+                lookup_id = f"route_{route_id}" if route_id else str(trade_id or "")
+                alpaca_realized["trades"].append({
+                    "ticker": ticker, "side": side,
+                    "entry_price": entry_px, "exit_price": exit_px,
+                    "pnl": round(float(pnl or 0), 4),
+                    "pnl_percent": round(float(pnl_pct or 0), 2),
+                    "closed_at": str(last_sync or entry_date or ""),
+                    "route_id": route_id,
+                    "trade_id": str(trade_id or ""),
+                    "lookup_id": lookup_id,
+                })
+
+        # ── 2. Live positions from position_awareness_snapshots ───────────────
+        live_positions: Dict[str, List[Dict]] = {}
+        if _table_exists(conn, "position_awareness_snapshots"):
+            cur.execute("""
+                SELECT venue, symbol, side, qty, entry_price, mark_price,
+                       unrealized_pnl_usd, unrealized_pnl_pct, notional_usd, action, created_at
+                FROM position_awareness_snapshots
+                WHERE created_at = (SELECT MAX(created_at) FROM position_awareness_snapshots)
+                ORDER BY ABS(unrealized_pnl_usd) DESC
+            """)
+            for row in cur.fetchall():
+                venue, sym, side, qty, entry_px, mark_px, upnl_usd, upnl_pct, notional, action, ts = row
+                venue = str(venue or "unknown").lower()
+                if venue not in live_positions:
+                    live_positions[venue] = []
+                live_positions[venue].append({
+                    "symbol": sym, "side": side, "qty": qty,
+                    "entry_price": entry_px, "mark_price": mark_px,
+                    "unrealized_pnl_usd": round(float(upnl_usd or 0), 2),
+                    "unrealized_pnl_pct": round(float(upnl_pct or 0), 2),
+                    "notional_usd": round(float(notional or 0), 2),
+                    "action": action, "snapshot_at": str(ts or ""),
+                })
+
+        # ── 3. Agent actions from trade_intents ───────────────────────────────
+        agent_actions = []
+        if _table_exists(conn, "trade_intents"):
+            cur.execute("""
+                SELECT id, created_at, venue, symbol, side, qty, notional, status, details
+                FROM trade_intents
+                WHERE status IN (
+                    'submitted','submitted_stop','alert_sent',
+                    'manage_trail_stop_tighten','manage_reduce_or_exit',
+                    'manage_take_profit_major','manage_take_profit_partial',
+                    'held_signal_veto'
+                )
+                ORDER BY created_at DESC
+                LIMIT 40
+            """)
+            for row in cur.fetchall():
+                intent_id, ts, venue, symbol, side, qty, notional, status, details_raw = row
+                details = {}
+                try:
+                    details = json.loads(details_raw or "{}")
+                except Exception:
+                    pass
+
+                # Determine human-readable action type
+                if status == "submitted_stop":
+                    action_type = "stop_placed"
+                    stop_px = details.get("trigger_stop_price") or details.get("trigger_px")
+                    description = f"Stop placed @ ${stop_px:.2f}" if stop_px else "Stop order placed"
+                elif status == "alert_sent":
+                    action_type = "take_profit_alert"
+                    pnl_pct = details.get("pnl_pct") or details.get("unrealized_pnl_pct")
+                    description = f"Take profit alert — PnL {pnl_pct:.1f}%" if pnl_pct else "Take profit alert sent"
+                elif status == "submitted":
+                    action_type = "order_filled"
+                    filled = (details.get("live_order_result") or {}).get("response", {}).get("data", {}).get("statuses", [{}])[0]
+                    avg_px = (filled.get("filled") or {}).get("avgPx")
+                    network = details.get("network", "")
+                    description = f"Filled @ ${avg_px} ({network})" if avg_px else f"Order submitted ({network})"
+                elif status == "manage_trail_stop_tighten":
+                    action_type = "reassess_tighten"
+                    net = details.get("net_score", "?")
+                    description = f"Reassess: tighten stop (net={net})"
+                elif status == "manage_reduce_or_exit":
+                    action_type = "reassess_exit"
+                    description = "Reassess: exit signal"
+                elif status == "manage_take_profit_major":
+                    action_type = "reassess_take_profit"
+                    description = "Reassess: take profit (all 3 bullish)"
+                elif status == "held_signal_veto":
+                    action_type = "veto_hold"
+                    description = "Stop suppressed — bullish liquidity veto"
+                else:
+                    action_type = status
+                    description = status
+
+                agent_actions.append({
+                    "intent_id": intent_id,
+                    "symbol": symbol, "side": side,
+                    "venue": str(venue or ""),
+                    "status": status,
+                    "action_type": action_type,
+                    "description": description,
+                    "network": details.get("network", ""),
+                    "acted_at": str(ts or ""),
+                })
+
+        # ── 4. Build per-exchange summary ─────────────────────────────────────
+        exchanges: Dict[str, Any] = {}
+
+        # Alpaca
+        n = len(alpaca_realized["trades"])
+        wins = alpaca_realized["wins"]
+        exchanges["alpaca"] = {
+            "label": "Alpaca (Stocks)",
+            "realized_pnl": round(alpaca_realized["total_pnl"], 2),
+            "unrealized_pnl": 0.0,
+            "trades_closed": n,
+            "wins": wins,
+            "losses": alpaca_realized["losses"],
+            "win_rate": round(wins / n * 100, 1) if n else 0.0,
+            "open_positions": 0,  # Alpaca open tracked in trades table
+        }
+
+        # Hyperliquid
+        hl_positions = live_positions.get("hyperliquid", [])
+        hl_unrealized = sum(p["unrealized_pnl_usd"] for p in hl_positions)
+        # Count agent stop + entry actions on HL
+        hl_actions = [a for a in agent_actions if "hyperliquid" in str(a.get("venue", "")).lower()
+                      or a.get("network") == "testnet"]
+        exchanges["hyperliquid"] = {
+            "label": "Hyperliquid (Crypto)",
+            "realized_pnl": 0.0,  # HL realized not tracked in trades table yet
+            "unrealized_pnl": round(hl_unrealized, 2),
+            "trades_closed": 0,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0.0,
+            "open_positions": len(hl_positions),
+            "open_details": hl_positions,
+            "agent_actions_count": len(hl_actions),
+        }
+
+        return {
+            "ok": True,
+            "exchanges": exchanges,
+            "agent_actions": agent_actions,
+            "closed_trades": alpaca_realized["trades"],
+            "live_positions": live_positions,
+        }
     finally:
         conn.close()
