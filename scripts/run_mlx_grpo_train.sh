@@ -161,7 +161,15 @@ log "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] mlx_grpo_train=prepare"
 # --wins-only: only successful calls go into training data — model learns what works
 # --include-operational: use operationally-resolved outcomes in addition to realized
 # --counterfactual-horizon 24: use 1-day horizon for counterfactual wins
-"$PY_BIN" "$ROOT/training/grpo/build_grpo_dataset.py" --include-operational --wins-only --counterfactual-horizon 24 | tee -a "$LOG_FILE"
+KAGGLE_MAX_PCT="$(get_control "grpo_kaggle_max_pct" "0")"
+INCLUDE_CANDIDATE_OUTCOMES="$(get_control "grpo_include_candidate_outcomes" "1")"
+
+BUILD_ARGS=(--include-operational --wins-only --counterfactual-horizon 24 --kaggle-max-pct "$KAGGLE_MAX_PCT")
+if [ "$INCLUDE_CANDIDATE_OUTCOMES" = "1" ]; then
+  BUILD_ARGS+=(--include-candidate-outcomes)
+fi
+
+"$PY_BIN" "$ROOT/training/grpo/build_grpo_dataset.py" "${BUILD_ARGS[@]}" | tee -a "$LOG_FILE"
 "$PY_BIN" "$ROOT/training/grpo/build_mlx_lora_dataset.py" --out-dir "$DATA_DIR" | tee -a "$LOG_FILE"
 
 TRAIN_ROWS="0"

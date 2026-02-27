@@ -74,11 +74,69 @@ def _weight_from_perf(win_rate: float, sample_size: int, min_samples: int, floor
     return max(floor, min(ceiling, round(w, 6)))
 
 
+def _ensure_weight_change_log(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS weight_change_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          changed_at TEXT NOT NULL,
+          source_key TEXT NOT NULL,
+          old_auto_weight REAL NOT NULL,
+          new_auto_weight REAL NOT NULL,
+          reason TEXT NOT NULL DEFAULT '',
+          sample_size INTEGER NOT NULL DEFAULT 0,
+          win_rate REAL NOT NULL DEFAULT 0
+        )
+        """
+    )
+    conn.commit()
+
+
+def _log_weight_change(
+    conn: sqlite3.Connection,
+    source_key: str,
+    old_w: float,
+    new_w: float,
+    reason: str,
+    sample_size: int,
+    win_rate: float,
+) -> None:
+    if abs(old_w - new_w) < 0.0001:
+        return
+    conn.execute(
+        """
+        INSERT INTO weight_change_log
+        (changed_at, source_key, old_auto_weight, new_auto_weight, reason, sample_size, win_rate)
+        VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)
+        """,
+        (source_key, old_w, new_w, reason, sample_size, round(win_rate, 2)),
+    )
+
+
+def _get_current_auto_weight(conn: sqlite3.Connection, source_key: str) -> float:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT auto_weight FROM input_source_controls WHERE source_key=? LIMIT 1",
+        (source_key,),
+    )
+    row = cur.fetchone()
+    return float(row[0]) if row else 1.0
+
+
+def _clamp_adjustment(old_w: float, new_w: float, max_adj: float) -> float:
+    """Cap how much auto_weight can change per cycle."""
+    delta = new_w - old_w
+    if abs(delta) > max_adj:
+        return old_w + (max_adj if delta > 0 else -max_adj)
+    return new_w
+
+
 def main() -> int:
     conn = sqlite3.connect(str(DB_PATH), timeout=20.0)
     conn.execute("PRAGMA busy_timeout=20000")
     try:
         ensure_table(conn)
+        _ensure_weight_change_log(conn)
         enabled = _ctl(conn, "input_auto_reweight_enabled", "1") == "1"
         if not enabled:
             print("INPUT_REWEIGHT disabled")
@@ -88,9 +146,31 @@ def main() -> int:
         floor = float(_ctl(conn, "input_weight_floor", "0.6") or 0.6)
         ceiling = float(_ctl(conn, "input_weight_ceiling", "1.6") or 1.6)
         auto_disable_threshold = float(_ctl(conn, "input_auto_disable_threshold", "0.0") or 0.0)
+        max_adjustment = float(_ctl(conn, "reweight_max_adjustment", "0.4") or 0.4)
+        include_candidates = _ctl(conn, "reweight_include_candidates", "1") == "1"
         updates = 0
         disabled = 0
+        weight_changes = 0
         cur = conn.cursor()
+
+        # Build candidate outcome stats per source (if enabled)
+        candidate_stats: Dict[str, Tuple[int, float]] = {}  # tag -> (sample_size, win_rate)
+        if include_candidates and table_exists(conn, "candidate_horizon_outcomes"):
+            cur.execute(
+                """
+                SELECT candidate_source_tag,
+                       COUNT(*) AS n,
+                       SUM(CASE WHEN resolution='win' THEN 1 ELSE 0 END) AS wins
+                FROM candidate_horizon_outcomes
+                GROUP BY candidate_source_tag
+                """
+            )
+            for c_tag, c_n, c_wins in cur.fetchall():
+                c_tag = str(c_tag or "").strip()
+                if c_tag:
+                    c_n = int(c_n or 0)
+                    c_wr = round((int(c_wins or 0) / c_n) * 100.0, 2) if c_n > 0 else 0.0
+                    candidate_stats[c_tag] = (c_n, c_wr)
 
         if table_exists(conn, "source_learning_stats"):
             cur.execute(
@@ -103,9 +183,24 @@ def main() -> int:
                 tag = str(source_tag or "").strip()
                 if not tag:
                     continue
-                w = _weight_from_perf(float(win_rate or 0.0), int(sample_size or 0), min_samples, floor, ceiling)
-                enabled_flag = 0 if (auto_disable_threshold > 0 and int(sample_size or 0) >= min_samples and w < auto_disable_threshold) else 1
+                ss = int(sample_size or 0)
+                wr = float(win_rate or 0.0)
+
+                # Blend with candidate outcomes if available
+                c_stats = candidate_stats.pop(tag, None)
+                if c_stats:
+                    c_n, c_wr = c_stats
+                    total = ss + c_n
+                    if total > 0:
+                        wr = (wr * ss + c_wr * c_n) / total
+                        ss = total
+
+                w = _weight_from_perf(wr, ss, min_samples, floor, ceiling)
+                enabled_flag = 0 if (auto_disable_threshold > 0 and ss >= min_samples and w < auto_disable_threshold) else 1
                 for key in (f"source:{tag.lower()}",):
+                    old_w = _get_current_auto_weight(conn, key)
+                    w = _clamp_adjustment(old_w, w, max_adjustment)
+                    w = max(floor, min(ceiling, round(w, 6)))
                     conn.execute(
                         """
                         INSERT INTO input_source_controls
@@ -118,9 +213,37 @@ def main() -> int:
                         """,
                         (key, f"Source {tag}", int(enabled_flag), float(w)),
                     )
+                    _log_weight_change(conn, key, old_w, w, "source_learning_stats", ss, wr)
+                    if abs(old_w - w) >= 0.0001:
+                        weight_changes += 1
                     updates += 1
                     if enabled_flag == 0:
                         disabled += 1
+
+            # Process remaining candidate-only sources (no route_outcomes data)
+            for tag, (c_n, c_wr) in candidate_stats.items():
+                w = _weight_from_perf(c_wr, c_n, min_samples, floor, ceiling)
+                enabled_flag = 0 if (auto_disable_threshold > 0 and c_n >= min_samples and w < auto_disable_threshold) else 1
+                key = f"source:{tag.lower()}"
+                old_w = _get_current_auto_weight(conn, key)
+                w = _clamp_adjustment(old_w, w, max_adjustment)
+                w = max(floor, min(ceiling, round(w, 6)))
+                conn.execute(
+                    """
+                    INSERT INTO input_source_controls
+                    (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+                    VALUES (datetime('now'), datetime('now'), ?, ?, 'source_tag', ?, 1.0, ?, '')
+                    ON CONFLICT(source_key) DO UPDATE SET
+                      updated_at=datetime('now'),
+                      enabled=excluded.enabled,
+                      auto_weight=excluded.auto_weight
+                    """,
+                    (key, f"Source {tag}", int(enabled_flag), float(w)),
+                )
+                _log_weight_change(conn, key, old_w, w, "candidate_horizon_outcomes_only", c_n, c_wr)
+                if abs(old_w - w) >= 0.0001:
+                    weight_changes += 1
+                updates += 1
 
         if table_exists(conn, "strategy_learning_stats"):
             cur.execute(
@@ -290,7 +413,9 @@ def main() -> int:
         conn.commit()
         print(
             f"INPUT_REWEIGHT updates={updates} horizon_updates={horizon_updates} "
-            f"disabled={disabled} min_samples={min_samples} floor={floor} ceiling={ceiling}"
+            f"weight_changes={weight_changes} disabled={disabled} "
+            f"include_candidates={int(include_candidates)} max_adjustment={max_adjustment} "
+            f"min_samples={min_samples} floor={floor} ceiling={ceiling}"
         )
         return 0
     finally:

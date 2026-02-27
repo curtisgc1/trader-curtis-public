@@ -49,6 +49,7 @@ class AllocationResult:
     strategy_n: int
     source_mean: float
     strategy_mean: float
+    vix_leverage_scale: float = 1.0
 
 
 def ensure_tables(conn: sqlite3.Connection) -> None:
@@ -151,6 +152,46 @@ def _lookup_strategy_stats(conn: sqlite3.Connection, strategy_tag: str) -> Tuple
     return 0, 0, 0
 
 
+def _read_vix_regime(conn: sqlite3.Connection) -> str:
+    """Read latest VIX regime from vix_regime_state if fresh (< 24h)."""
+    if not _table_exists(conn, "vix_regime_state"):
+        return ""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT regime, fetched_at
+        FROM vix_regime_state
+        WHERE datetime(fetched_at) >= datetime('now', '-24 hour')
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    )
+    row = cur.fetchone()
+    if not row:
+        return ""
+    return str(row[0] or "").strip()
+
+
+def _read_vix_leverage_scale(conn: sqlite3.Connection) -> float:
+    """Read latest VIX leverage scale from vix_regime_state if fresh."""
+    if not _table_exists(conn, "vix_regime_state"):
+        return 1.0
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT leverage_scale
+        FROM vix_regime_state
+        WHERE datetime(fetched_at) >= datetime('now', '-24 hour')
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    )
+    row = cur.fetchone()
+    if not row:
+        return 1.0
+    return float(row[0] or 1.0)
+
+
 def infer_regime(conn: sqlite3.Connection) -> str:
     override = _control(conn, "allocator_regime_override", "auto").strip().lower()
     if override in {"risk_on", "risk_off", "neutral"}:
@@ -191,10 +232,23 @@ def infer_regime(conn: sqlite3.Connection) -> str:
             quant_pass = float(row[0])
 
     if (n >= 20 and (win_rate < 42.0 or avg_pnl_pct < -0.15)) or quant_pass < 0.35:
-        return "risk_off"
-    if (n >= 20 and (win_rate > 56.0 and avg_pnl_pct > 0.05)) and quant_pass > 0.60:
-        return "risk_on"
-    return "neutral"
+        outcome_regime = "risk_off"
+    elif (n >= 20 and (win_rate > 56.0 and avg_pnl_pct > 0.05)) and quant_pass > 0.60:
+        outcome_regime = "risk_on"
+    else:
+        outcome_regime = "neutral"
+
+    # VIX regime injection: override when VIX gives extreme signal
+    vix_regime = _read_vix_regime(conn)
+    if vix_regime:
+        # Extreme VIX overrides outcome-based regime
+        if vix_regime == "low_vol" and outcome_regime != "risk_off":
+            return "risk_on"
+        if vix_regime == "high_vol" and outcome_regime != "risk_on":
+            return "risk_off"
+        # Transition zone: fall back to outcome-based regime
+
+    return outcome_regime
 
 
 def allocate_candidate(
@@ -261,6 +315,14 @@ def allocate_candidate(
         reason = f"allocator block: low source posterior {src_mean:.3f} on n={src_n} (<{block_floor:.2f})"
 
     adj_notional = float(proposed_notional) * factor
+
+    # VIX leverage scale for TQQQ/BTAL regime-switching candidates
+    vix_lev_scale = 1.0
+    t_upper = str(ticker or "").upper()
+    if t_upper in ("TQQQ", "BTAL"):
+        vix_lev_scale = _read_vix_leverage_scale(conn)
+        adj_notional *= vix_lev_scale
+
     max_signal = float(_control(conn, "max_signal_notional_usd", "150") or 150.0)
     if adj_notional > max_signal:
         adj_notional = max_signal
@@ -282,6 +344,7 @@ def allocate_candidate(
         strategy_n=strat_n,
         source_mean=round(src_mean, 4),
         strategy_mean=round(strat_mean, 4),
+        vix_leverage_scale=round(vix_lev_scale, 4),
     )
 
 

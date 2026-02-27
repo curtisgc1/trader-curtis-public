@@ -26,6 +26,23 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_iso_ts(s: str) -> float:
+    """Parse ISO timestamp to epoch seconds. Returns 0.0 on failure."""
+    if not s:
+        return 0.0
+    try:
+        s = s.replace("Z", "+00:00")
+        if "T" not in s and " " in s:
+            s = s.replace(" ", "T")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            from datetime import timezone as tz
+            dt = dt.replace(tzinfo=tz.utc)
+        return dt.timestamp()
+    except Exception:
+        return 0.0
+
+
 def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
@@ -229,6 +246,7 @@ def process_queue(limit: int = 20) -> int:
         allow_hl_live = controls.get("allow_hyperliquid_live", "0") == "1"
         hl_test_notional = float(controls.get("hyperliquid_test_notional_usd", "1") or 1.0)
         hl_leverage = float(controls.get("hyperliquid_test_leverage", "1") or 1.0)
+        intent_max_age_ms = _as_float(controls.get("intent_max_age_ms", "2000"), 2000.0)
         alpaca_min_score = _as_float(controls.get("alpaca_min_route_score", "60"), 60.0)
         hyperliquid_min_score = _as_float(controls.get("hyperliquid_min_route_score", "60"), 60.0)
         alp_ok, alp_margin_capable, alp_margin_mult, _alp_reason = alpaca_margin_capability()
@@ -238,7 +256,7 @@ def process_queue(limit: int = 20) -> int:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, ticker, direction, mode, proposed_notional, decision, source_tag, COALESCE(score, 0), COALESCE(preferred_venue, '')
+            SELECT id, ticker, direction, mode, proposed_notional, decision, source_tag, COALESCE(score, 0), COALESCE(preferred_venue, ''), COALESCE(routed_at, '')
             FROM signal_routes
             WHERE status='queued'
             ORDER BY routed_at ASC
@@ -248,8 +266,45 @@ def process_queue(limit: int = 20) -> int:
         )
         rows = cur.fetchall()
         processed = 0
+        stale_count = 0
+        now_epoch = datetime.now(timezone.utc).timestamp()
 
-        for route_id, ticker, direction, mode, notional, decision, source_tag, route_score, preferred_venue in rows:
+        for route_id, ticker, direction, mode, notional, decision, source_tag, route_score, preferred_venue, routed_at_str in rows:
+            # Intent TTL: discard stale intents that aged out during network lag
+            if intent_max_age_ms > 0 and routed_at_str:
+                routed_epoch = _parse_iso_ts(str(routed_at_str))
+                if routed_epoch > 0:
+                    age_ms = (now_epoch - routed_epoch) * 1000.0
+                    if age_ms > intent_max_age_ms:
+                        reason = f"stale intent: age={age_ms:.0f}ms > max={intent_max_age_ms:.0f}ms"
+                        cur.execute("UPDATE signal_routes SET status='blocked', reason=? WHERE id=?", (reason[:200], route_id))
+                        _upsert_route_link(
+                            conn=conn,
+                            route_id=route_id,
+                            ticker=(ticker or "").upper().strip(),
+                            source_tag=source_tag or "",
+                            venue="none",
+                            direction=direction,
+                            mode=mode,
+                            entry_side="",
+                            entry_order_id="",
+                            entry_status="expired",
+                            notes=reason,
+                        )
+                        _learning_row(
+                            conn=conn,
+                            route_id=route_id,
+                            ticker=ticker,
+                            source_tag=source_tag or "",
+                            mode=mode,
+                            venue="none",
+                            decision="expired",
+                            order_status="expired",
+                            reason=reason,
+                        )
+                        stale_count += 1
+                        processed += 1
+                        continue
             if decision != "approved":
                 cur.execute("UPDATE signal_routes SET status='blocked' WHERE id=?", (route_id,))
                 _upsert_route_link(
@@ -695,7 +750,8 @@ def process_queue(limit: int = 20) -> int:
             processed += 1
 
         conn.commit()
-        print(f"Execution worker: processed {processed} queued routes")
+        stale_msg = f" stale_expired={stale_count}" if stale_count > 0 else ""
+        print(f"Execution worker: processed {processed} queued routes{stale_msg}")
         return 0
     finally:
         conn.close()

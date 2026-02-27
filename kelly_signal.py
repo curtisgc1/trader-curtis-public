@@ -22,11 +22,12 @@ Writes to:
   pipeline_runtime_state — portfolio budget summary
 """
 
+import math
 import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
 
@@ -181,12 +182,92 @@ def _load_payout_map(conn: sqlite3.Connection) -> Dict[str, Dict[int, Tuple[floa
     return result
 
 
-def _get_win_prob(conn: sqlite3.Connection, source_tag: str, ticker: str, direction: str) -> Tuple[float, int]:
+def _decay_weighted_win_rate(
+    outcomes: List[Tuple[str, float]],
+    half_life: float,
+) -> Tuple[float, int]:
+    """Compute exponentially-decayed win rate from a list of (resolution, pnl_percent) tuples.
+
+    Most recent outcomes are first. Each outcome's weight halves every `half_life` positions.
+    Returns (win_rate_0_to_1, effective_sample_size).
+    """
+    if not outcomes:
+        return 0.5, 0
+
+    decay = math.log(2.0) / max(1.0, half_life)
+    total_weight = 0.0
+    win_weight = 0.0
+
+    for i, (resolution, _pnl) in enumerate(outcomes):
+        w = math.exp(-decay * i)
+        total_weight += w
+        if str(resolution or "").lower() == "win":
+            win_weight += w
+
+    if total_weight <= 0:
+        return 0.5, 0
+
+    rate = win_weight / total_weight
+    # Effective sample size: sum of weights (accounts for decay discounting)
+    eff_n = int(round(total_weight))
+    return round(rate, 6), max(1, eff_n)
+
+
+def _get_win_prob(
+    conn: sqlite3.Connection,
+    source_tag: str,
+    ticker: str,
+    direction: str,
+    decay_half_life: float = 20.0,
+) -> Tuple[float, int]:
     """
     Return (win_prob_0_to_1, sample_size) for a source/ticker/direction combo.
-    Preference: quant_validations (most specific) → source_learning_stats (global for source)
+
+    When route_outcomes_horizons has enough data, uses exponential decay weighting
+    so recent trades (last ~20) count 3x more than older ones. This makes Kelly
+    respond faster after LoRA model swaps.
+
+    Fallback chain: decay-weighted horizons → quant_validations → source_learning_stats → 50% prior
     """
-    # Try quant_validations first — most specific (ticker+direction+source)
+    # Primary: decay-weighted win rate from route_outcomes_horizons (most granular)
+    if _table_exists(conn, "route_outcomes_horizons"):
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT resolution, pnl_percent
+            FROM route_outcomes_horizons
+            WHERE source_tag = ?
+              AND UPPER(COALESCE(ticker, '')) = UPPER(?)
+              AND resolution IN ('win', 'loss')
+              AND horizon_hours = ?
+            ORDER BY evaluated_at DESC
+            LIMIT 200
+            """,
+            (source_tag, ticker, PRIMARY_HORIZON_HOURS),
+        )
+        rows = [(str(r[0]), float(r[1] or 0.0)) for r in cur.fetchall()]
+        if len(rows) >= 3:
+            return _decay_weighted_win_rate(rows, decay_half_life)
+
+        # Broaden: same source, any ticker, same direction
+        cur.execute(
+            """
+            SELECT resolution, pnl_percent
+            FROM route_outcomes_horizons
+            WHERE source_tag = ?
+              AND COALESCE(direction, '') = ?
+              AND resolution IN ('win', 'loss')
+              AND horizon_hours = ?
+            ORDER BY evaluated_at DESC
+            LIMIT 200
+            """,
+            (source_tag, direction, PRIMARY_HORIZON_HOURS),
+        )
+        rows = [(str(r[0]), float(r[1] or 0.0)) for r in cur.fetchall()]
+        if len(rows) >= 3:
+            return _decay_weighted_win_rate(rows, decay_half_life)
+
+    # Fallback: quant_validations (snapshot win_rate, no decay)
     if _table_exists(conn, "quant_validations"):
         cur = conn.cursor()
         cur.execute(
@@ -347,6 +428,7 @@ def main() -> int:
         min_kelly_to_trade = _ctl(conn, "kelly_min_to_trade", DEFAULT_MIN_KELLY_TO_TRADE)
         min_payout = _ctl(conn, "kelly_min_payout_ratio", DEFAULT_MIN_PAYOUT_RATIO)
         min_sample = int(_ctl(conn, "kelly_min_sample", DEFAULT_MIN_SAMPLE))
+        decay_half_life = _ctl(conn, "kelly_decay_half_life", 20.0)
 
         # Load payout map
         payout_map = _load_payout_map(conn)
@@ -382,8 +464,8 @@ def main() -> int:
             if not ticker or not direction or not source_tag:
                 continue
 
-            # Get p and b
-            p, sample_size = _get_win_prob(conn, source_tag, ticker, direction)
+            # Get p and b (with exponential decay weighting for model version responsiveness)
+            p, sample_size = _get_win_prob(conn, source_tag, ticker, direction, decay_half_life=decay_half_life)
             avg_win, avg_loss, payout_source = _get_payout(payout_map, source_tag, PRIMARY_HORIZON_HOURS)
             b = avg_win / avg_loss if avg_loss > 0 else DEFAULT_PAYOUT_RATIO
 

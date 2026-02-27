@@ -1028,6 +1028,76 @@ function setupIdLookup() {
 
               ${c.confirmations > 0 ? `<div style="font-size:0.82em;opacity:0.6;margin-top:6px;">Confirmations: <b>${c.confirmations}</b> · Pattern: <b>${c.pattern_type||"none"}</b> (${Number(c.pattern_score||0).toFixed(2)}) · Ext confidence: <b>${Number(c.external_confidence||0).toFixed(2)}</b></div>` : ""}
               ${c.rationale ? `<div style="margin-top:8px;font-size:0.78em;opacity:0.5;font-family:monospace;">${c.rationale}</div>` : ""}
+
+              ${(() => {
+                const cards = [];
+                // Trigger Checklist
+                const pg = ex.premium_gate;
+                if (pg) {
+                  const check = v => v ? '<span style="color:#4ade80;">&#10003;</span>' : '<span style="color:#f87171;">&#10007;</span>';
+                  cards.push(`<div style="margin-top:10px;padding:8px;background:#1e293b;border-radius:4px;">
+                    <div style="font-size:0.82em;font-weight:600;opacity:0.7;margin-bottom:4px;">TRIGGER CHECKLIST</div>
+                    <div style="display:flex;gap:12px;font-size:0.82em;flex-wrap:wrap;">
+                      <span>${check(pg.kelly_hit)} Kyle Williams</span>
+                      <span>${check(pg.liquidity_hit)} Liquidity</span>
+                      <span>${check(pg.momentum_hit)} Momentum</span>
+                      <span style="opacity:0.6;">Hits: <b>${pg.hits}/3</b></span>
+                      <span style="${pg.passed?'color:#4ade80':'color:#f87171'}">${pg.passed?'PASSED':'BLOCKED'}</span>
+                    </div>
+                  </div>`);
+                }
+                // Kelly Verdict
+                const k = ex.kelly;
+                if (k) {
+                  const vColors = {pass:'#4ade80',skip:'#f87171',warn:'#fbbf24',warmup:'#94a3b8',budget_exceeded:'#f87171'};
+                  cards.push(`<div style="margin-top:8px;padding:8px;background:#1e293b;border-radius:4px;">
+                    <div style="font-size:0.82em;font-weight:600;opacity:0.7;margin-bottom:4px;">KELLY VERDICT</div>
+                    <div style="display:flex;gap:12px;font-size:0.82em;flex-wrap:wrap;">
+                      <span style="color:${vColors[k.verdict]||'#94a3b8'};font-weight:700;">${(k.verdict||'—').toUpperCase()}</span>
+                      <span>Fraction <b>${Number(k.fraction||0).toFixed(3)}</b></span>
+                      <span>Win prob <b>${Number(k.win_prob||0).toFixed(2)}</b></span>
+                      <span>Payout <b>${Number(k.payout_ratio||0).toFixed(2)}</b></span>
+                      <span>EV <b>${Number(k.ev_percent||0).toFixed(1)}%</b></span>
+                      <span style="opacity:0.6;">n=${k.sample_size||0}</span>
+                    </div>
+                    ${k.verdict_reason ? `<div style="font-size:0.75em;opacity:0.5;margin-top:3px;">${k.verdict_reason}</div>` : ''}
+                  </div>`);
+                }
+                // Source Stats
+                const ss = ex.source_stats;
+                if (ss) {
+                  const wrColor = ss.win_rate >= 55 ? '#4ade80' : ss.win_rate <= 45 ? '#f87171' : '#fbbf24';
+                  cards.push(`<div style="margin-top:8px;padding:8px;background:#1e293b;border-radius:4px;">
+                    <div style="font-size:0.82em;font-weight:600;opacity:0.7;margin-bottom:4px;">SOURCE STATS (${rt.source_tag||'—'})</div>
+                    <div style="display:flex;gap:12px;font-size:0.82em;">
+                      <span>Win rate <b style="color:${wrColor}">${Number(ss.win_rate||0).toFixed(1)}%</b></span>
+                      <span>Samples <b>${ss.sample_size||0}</b></span>
+                      <span>Avg PnL <b>${Number(ss.avg_pnl_percent||0).toFixed(2)}%</b></span>
+                    </div>
+                  </div>`);
+                }
+                // Position Intents
+                const pi = ex.position_intents || [];
+                if (pi.length) {
+                  const intentRows = pi.map(i => {
+                    const statusBadge = i.status === 'submitted_stop' ? '<span style="color:#4ade80;">submitted</span>'
+                      : i.status === 'alert_sent' ? '<span style="color:#fbbf24;">alert</span>'
+                      : i.status === 'failed' ? '<span style="color:#f87171;">failed</span>'
+                      : `<span style="opacity:0.6;">${i.status}</span>`;
+                    return `<div style="display:flex;gap:8px;font-size:0.8em;padding:3px 0;border-bottom:1px solid #0f172a;">
+                      <span style="opacity:0.5;min-width:120px;">${(i.created_at||'').slice(0,16)}</span>
+                      <span style="min-width:50px;">${i.side||''}</span>
+                      <span style="min-width:80px;">${statusBadge}</span>
+                      <span style="opacity:0.6;flex:1;">${(i.details||'').slice(0,100)}</span>
+                    </div>`;
+                  }).join('');
+                  cards.push(`<div style="margin-top:8px;padding:8px;background:#1e293b;border-radius:4px;">
+                    <div style="font-size:0.82em;font-weight:600;opacity:0.7;margin-bottom:4px;">POSITION PROTECTION (${pi.length} intents)</div>
+                    ${intentRows}
+                  </div>`);
+                }
+                return cards.join('');
+              })()}
             </div>`;
         }
       }
@@ -1866,6 +1936,10 @@ async function boot() {
     runUiStep("renderMainInputSources", () => renderMainInputSources(inputSources || []));
     runUiStep("renderTickerProfiles", () => renderTickerProfiles(tickerProfiles || []));
 
+    // Signal Scorecard (non-blocking)
+    fetchJsonSafe("/api/signal-scorecard", {}).then(d => renderSignalScorecard(d || {}));
+    fetchJsonSafe("/api/weight-history?limit=30", {}).then(d => renderWeightHistory(d || {}));
+
     const topState = (systemHealth && systemHealth.overall) || "warn";
     const awareState = (awareness && awareness.overall) || "warn";
     const guardState = (tradeClaimGuard && tradeClaimGuard.state) || "warn";
@@ -1879,6 +1953,77 @@ async function boot() {
   } finally {
     booting = false;
   }
+}
+
+function renderSignalScorecard(data) {
+  const el = document.getElementById("signal-scorecard-table");
+  if (!el) return;
+  const sources = (data && data.sources) || [];
+  if (!sources.length) { el.innerHTML = '<div style="opacity:0.5;padding:8px;">No scorecard data yet. Run candidate scoring first.</div>'; return; }
+  const rows = sources.map(s => {
+    const wr = s.candidate_win_rate != null ? s.candidate_win_rate : (s.win_rate || 0);
+    const gradeColors = {green:'#4ade80',yellow:'#fbbf24',red:'#f87171',insufficient_data:'#64748b'};
+    const gc = gradeColors[s.grade] || '#64748b';
+    const trend7d = s.trend_7d_win_rate != null ? `${Number(s.trend_7d_win_rate).toFixed(1)}%` : '\u2014';
+    const dirAcc = s.direction_accuracy != null ? `${Number(s.direction_accuracy).toFixed(1)}%` : '\u2014';
+    const samples = s.candidate_sample_size || s.sample_size || 0;
+    const avgPnl = s.candidate_avg_pnl_pct != null ? s.candidate_avg_pnl_pct : (s.avg_pnl_pct || 0);
+    return `<tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:4px 8px;font-weight:600;">${s.source_tag}</td>
+      <td style="padding:4px 8px;text-align:center;color:${gc}">${Number(wr).toFixed(1)}%</td>
+      <td style="padding:4px 8px;text-align:center;">${trend7d}</td>
+      <td style="padding:4px 8px;text-align:center;">${samples}</td>
+      <td style="padding:4px 8px;text-align:center;${avgPnl>=0?'color:#4ade80':'color:#f87171'}">${Number(avgPnl).toFixed(2)}%</td>
+      <td style="padding:4px 8px;text-align:center;">${dirAcc}</td>
+      <td style="padding:4px 8px;text-align:center;">${Number(s.auto_weight||1).toFixed(2)}</td>
+      <td style="padding:4px 8px;text-align:center;"><span style="color:${gc};font-weight:700;">${(s.grade||'\u2014').toUpperCase()}</span></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.85em;">
+    <thead><tr style="opacity:0.7;">
+      <th style="text-align:left;padding:4px 8px;">Source</th>
+      <th style="text-align:center;padding:4px 8px;">Win Rate</th>
+      <th style="text-align:center;padding:4px 8px;">7d Trend</th>
+      <th style="text-align:center;padding:4px 8px;">Samples</th>
+      <th style="text-align:center;padding:4px 8px;">Avg P&amp;L</th>
+      <th style="text-align:center;padding:4px 8px;">Dir Acc</th>
+      <th style="text-align:center;padding:4px 8px;">Weight</th>
+      <th style="text-align:center;padding:4px 8px;">Grade</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderWeightHistory(data) {
+  const el = document.getElementById("weight-history-table");
+  if (!el) return;
+  const changes = (data && data.changes) || [];
+  if (!changes.length) { el.innerHTML = '<div style="opacity:0.5;padding:8px;">No weight changes recorded yet.</div>'; return; }
+  const rows = changes.map(c => {
+    const delta = c.new_auto_weight - c.old_auto_weight;
+    const arrow = delta > 0 ? '<span style="color:#4ade80;">\u25B2</span>' : '<span style="color:#f87171;">\u25BC</span>';
+    return `<tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:3px 6px;font-size:0.8em;opacity:0.6;">${(c.changed_at||'').slice(0,16)}</td>
+      <td style="padding:3px 6px;">${c.source_key}</td>
+      <td style="padding:3px 6px;text-align:center;">${Number(c.old_auto_weight).toFixed(3)}</td>
+      <td style="padding:3px 6px;text-align:center;">${arrow} ${Number(c.new_auto_weight).toFixed(3)}</td>
+      <td style="padding:3px 6px;text-align:center;">${Number(c.win_rate).toFixed(1)}%</td>
+      <td style="padding:3px 6px;text-align:center;opacity:0.6;">${c.sample_size}</td>
+      <td style="padding:3px 6px;font-size:0.8em;opacity:0.5;">${c.reason||''}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.85em;">
+    <thead><tr style="opacity:0.7;">
+      <th style="text-align:left;padding:3px 6px;">Time</th>
+      <th style="text-align:left;padding:3px 6px;">Source</th>
+      <th style="text-align:center;padding:3px 6px;">Old</th>
+      <th style="text-align:center;padding:3px 6px;">New</th>
+      <th style="text-align:center;padding:3px 6px;">Win Rate</th>
+      <th style="text-align:center;padding:3px 6px;">Samples</th>
+      <th style="text-align:left;padding:3px 6px;">Reason</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 boot();

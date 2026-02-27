@@ -2624,6 +2624,105 @@ def get_trade_explain(identifier: str) -> Dict[str, Any]:
             route_reason=str(route.get("reason") or ""),
         )
 
+        # Phase 6: Enhanced trade explain — 4 additional query blocks
+        ticker = str(trade.get("ticker") or "")
+        routed_at = str(route.get("routed_at") or "")
+
+        # 1. Kelly verdict at trade time
+        kelly = None
+        if route_id > 0 and _table_exists(conn, "kelly_signals") and ticker:
+            q_ts = routed_at or str(trade.get("entry_date") or "")
+            if q_ts:
+                cur.execute(
+                    """
+                    SELECT verdict, kelly_fraction, win_prob, payout_ratio, ev_percent, sample_size, verdict_reason
+                    FROM kelly_signals
+                    WHERE UPPER(ticker)=UPPER(?) AND direction=COALESCE(?,direction)
+                    ORDER BY ABS(julianday(COALESCE(computed_at,'1970-01-01')) - julianday(?)) ASC
+                    LIMIT 1
+                    """,
+                    (ticker, str(route.get("direction") or ""), q_ts),
+                )
+                krow = cur.fetchone()
+                if krow:
+                    kelly = {
+                        "verdict": str(krow[0] or ""),
+                        "fraction": round(float(krow[1] or 0.0), 4),
+                        "win_prob": round(float(krow[2] or 0.0), 4),
+                        "payout_ratio": round(float(krow[3] or 0.0), 4),
+                        "ev_percent": round(float(krow[4] or 0.0), 2),
+                        "sample_size": int(krow[5] or 0),
+                        "verdict_reason": str(krow[6] or ""),
+                    }
+
+        # 2. Premium gate checklist (from evidence_json)
+        premium_gate = None
+        evidence_items = candidate.get("evidence_items") or []
+        kelly_hit = any("pipeline:KYLE_WILLIAMS" in str(e) for e in evidence_items)
+        liq_hit = any("liquidity_map:" in str(e) for e in evidence_items)
+        mom_hit = any("momentum:" in str(e) for e in evidence_items)
+        pg_entries = [e for e in evidence_items if isinstance(e, str) and e.startswith("premium_gate:")]
+        pg_blocked = any("blocked" in str(e) for e in pg_entries)
+        premium_gate = {
+            "kelly_hit": kelly_hit,
+            "liquidity_hit": liq_hit,
+            "momentum_hit": mom_hit,
+            "hits": sum([kelly_hit, liq_hit, mom_hit]),
+            "passed": not pg_blocked,
+            "gate_entries": pg_entries,
+        }
+
+        # 3. Position protection history (trade_intents)
+        position_intents = []
+        if _table_exists(conn, "trade_intents") and ticker:
+            q_ts = routed_at or str(trade.get("entry_date") or "")
+            if q_ts:
+                cur.execute(
+                    """
+                    SELECT id, created_at, venue, symbol, side, qty, notional, status, details
+                    FROM trade_intents
+                    WHERE UPPER(symbol) = UPPER(?)
+                      AND datetime(created_at) >= datetime(?, '-1 day')
+                      AND datetime(created_at) <= datetime(?, '+7 days')
+                    ORDER BY datetime(created_at) ASC
+                    LIMIT 20
+                    """,
+                    (ticker, q_ts, q_ts),
+                )
+                for irow in cur.fetchall():
+                    position_intents.append({
+                        "id": int(irow[0] or 0),
+                        "created_at": str(irow[1] or ""),
+                        "venue": str(irow[2] or ""),
+                        "symbol": str(irow[3] or ""),
+                        "side": str(irow[4] or ""),
+                        "qty": float(irow[5] or 0),
+                        "notional": float(irow[6] or 0),
+                        "status": str(irow[7] or ""),
+                        "details": str(irow[8] or ""),
+                    })
+
+        # 4. Source stats at trade time
+        source_stats = None
+        source_tag = str(route.get("source_tag") or "")
+        if source_tag and _table_exists(conn, "source_learning_stats"):
+            cur.execute(
+                """
+                SELECT win_rate, sample_size, avg_pnl_percent
+                FROM source_learning_stats
+                WHERE source_tag = ?
+                LIMIT 1
+                """,
+                (source_tag,),
+            )
+            srow = cur.fetchone()
+            if srow:
+                source_stats = {
+                    "win_rate": round(float(srow[0] or 0.0), 1),
+                    "sample_size": int(srow[1] or 0),
+                    "avg_pnl_percent": round(float(srow[2] or 0.0), 2),
+                }
+
         return {
             "ok": True,
             "identifier": ident,
@@ -2632,6 +2731,10 @@ def get_trade_explain(identifier: str) -> Dict[str, Any]:
             "outcome": outcome,
             "candidate": candidate,
             "simple_explanation": simple,
+            "kelly": kelly,
+            "premium_gate": premium_gate,
+            "position_intents": position_intents,
+            "source_stats": source_stats,
         }
     finally:
         conn.close()

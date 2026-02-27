@@ -22,7 +22,7 @@ from allocator_causal import (
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
 HIGH_BETA_TICKERS = {
     "TSLA", "NVDA", "PLTR", "MSTR", "COIN", "MARA", "RIOT", "ASTS", "SMCI",
-    "SOFI", "AFRM", "UPST", "HOOD", "RIVN", "NIO", "TQQQ", "SQQQ",
+    "SOFI", "AFRM", "UPST", "HOOD", "RIVN", "NIO", "TQQQ", "SQQQ", "BTAL",
     "BTC", "ETH", "SOL", "XRP", "DOGE", "AVAX",
 }
 
@@ -260,6 +260,24 @@ def _compute_venue_scores(base_score: float, ticker: str, source_tag: str) -> Di
     }
 
 
+def _seed_regime_ticker_profiles(conn: sqlite3.Connection) -> None:
+    """Seed ticker_trade_profiles for TQQQ and BTAL (ON CONFLICT DO NOTHING)."""
+    ensure_ticker_trade_profiles(conn)
+    for ticker in ("TQQQ", "BTAL"):
+        conn.execute(
+            """
+            INSERT INTO ticker_trade_profiles
+            (created_at, updated_at, ticker, active, preferred_venue,
+             allowed_venues_json, required_inputs_json, min_score, notional_override, notes)
+            VALUES (datetime('now'), datetime('now'), ?, 1, 'stocks',
+                    '["stocks"]', '[]', 55.0, 0.0, 'VIX regime strategy')
+            ON CONFLICT(ticker) DO NOTHING
+            """,
+            (ticker,),
+        )
+    conn.commit()
+
+
 def fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict]:
     cur = conn.cursor()
     if _table_exists(conn, "trade_candidates"):
@@ -361,6 +379,7 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
         ensure_route_table(conn)
         ensure_venue_matrix(conn)
         ensure_ticker_trade_profiles(conn)
+        _seed_regime_ticker_profiles(conn)
         ensure_quant_tables(conn)
         ensure_allocator_tables(conn)
         venue_matrix = _load_venue_matrix(conn)

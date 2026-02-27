@@ -68,6 +68,7 @@ def seed_input_source_controls(conn: sqlite3.Connection) -> None:
         ("family:kyle_williams", "Kyle Williams Setup", "family"),
         ("family:momentum", "Momentum Rank", "family"),
         ("family:event_alpha", "Event Alpha (Macro/Geo)", "family"),
+        ("family:vix_regime", "VIX Regime Switch (TQQQ/BTAL)", "family"),
     ]
     for key, label, klass in seeds:
         conn.execute(
@@ -82,6 +83,26 @@ def seed_input_source_controls(conn: sqlite3.Connection) -> None:
             """,
             (key, label, klass),
         )
+
+    # Phase 8: Seed noisy sources as disabled by default.
+    # Uses DO NOTHING so user overrides are preserved.
+    noise_seeds = [
+        ("source:stocktwits", "Source stocktwits", "source_tag"),
+        ("source:reddit", "Source reddit", "source_tag"),
+        ("pipeline:D_BOOKMARKS", "Pipeline D_BOOKMARKS", "pipeline"),
+        ("pipeline:E_BREAKTHROUGH", "Pipeline E_BREAKTHROUGH", "pipeline"),
+    ]
+    for key, label, klass in noise_seeds:
+        conn.execute(
+            """
+            INSERT INTO input_source_controls
+            (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, 0, 1.0, 1.0, 'noise_default_disabled')
+            ON CONFLICT(source_key) DO NOTHING
+            """,
+            (key, label, klass),
+        )
+
     conn.commit()
 
 
@@ -259,6 +280,10 @@ def main() -> int:
         liq_min_rr = float(controls.get("liquidity_min_rr", "2.0") or 2.0)
         x_influence_enabled = str(controls.get("x_influence_enabled", "1")).strip() == "1"
 
+        # Direction consensus config (Phase 7)
+        direction_consensus_enabled = str(controls.get("direction_consensus_enabled", "1")).strip() == "1"
+        min_direction_agreement = float(controls.get("min_direction_agreement", "0.6") or 0.6)
+
         # Premium Gate config (loaded once, applied per ticker)
         # Defaults: off (0) — enabled by user via dashboard checkboxes
         pg_stocks_min = int(float(controls.get("premium_gate_stocks_min", "0") or 0))
@@ -320,6 +345,7 @@ def main() -> int:
         pipeline_signals = {}
         kyle_williams_signals = {}
         event_alpha_signals = {}
+        vix_regime_signals = {}
         if table_exists(conn, "pipeline_signals"):
             # Exclude:
             #   CHART_LIQUIDITY — already captured by family:liquidity
@@ -332,7 +358,7 @@ def main() -> int:
                 SELECT asset, score, direction, pipeline_id, generated_at
                 FROM pipeline_signals
                 WHERE status = 'new'
-                  AND UPPER(pipeline_id) NOT IN ('CHART_LIQUIDITY', 'KYLE_WILLIAMS', 'B_LONGTERM', 'E_BREAKTHROUGH')
+                  AND UPPER(pipeline_id) NOT IN ('CHART_LIQUIDITY', 'KYLE_WILLIAMS', 'B_LONGTERM', 'E_BREAKTHROUGH', 'VIX_REGIME')
                 ORDER BY generated_at DESC
                 """,
             )
@@ -356,6 +382,18 @@ def main() -> int:
                 FROM pipeline_signals
                 WHERE status = 'new'
                   AND UPPER(pipeline_id) = 'C_EVENT'
+                ORDER BY generated_at DESC
+                """,
+            )
+            # VIX_REGIME — standalone regime-switching strategy (TQQQ/BTAL)
+            # Promoted to its own family:vix_regime — complete standalone systematic strategy
+            vix_regime_signals = latest_map(
+                cur,
+                """
+                SELECT asset, score, direction, pipeline_id, generated_at
+                FROM pipeline_signals
+                WHERE status = 'new'
+                  AND UPPER(pipeline_id) = 'VIX_REGIME'
                 ORDER BY generated_at DESC
                 """,
             )
@@ -418,6 +456,7 @@ def main() -> int:
             | set(kyle_williams_signals.keys())
             | set(event_alpha_signals.keys())
             | set(chart_liq.keys())
+            | set(vix_regime_signals.keys())
             # momentum_map intentionally NOT added to tickers — it only boosts
             # existing candidates; doesn't generate candidates on its own
         )
@@ -597,24 +636,79 @@ def main() -> int:
                     "value": round(c_mom, 6),
                 })
 
-            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_kw + c_event_alpha + c_mom
+            # VIX regime (TQQQ/BTAL) — standalone systematic strategy, weight 0.85
+            # High weight because this strategy generates its own candidates and
+            # doesn't need cross-confirmation from social/pattern families
+            vr_score = 0.0
+            vr_direction = "unknown"
+            vr_hit = ticker in vix_regime_signals
+            c_vr = 0.0
+            if vr_hit:
+                vr_score = float(vix_regime_signals[ticker][0] or 0.0)
+                vr_direction = vix_regime_signals[ticker][1] or "unknown"
+            if vr_hit and vr_score > 0:
+                c_vr, w_vr = contribution(input_controls, "family:vix_regime", (vr_score / 100.0) * 0.85)
+                breakdown.append({
+                    "key": "family:vix_regime",
+                    "base": round((vr_score / 100.0) * 0.85, 6),
+                    "weight": round(w_vr, 6),
+                    "value": round(c_vr, 6),
+                })
+
+            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_kw + c_event_alpha + c_mom + c_vr
             final_score = round(min(max(blended, 0.0), 1.0) * 100.0, 2)
 
-            direction = pattern_direction
-            if direction == "unknown":
-                direction = ext_direction if ext_direction != "unknown" else copy_direction
-            if direction == "unknown" and pipe_direction != "unknown":
-                direction = pipe_direction
-            if direction == "unknown" and kw_direction != "unknown":
-                direction = kw_direction
-            if direction == "unknown" and ea_direction != "unknown":
-                direction = ea_direction
+            if direction_consensus_enabled:
+                # Weighted voting: collect direction votes weighted by input family weights
+                votes = {"long": 0.0, "short": 0.0}
+                dir_inputs = [
+                    (pattern_direction, weight_for(input_controls, "family:pattern")),
+                    (ext_direction, weight_for(input_controls, "family:external")),
+                    (copy_direction, weight_for(input_controls, "family:copy")),
+                    (pipe_direction, weight_for(input_controls, "family:pipeline")),
+                    (kw_direction, weight_for(input_controls, "family:kyle_williams")),
+                    (ea_direction, weight_for(input_controls, "family:event_alpha")),
+                    (vr_direction, weight_for(input_controls, "family:vix_regime")),
+                ]
+                for dir_val, w_dir in dir_inputs:
+                    d = str(dir_val or "").strip().lower()
+                    if d in ("long", "buy", "bullish"):
+                        votes["long"] += w_dir
+                    elif d in ("short", "sell", "bearish"):
+                        votes["short"] += w_dir
+
+                total_votes = votes["long"] + votes["short"]
+                if total_votes > 0:
+                    best = max(votes, key=votes.get)
+                    agreement = votes[best] / total_votes
+                    if agreement >= min_direction_agreement:
+                        direction = best
+                    else:
+                        direction = "neutral"
+                    evidence.append(f"direction_consensus:{direction}:{agreement:.2f}")
+                else:
+                    direction = "unknown"
+            else:
+                # Original cascade fallback
+                direction = pattern_direction
+                if direction == "unknown":
+                    direction = ext_direction if ext_direction != "unknown" else copy_direction
+                if direction == "unknown" and pipe_direction != "unknown":
+                    direction = pipe_direction
+                if direction == "unknown" and kw_direction != "unknown":
+                    direction = kw_direction
+                if direction == "unknown" and ea_direction != "unknown":
+                    direction = ea_direction
+                if direction == "unknown" and vr_direction != "unknown":
+                    direction = vr_direction
 
             source_tag = ext_source if ext_source != "internal" else (copy_source or pipe_source or "internal")
             if source_tag == "internal" and kw_hit:
                 source_tag = "KYLE_WILLIAMS"
             if source_tag == "internal" and ea_hit:
                 source_tag = "C_EVENT"
+            if source_tag == "internal" and vr_hit:
+                source_tag = "VIX_REGIME"
             evidence = []
             if ticker in sentiment:
                 evidence.append("social_sentiment")
@@ -636,9 +730,11 @@ def main() -> int:
                 evidence.append("event_alpha:C_EVENT")
             if mom_hit:
                 evidence.append(f"momentum:rank_{momentum_map[ticker][1]}_of_{momentum_map[ticker][2]}")
+            if vr_hit:
+                evidence.append(f"vix_regime:{vr_direction}:{vr_score:.0f}")
 
             confirmations = len(set([e.split(":")[0] if ":" in e else e for e in evidence]))
-            sources_total = 9  # social, pattern, external, copy, pipeline, liquidity, kyle_williams, event_alpha, momentum
+            sources_total = 10  # social, pattern, external, copy, pipeline, liquidity, kyle_williams, event_alpha, momentum, vix_regime
             consensus_ratio = round(min(1.0, confirmations / max(1, sources_total)), 4)
             consensus_flag = 1 if (
                 confirmations >= min_confirmations

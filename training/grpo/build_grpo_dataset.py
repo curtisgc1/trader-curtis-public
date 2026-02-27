@@ -42,7 +42,49 @@ def _strength_from_abs(p: float) -> str:
     return "strong" if abs(p) >= 1.0 else "weak"
 
 
-def _hgrm_target(pnl_pct: float, route_score: float, predicted_direction: str) -> Dict[str, Any]:
+def _sortino_adjustment(
+    pnl_pct: float,
+    volatility_pct: float,
+    max_drawdown_pct: float,
+) -> float:
+    """Sortino-inspired risk adjustment: reward risk-efficient trades, penalize drawdown.
+
+    Returns a value in [-0.3, +0.15] that adjusts the base HGRM reward.
+    - Low-volatility wins get a bonus (up to +0.15)
+    - High-drawdown trades get a penalty (up to -0.3)
+    - Trades with no risk data get 0 (neutral)
+    """
+    if volatility_pct <= 0 and max_drawdown_pct <= 0:
+        return 0.0
+
+    adj = 0.0
+
+    # Downside penalty: drawdown > 2% starts penalizing, caps at -0.3
+    if max_drawdown_pct > 2.0:
+        dd_penalty = min(0.3, (max_drawdown_pct - 2.0) / 10.0)
+        adj -= dd_penalty
+
+    # Risk-efficiency bonus for wins: low volatility + positive pnl = good
+    if pnl_pct > 0.05 and volatility_pct > 0:
+        # Sortino-like ratio: return / downside risk proxy
+        sortino_like = pnl_pct / max(volatility_pct, 0.5)
+        # Bonus capped at +0.15 for sortino_like >= 1.5
+        adj += min(0.15, sortino_like * 0.1)
+
+    # High-vol losses get extra penalty
+    if pnl_pct < -0.05 and volatility_pct > 5.0:
+        adj -= min(0.1, (volatility_pct - 5.0) / 20.0)
+
+    return round(max(-0.3, min(0.15, adj)), 6)
+
+
+def _hgrm_target(
+    pnl_pct: float,
+    route_score: float,
+    predicted_direction: str,
+    volatility_pct: float = 0.0,
+    max_drawdown_pct: float = 0.0,
+) -> Dict[str, Any]:
     realized_dir = _direction_from_pnl(float(pnl_pct))
     pred = (predicted_direction or "").lower().strip()
     if pred in {"buy", "bullish"}:
@@ -65,10 +107,17 @@ def _hgrm_target(pnl_pct: float, route_score: float, predicted_direction: str) -
     mag_score = max(0.0, 1.0 - abs(expected_mag - actual_mag))
     pnl_score = (max(-1.0, min(1.0, (float(pnl_pct) / 5.0))) + 1.0) / 2.0
 
+    sortino_adj = _sortino_adjustment(
+        float(pnl_pct), float(volatility_pct), float(max_drawdown_pct),
+    )
+
     if dir_gate == 0:
-        reward = -0.5 + 0.2 * (pnl_score * 2.0 - 1.0)
+        reward = -0.5 + 0.2 * (pnl_score * 2.0 - 1.0) + sortino_adj
     else:
-        reward = 0.55 * dir_score + 0.35 * pnl_score + 0.10 * mag_score
+        reward = 0.55 * dir_score + 0.35 * pnl_score + 0.10 * mag_score + sortino_adj
+
+    # Clamp final reward to [-1, 1]
+    reward = max(-1.0, min(1.0, reward))
 
     return {
         "predicted_direction": pred,
@@ -78,6 +127,7 @@ def _hgrm_target(pnl_pct: float, route_score: float, predicted_direction: str) -
         "dir_score": round(dir_score, 6),
         "magnitude_score": round(mag_score, 6),
         "pnl_score": round(pnl_score, 6),
+        "sortino_adjustment": round(sortino_adj, 6),
         "hgrm_reward": round(float(reward), 6),
     }
 
@@ -89,25 +139,66 @@ def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[D
         where = "1=1" if include_operational else "COALESCE(ro.outcome_type,'realized')='realized'"
         if wins_only:
             where += " AND COALESCE(ro.resolution,'') = 'win'"
-        cur.execute(
-            f"""
-            SELECT
-              ro.route_id,
-              COALESCE(ro.resolved_at,''),
-              COALESCE(ro.outcome_type,'realized'),
-              COALESCE(ro.pnl_percent,0.0),
-              COALESCE(rf.ticker,''),
-              COALESCE(rf.source_tag,''),
-              COALESCE(rf.strategy_tag,''),
-              COALESCE(rf.venue,''),
-              COALESCE(rf.direction,''),
-              COALESCE(rf.route_score,0.0)
-            FROM route_outcomes ro
-            LEFT JOIN route_feedback_features rf ON rf.route_id = ro.route_id
-            WHERE {where}
-            ORDER BY datetime(ro.resolved_at) ASC
-            """
-        )
+
+        # Check if quant_validations exists for Sortino enrichment
+        cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='quant_validations'")
+        has_quant = cur.fetchone() is not None
+
+        if has_quant:
+            cur.execute(
+                f"""
+                SELECT
+                  ro.route_id,
+                  COALESCE(ro.resolved_at,''),
+                  COALESCE(ro.outcome_type,'realized'),
+                  COALESCE(ro.pnl_percent,0.0),
+                  COALESCE(rf.ticker,''),
+                  COALESCE(rf.source_tag,''),
+                  COALESCE(rf.strategy_tag,''),
+                  COALESCE(rf.venue,''),
+                  COALESCE(rf.direction,''),
+                  COALESCE(rf.route_score,0.0),
+                  COALESCE(qv.volatility_percent, 0.0),
+                  COALESCE(qv.max_drawdown_percent, 0.0)
+                FROM route_outcomes ro
+                LEFT JOIN route_feedback_features rf ON rf.route_id = ro.route_id
+                LEFT JOIN quant_validations qv
+                  ON UPPER(qv.ticker) = UPPER(COALESCE(rf.ticker,''))
+                  AND qv.source_tag = COALESCE(rf.source_tag,'')
+                  AND qv.id = (
+                    SELECT qv2.id FROM quant_validations qv2
+                    WHERE UPPER(qv2.ticker) = UPPER(COALESCE(rf.ticker,''))
+                      AND qv2.source_tag = COALESCE(rf.source_tag,'')
+                    ORDER BY ABS(julianday(qv2.validated_at) - julianday(COALESCE(ro.resolved_at,'')))
+                    LIMIT 1
+                  )
+                WHERE {where}
+                ORDER BY datetime(ro.resolved_at) ASC
+                """
+            )
+        else:
+            cur.execute(
+                f"""
+                SELECT
+                  ro.route_id,
+                  COALESCE(ro.resolved_at,''),
+                  COALESCE(ro.outcome_type,'realized'),
+                  COALESCE(ro.pnl_percent,0.0),
+                  COALESCE(rf.ticker,''),
+                  COALESCE(rf.source_tag,''),
+                  COALESCE(rf.strategy_tag,''),
+                  COALESCE(rf.venue,''),
+                  COALESCE(rf.direction,''),
+                  COALESCE(rf.route_score,0.0),
+                  0.0,
+                  0.0
+                FROM route_outcomes ro
+                LEFT JOIN route_feedback_features rf ON rf.route_id = ro.route_id
+                WHERE {where}
+                ORDER BY datetime(ro.resolved_at) ASC
+                """
+            )
+
         rows = []
         for (
             route_id,
@@ -120,8 +211,16 @@ def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[D
             venue,
             pred_dir,
             route_score,
+            vol_pct,
+            dd_pct,
         ) in cur.fetchall():
-            target = _hgrm_target(float(pnl_pct or 0.0), float(route_score or 0.0), str(pred_dir or ""))
+            target = _hgrm_target(
+                float(pnl_pct or 0.0),
+                float(route_score or 0.0),
+                str(pred_dir or ""),
+                volatility_pct=float(vol_pct or 0.0),
+                max_drawdown_pct=float(dd_pct or 0.0),
+            )
             prompt = (
                 "You are an event-driven trader.\n"
                 f"Ticker: {ticker}\n"
@@ -146,6 +245,8 @@ def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[D
                         "source_tag": source_tag,
                         "strategy_tag": strategy_tag,
                         "pnl_percent": float(pnl_pct or 0.0),
+                        "volatility_pct": float(vol_pct or 0.0),
+                        "max_drawdown_pct": float(dd_pct or 0.0),
                         "trade_taken": True,
                     },
                 }
@@ -374,6 +475,57 @@ def _kaggle_table_rows() -> List[Dict[str, Any]]:
         conn.close()
 
 
+def _candidate_outcome_rows() -> List[Dict[str, Any]]:
+    """Load scored candidate outcomes from the truth layer (candidate_horizon_outcomes)."""
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='candidate_horizon_outcomes'")
+        if not cur.fetchone():
+            return []
+        cur.execute(
+            """
+            SELECT candidate_ticker, candidate_direction, candidate_source_tag,
+                   candidate_score, horizon_hours, pnl_percent,
+                   resolution, evaluated_at
+            FROM candidate_horizon_outcomes
+            WHERE entry_price > 0 AND eval_price > 0
+            ORDER BY datetime(evaluated_at) ASC
+            """
+        )
+        rows: List[Dict[str, Any]] = []
+        for ticker, direction, source_tag, score, h_hours, pnl_pct, resolution, evaluated_at in cur.fetchall():
+            target = _hgrm_target(float(pnl_pct or 0.0), float(score or 0.0), str(direction or ""))
+            prompt = (
+                "You are an event-driven trader evaluating a signal candidate.\n"
+                f"Ticker: {ticker}\n"
+                f"Source: {source_tag}\n"
+                f"Candidate score: {float(score or 0.0):.2f}\n"
+                f"Horizon: {h_hours}h\n"
+                "Task: output direction (long/short/neutral), expected move strength (weak/strong), and concise rationale."
+            )
+            rows.append({
+                "group_id": f"candidate:{ticker}:{evaluated_at}:h{h_hours}",
+                "timestamp": str(evaluated_at or ""),
+                "source": "candidate_outcome",
+                "outcome_type": "candidate_counterfactual",
+                "prompt": prompt,
+                "target": target,
+                "meta": {
+                    "ticker": ticker,
+                    "source_tag": source_tag,
+                    "pnl_percent": float(pnl_pct or 0.0),
+                    "horizon_hours": int(h_hours),
+                    "trade_taken": False,
+                },
+            })
+        return rows
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
+
+
 def _split(rows: List[Dict[str, Any]], eval_ratio: float) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     rows = sorted(rows, key=lambda x: _parse_dt(str(x.get("timestamp") or "")))
     if not rows:
@@ -403,6 +555,10 @@ def main() -> int:
                              "Losses excluded — model learns from what worked, not what didn't.")
     parser.add_argument("--counterfactual-horizon", type=int, default=24,
                         help="Which horizon (hours) to use for counterfactual wins (default: 24 = 1 day)")
+    parser.add_argument("--kaggle-max-pct", type=float, default=0.0,
+                        help="Maximum percentage of final dataset that can be Kaggle rows (0=exclude entirely)")
+    parser.add_argument("--include-candidate-outcomes", action="store_true",
+                        help="Include candidate_horizon_outcomes as training data (truth layer)")
     parser.add_argument("--eval-ratio", type=float, default=0.1)
     args = parser.parse_args()
 
@@ -421,11 +577,29 @@ def main() -> int:
         cf_rows = _counterfactual_wins(horizon_hours=int(args.counterfactual_horizon))
         rows.extend(cf_rows)
 
-    # Kaggle Polymarket historical markets
-    if not bool(args.no_kaggle_table):
-        rows.extend(_kaggle_table_rows())
-    if args.kaggle_file:
-        rows.extend(_load_kaggle(Path(args.kaggle_file)))
+    # Candidate horizon outcomes (truth layer — scored candidates regardless of trade status)
+    if bool(args.include_candidate_outcomes):
+        co_rows = _candidate_outcome_rows()
+        rows.extend(co_rows)
+
+    # Kaggle Polymarket historical markets (gated by --kaggle-max-pct)
+    kaggle_max_pct = float(args.kaggle_max_pct)
+    kaggle_rows: List[Dict[str, Any]] = []
+    if kaggle_max_pct > 0:
+        if not bool(args.no_kaggle_table):
+            kaggle_rows.extend(_kaggle_table_rows())
+        if args.kaggle_file:
+            kaggle_rows.extend(_load_kaggle(Path(args.kaggle_file)))
+
+        # Cap Kaggle rows to max percentage of total dataset
+        if kaggle_rows and rows:
+            internal_count = len(rows)
+            max_kaggle = int((internal_count / (1.0 - kaggle_max_pct / 100.0)) * (kaggle_max_pct / 100.0))
+            if len(kaggle_rows) > max_kaggle:
+                kaggle_rows = kaggle_rows[:max_kaggle]
+        rows.extend(kaggle_rows)
+    elif not bool(args.no_kaggle_table) and kaggle_max_pct <= 0:
+        pass  # Skip Kaggle entirely when max_pct is 0
 
     train, eval_rows = _split(rows, eval_ratio=float(args.eval_ratio))
     train_path = OUT_DIR / "grpo_train.jsonl"
@@ -437,21 +611,30 @@ def main() -> int:
 
     cf_taken = sum(1 for r in rows if r.get("source") == "counterfactual_win" and r.get("trade_taken"))
     cf_not_taken = sum(1 for r in rows if r.get("source") == "counterfactual_win" and not r.get("trade_taken"))
+    candidate_outcome_count = sum(1 for r in rows if r.get("source") == "candidate_outcome")
+    kaggle_count = sum(1 for r in rows if r.get("source") == "kaggle_polymarket")
+    internal_count = sum(1 for r in rows if r.get("source") == "internal")
+    total = len(rows)
+    kaggle_pct = round((kaggle_count / total) * 100.0, 1) if total > 0 else 0.0
 
     summary = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
-        "total_rows": len(rows),
+        "total_rows": total,
         "train_rows": len(train),
         "eval_rows": len(eval_rows),
         "wins_only": bool(args.wins_only),
         "include_operational": bool(args.include_operational),
+        "include_candidate_outcomes": bool(args.include_candidate_outcomes),
+        "kaggle_max_pct": float(args.kaggle_max_pct),
+        "kaggle_actual_pct": kaggle_pct,
         "counterfactual_horizon_hours": int(args.counterfactual_horizon),
         "kaggle_file": args.kaggle_file or "",
         "sources": {
-            "internal_taken": sum(1 for r in rows if r.get("source") == "internal"),
+            "internal_taken": internal_count,
             "counterfactual_wins_taken": cf_taken,
             "counterfactual_wins_not_taken": cf_not_taken,
-            "kaggle_polymarket": sum(1 for r in rows if r.get("source") == "kaggle_polymarket"),
+            "candidate_outcomes": candidate_outcome_count,
+            "kaggle_polymarket": kaggle_count,
         },
     }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")

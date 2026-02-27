@@ -1449,9 +1449,19 @@ def choose_learning_outcome_scope(conn: sqlite3.Connection) -> str:
     """
     Prefer realized outcomes for learning stats.
     Fall back to all outcomes when realized labels are not available yet.
+    When learning_realized_only control is "1", always use realized-only scope.
     """
     if not table_exists(conn, "route_outcomes"):
         return "none"
+
+    # Check if user has forced realized-only mode
+    if table_exists(conn, "execution_controls"):
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM execution_controls WHERE key='learning_realized_only' LIMIT 1")
+        row = cur.fetchone()
+        if row and str(row[0]).strip() == "1":
+            return "realized"
+
     cur = conn.cursor()
     cur.execute(
         """
