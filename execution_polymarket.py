@@ -299,6 +299,23 @@ def _already_logged(conn: sqlite3.Connection, candidate_id: int, status: str) ->
     return cur.fetchone() is not None
 
 
+def _has_open_position(conn: sqlite3.Connection, market_id: str, outcome: str) -> bool:
+    """Check if we already have a filled/submitted order for this market+outcome."""
+    if not market_id:
+        return False
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT 1 FROM polymarket_orders
+        WHERE market_id=? AND outcome=?
+          AND status IN ('submitted_live','filled_live','submitted_paper')
+        LIMIT 1
+        """,
+        (str(market_id), str(outcome)),
+    )
+    return cur.fetchone() is not None
+
+
 def _insert_order_event(
     conn: sqlite3.Connection,
     candidate: Dict[str, Any],
@@ -870,6 +887,22 @@ def run() -> int:
             # Skip if this candidate is part of an arb pair already executed
             pair_id = str(c.get("arb_pair_id") or "").strip()
             if pair_id and pair_id in executed_pair_ids:
+                continue
+
+            # Dedup: skip if we already have an open position on this market+outcome
+            c_market_id = str(c.get("market_id") or "").strip()
+            c_outcome = str(c.get("outcome") or "").strip()
+            if _has_open_position(conn, c_market_id, c_outcome):
+                stats["blocked"] += 1
+                if not _already_logged(conn, cid, "blocked_dedup"):
+                    _insert_order_event(
+                        conn,
+                        c,
+                        mode=mode,
+                        status="blocked_dedup",
+                        notes=f"already have position on market={c_market_id} outcome={c_outcome}",
+                        notional=0.0,
+                    )
                 continue
 
             ok, notional, decision_status, reason = _evaluate_candidate(conn, controls, c, mode)
