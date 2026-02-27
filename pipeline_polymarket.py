@@ -2,16 +2,20 @@
 """
 Polymarket pipeline:
 - ingest active markets from Gamma API
-- compute strategy candidates: POLY_ALPHA / POLY_COPY / POLY_ARB
+- compute strategy candidates: POLY_ALPHA / POLY_COPY / POLY_ARB / POLY_MOMENTUM / POLY_OPTIONS_ARB
+- multi-source alpha aggregation with longshot bias correction
+- gabagool-style intra-market arbitrage with profit calculation
+- performance-weighted wallet copy signals
 """
 
 import json
 import math
 import re
 import sqlite3
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import requests
@@ -108,6 +112,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    # Backfill arb_pair_id column for gabagool-style paired arb.
+    if _table_exists(conn, "polymarket_candidates") and not _column_exists(conn, "polymarket_candidates", "arb_pair_id"):
+        conn.execute("ALTER TABLE polymarket_candidates ADD COLUMN arb_pair_id TEXT NOT NULL DEFAULT ''")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS tracked_x_sources (
@@ -379,6 +386,153 @@ def _wallet_signal_for_candidate(
     }
 
 
+def _get_control(conn: sqlite3.Connection, key: str, default: str) -> str:
+    if not _table_exists(conn, "execution_controls"):
+        return default
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM execution_controls WHERE key=? LIMIT 1", (key,))
+    row = cur.fetchone()
+    return str(row[0]) if row else default
+
+
+def _longshot_bias_correction(implied: float) -> float:
+    """Longshot bias: retail overpays for unlikely outcomes, underpays for favorites."""
+    if implied < 0.15:
+        return -(implied * 0.12)
+    if implied > 0.85:
+        return (1.0 - implied) * 0.10
+    return 0.0
+
+
+def _pipeline_signal_adjustment(conn: sqlite3.Connection, question: str) -> float:
+    """Pull latest pipeline_signals for matching tickers and convert to probability adjustment."""
+    if not _table_exists(conn, "pipeline_signals"):
+        return 0.0
+    q = question.lower()
+    ticker_map = {
+        "btc": "BTC", "bitcoin": "BTC",
+        "eth": "ETH", "ethereum": "ETH",
+        "sol": "SOL", "solana": "SOL",
+        "xrp": "XRP", "ripple": "XRP",
+        "doge": "DOGE", "dogecoin": "DOGE",
+    }
+    matched_ticker = None
+    for keyword, ticker in ticker_map.items():
+        if keyword in q:
+            matched_ticker = ticker
+            break
+    if not matched_ticker:
+        return 0.0
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT direction, score
+        FROM pipeline_signals
+        WHERE upper(ticker)=?
+        ORDER BY datetime(COALESCE(created_at,'1970-01-01')) DESC
+        LIMIT 1
+        """,
+        (matched_ticker,),
+    )
+    row = cur.fetchone()
+    if not row:
+        return 0.0
+    direction = str(row[0] or "").lower()
+    score = max(0.0, min(100.0, float(row[1] or 0.0)))
+    magnitude = (score / 100.0) * 0.08
+    if direction in ("long", "buy", "bullish"):
+        return magnitude
+    if direction in ("short", "sell", "bearish"):
+        return -magnitude
+    return 0.0
+
+
+def _historical_base_rate(conn: sqlite3.Connection, question: str) -> Optional[float]:
+    """Compute historical hit rate for recurring market types from resolved kaggle data."""
+    if not _table_exists(conn, "polymarket_kaggle_markets"):
+        return None
+    q = question.lower()
+    keywords = []
+    for tok in ("5 minute", "15 minute", "up or down", "above", "below", "price"):
+        if tok in q:
+            keywords.append(tok)
+    if not keywords:
+        return None
+    conditions = []
+    params = []
+    for kw in keywords[:3]:
+        conditions.append("lower(COALESCE(question,'')) LIKE ?")
+        params.append(f"%{kw}%")
+    like_clause = " AND ".join(conditions)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"""
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN COALESCE(resolution,'') IN ('Yes','yes','1','true') THEN 1 ELSE 0 END) AS yes_count
+            FROM polymarket_kaggle_markets
+            WHERE {like_clause}
+              AND COALESCE(resolution,'') != ''
+            """,
+            params,
+        )
+    except Exception:
+        return None
+    row = cur.fetchone()
+    if not row or int(row[0] or 0) < 10:
+        return None
+    total = int(row[0])
+    yes_count = int(row[1] or 0)
+    return yes_count / total
+
+
+def _wallet_performance_weight(
+    conn: sqlite3.Connection, handle: str
+) -> Dict[str, Any]:
+    """Get wallet performance stats for copy-trade weighting."""
+    result = {"win_rate": 0.0, "pnl_all": 0.0, "sample_size": 0, "qualified": False}
+    if not handle:
+        return result
+    # Try polymarket_wallet_scores first (our computed scores)
+    if _table_exists(conn, "polymarket_wallet_scores"):
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COALESCE(win_rate,0), COALESCE(avg_pnl_pct,0), COALESCE(sample_size,0)
+            FROM polymarket_wallet_scores
+            WHERE lower(COALESCE(handle,''))=?
+            LIMIT 1
+            """,
+            (handle.lower(),),
+        )
+        row = cur.fetchone()
+        if row:
+            wr = float(row[0] or 0)
+            pnl = float(row[1] or 0)
+            samples = int(row[2] or 0)
+            min_wr = float(_get_control(conn, "polymarket_copy_min_wallet_winrate", "55"))
+            min_samples = int(float(_get_control(conn, "polymarket_copy_min_wallet_samples", "10")))
+            return {
+                "win_rate": wr,
+                "pnl_all": pnl,
+                "sample_size": samples,
+                "qualified": wr >= min_wr and samples >= min_samples,
+            }
+    return result
+
+
+def _recency_decay(ts_last: int) -> float:
+    """Apply recency decay: trades > 24h old get 50% weight, > 48h get 25%."""
+    if ts_last <= 0:
+        return 0.25
+    age_hours = (time.time() - ts_last) / 3600.0
+    if age_hours <= 24:
+        return 1.0
+    if age_hours <= 48:
+        return 0.5
+    return 0.25
+
+
 def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
     cur = conn.cursor()
     cur.execute("DELETE FROM polymarket_candidates")
@@ -439,6 +593,14 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             if int(role_alpha or 0) == 1:
                 tracked_alpha_handles.add(h)
 
+    # Phase 4: Multi-source alpha controls
+    use_pipeline_signals = _get_control(conn, "polymarket_alpha_use_pipeline_signals", "1") == "1"
+    use_longshot_correction = _get_control(conn, "polymarket_alpha_longshot_correction", "1") == "1"
+
+    # Phase 3: Arb profit controls
+    arb_min_profit_pct = float(_get_control(conn, "polymarket_arb_min_profit_pct", "1.0"))
+    taker_fee_pct = float(_get_control(conn, "polymarket_taker_fee_pct", "3.15"))
+
     people_markets = (
         "election",
         "nominee",
@@ -462,73 +624,178 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             continue
         if not outcomes or not prices or len(outcomes) != len(prices):
             continue
-        # Use first outcome as YES-equivalent candidate where applicable.
+
+        # ── Phase 3: Gabagool-style intra-market arb ──────────────────
+        # Check for guaranteed profit from dual-sided trade (YES + NO < 1.0)
+        if len(prices) >= 2:
+            cost_per_pair = prices[0] + prices[1]
+            if cost_per_pair > 0.01 and cost_per_pair < 1.0 and float(liquidity or 0) >= 5000:
+                guaranteed_profit_pct = ((1.0 - cost_per_pair) / cost_per_pair) * 100.0
+                net_profit_pct = guaranteed_profit_pct - (taker_fee_pct * 2)
+                if net_profit_pct > arb_min_profit_pct:
+                    pair_id = f"arb-{market_id}-{int(time.time())}"
+                    for i, outcome in enumerate(outcomes[:2]):
+                        implied = max(0.01, min(0.99, float(prices[i])))
+                        cur.execute(
+                            """
+                            INSERT INTO polymarket_candidates
+                            (created_at, strategy_id, market_id, slug, question, outcome,
+                             implied_prob, model_prob, edge, confidence, source_tag,
+                             rationale, market_url, status, arb_pair_id)
+                            VALUES (?, 'POLY_ARB', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)
+                            """,
+                            (
+                                now_iso(), market_id, slug, question, str(outcome),
+                                implied, implied,
+                                round(net_profit_pct, 4), 0.90,
+                                "POLY_ARB:gabagool",
+                                f"gabagool arb cost={cost_per_pair:.4f} guaranteed={guaranteed_profit_pct:.2f}% "
+                                f"net={net_profit_pct:.2f}% (fee={taker_fee_pct}%x2) "
+                                f"liq={float(liquidity or 0):.0f}",
+                                market_url, pair_id,
+                            ),
+                        )
+                        created += 1
+                    continue  # Skip per-outcome processing for arb markets
+
+        # ── Per-outcome candidate generation ──────────────────────────
         for i, outcome in enumerate(outcomes[:2]):
             implied = max(0.0, min(1.0, float(prices[i] if i < len(prices) else 0.0)))
-            model = implied + (_event_bias(conn, question) * (1.1 if i == 0 else -1.1)) + (src_rel - 0.5) * 0.06
+            q = question.lower()
+
+            # ── Phase 4: Multi-source probability aggregation ─────────
+            # Component weights (sum to ~1.0)
+            w_market = 0.40
+            w_event = 0.15
+            w_wallet = 0.15
+            w_pipeline = 0.12
+            w_historical = 0.10
+            w_longshot = 0.08
+
+            # 1. Base: market implied probability
+            base_prob = implied
+
+            # 2. Event bias (existing)
+            event_adj = _event_bias(conn, question) * (1.1 if i == 0 else -1.1)
+
+            # 3. Source reliability adjustment
+            src_adj = (src_rel - 0.5) * 0.06
+
+            # 4. Wallet consensus
+            wallet_sig = _wallet_signal_for_candidate(slug, str(outcome), wallet_activity)
+            wallet_score = float(wallet_sig.get("score") or 0.0)
+            wallet_handle = str(wallet_sig.get("handle") or "")
+            wallet_adj = wallet_score * 0.04
+
+            # 5. Pipeline signal crossover (Phase 4)
+            pipeline_adj = 0.0
+            if use_pipeline_signals:
+                pipeline_adj = _pipeline_signal_adjustment(conn, question)
+                if i == 1:
+                    pipeline_adj = -pipeline_adj
+
+            # 6. Historical base rate
+            hist_rate = _historical_base_rate(conn, question)
+            hist_adj = 0.0
+            if hist_rate is not None:
+                if i == 0:
+                    hist_adj = (hist_rate - implied) * 0.5
+                else:
+                    hist_adj = ((1.0 - hist_rate) - implied) * 0.5
+
+            # 7. Longshot bias correction
+            longshot_adj = 0.0
+            if use_longshot_correction:
+                longshot_adj = _longshot_bias_correction(implied)
+                if i == 1:
+                    longshot_adj = -longshot_adj
+
+            # Weighted aggregation (bounded)
+            model = (
+                w_market * base_prob
+                + w_event * (base_prob + event_adj)
+                + w_wallet * (base_prob + wallet_adj)
+                + w_pipeline * (base_prob + pipeline_adj)
+                + w_historical * (base_prob + hist_adj)
+                + w_longshot * (base_prob + longshot_adj)
+                + src_adj
+            )
             model = max(0.01, min(0.99, model))
             edge = round((model - implied) * 100.0, 4)
             conf = round(max(0.35, min(0.9, abs(edge) / 20.0 + 0.45)), 4)
 
             strategy = "POLY_ALPHA"
             src_tag = "POLY_ALPHA:internal"
-            q = question.lower()
-            rationale = f"alpha model vs implied; liquidity={liquidity}; vol24h={volume_24h}"
+            rationale = (
+                f"alpha model vs implied; event={event_adj:+.4f} wallet={wallet_adj:+.4f} "
+                f"pipeline={pipeline_adj:+.4f} hist={hist_adj:+.4f} longshot={longshot_adj:+.4f}; "
+                f"liq={liquidity}; vol24h={volume_24h}"
+            )
 
-            wallet_sig = _wallet_signal_for_candidate(slug, str(outcome), wallet_activity)
-            wallet_score = float(wallet_sig.get("score") or 0.0)
-            wallet_handle = str(wallet_sig.get("handle") or "")
+            # Wallet-informed confidence boost
             if abs(wallet_score) > 0.05:
-                # Wallet-informed micro-adjustment: bounded and explicitly logged.
-                model = max(0.01, min(0.99, model + (wallet_score * 0.03)))
-                edge = round((model - implied) * 100.0, 4)
                 conf = round(max(0.35, min(0.95, conf + min(0.12, abs(wallet_score) * 0.06))), 4)
 
-            # Strong arb cue on binary complement dislocation.
-            dislocation = 0.0
-            if len(prices) >= 2:
-                dislocation = abs((prices[0] + prices[1]) - 1.0)
-            if dislocation >= 0.04 and float(liquidity or 0.0) >= 5000:
-                strategy = "POLY_ARB"
-                src_tag = "POLY_ARB:book"
-                rationale = f"arb dislocation={round(dislocation,4)}; liq={round(float(liquidity or 0.0),2)}"
-            else:
-                copy_hit = any(h and h in q for h in copy_handles)
-                person_topic = any(tok in q for tok in people_markets)
-                macro_topic = any(tok in q for tok in macro_markets)
-                copy_watch_enabled = len(tracked_copy_handles) > 0
-                alpha_watch_enabled = len(tracked_alpha_handles) > 0
-                if abs(wallet_score) >= 0.35 and wallet_handle:
+            # ── Phase 5: Performance-weighted copy strategy ───────────
+            copy_hit = any(h and h in q for h in copy_handles)
+            person_topic = any(tok in q for tok in people_markets)
+            macro_topic = any(tok in q for tok in macro_markets)
+            copy_watch_enabled = len(tracked_copy_handles) > 0
+            alpha_watch_enabled = len(tracked_alpha_handles) > 0
+
+            if abs(wallet_score) >= 0.35 and wallet_handle:
+                perf = _wallet_performance_weight(conn, wallet_handle)
+                # Apply recency decay
+                ts_last = int(wallet_sig.get("ts_last", 0) if isinstance(wallet_sig, dict) else 0)
+                decay = _recency_decay(ts_last)
+                effective_score = wallet_score * decay
+
+                if perf["qualified"]:
+                    # High-quality wallet: auto-copy with boosted confidence
                     strategy = "POLY_COPY"
                     src_tag = f"POLY_COPY:wallet:{wallet_handle}"
+                    conf = round(min(0.95, conf * (1.0 + perf["win_rate"] / 200.0)), 4)
                     rationale = (
-                        f"wallet_copy boost={round(wallet_score,3)} "
-                        f"wallet={wallet_handle} rel={round(float(wallet_sig.get('reliability') or 0.0),2)}; "
+                        f"wallet_copy boost={round(effective_score,3)} "
+                        f"wallet={wallet_handle} win_rate={perf['win_rate']:.1f}% "
+                        f"samples={perf['sample_size']} decay={decay:.2f}; "
                         f"liq={round(float(liquidity or 0.0),2)}"
                     )
-                elif copy_hit or (person_topic and copy_watch_enabled):
+                elif abs(effective_score) >= 0.25:
+                    # Unqualified wallet: still generate but lower confidence
                     strategy = "POLY_COPY"
-                    src_tag = "POLY_COPY:watchlist"
-                    why = "handle-match" if copy_hit else "people-market+tracked-sources"
+                    src_tag = f"POLY_COPY:wallet:{wallet_handle}:unqualified"
+                    conf = round(max(0.35, conf * 0.7), 4)
                     rationale = (
-                        f"copy prior market signal ({why}); "
-                        f"tracked_copy_sources={len(tracked_copy_handles)}; liq={round(float(liquidity or 0.0),2)}"
+                        f"wallet_copy (unqualified) boost={round(effective_score,3)} "
+                        f"wallet={wallet_handle} win_rate={perf['win_rate']:.1f}% "
+                        f"samples={perf['sample_size']} decay={decay:.2f}; "
+                        f"liq={round(float(liquidity or 0.0),2)}"
                     )
-                elif macro_topic:
-                    strategy = "POLY_ALPHA"
-                    src_tag = "POLY_ALPHA:watchlist" if alpha_watch_enabled else "POLY_ALPHA:macro"
-                    rationale = (
-                        f"macro-event alpha cue; "
-                        f"tracked_alpha_sources={len(tracked_alpha_handles)}; liq={round(float(liquidity or 0.0),2)}"
-                    )
+            elif copy_hit or (person_topic and copy_watch_enabled):
+                strategy = "POLY_COPY"
+                src_tag = "POLY_COPY:watchlist"
+                why = "handle-match" if copy_hit else "people-market+tracked-sources"
+                rationale = (
+                    f"copy prior market signal ({why}); "
+                    f"tracked_copy_sources={len(tracked_copy_handles)}; liq={round(float(liquidity or 0.0),2)}"
+                )
+            elif macro_topic:
+                strategy = "POLY_ALPHA"
+                src_tag = "POLY_ALPHA:watchlist" if alpha_watch_enabled else "POLY_ALPHA:macro"
+                rationale = (
+                    f"macro-event alpha cue; "
+                    f"tracked_alpha_sources={len(tracked_alpha_handles)}; liq={round(float(liquidity or 0.0),2)}"
+                )
 
             if abs(edge) < 1.0:
                 continue
             cur.execute(
                 """
                 INSERT INTO polymarket_candidates
-                (created_at, strategy_id, market_id, slug, question, outcome, implied_prob, model_prob, edge, confidence, source_tag, rationale, market_url, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')
+                (created_at, strategy_id, market_id, slug, question, outcome, implied_prob, model_prob,
+                 edge, confidence, source_tag, rationale, market_url, status, arb_pair_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', '')
                 """,
                 (
                     now_iso(),
@@ -560,7 +827,27 @@ def main() -> int:
         normalized = [normalize_market(x) for x in raw]
         markets_written = store_markets(conn, normalized)
         candidates_written = build_candidates(conn, limit=350)
-        print(f"POLYMARKET: fetched={len(raw)} stored={markets_written} candidates={candidates_written}")
+
+        # Phase 1: Momentum lag scanner (runs inline — time-sensitive)
+        momentum_count = 0
+        try:
+            from polymarket_momentum_scanner import scan as momentum_scan
+            momentum_count = momentum_scan(conn)
+        except Exception as exc:
+            print(f"POLYMARKET: momentum scanner skipped: {exc}")
+
+        # Phase 2: Options bridge (runs inline)
+        options_count = 0
+        try:
+            from polymarket_options_bridge import scan as options_scan
+            options_count = options_scan(conn)
+        except Exception as exc:
+            print(f"POLYMARKET: options bridge skipped: {exc}")
+
+        print(
+            f"POLYMARKET: fetched={len(raw)} stored={markets_written} "
+            f"candidates={candidates_written} momentum={momentum_count} options_arb={options_count}"
+        )
         return 0
     finally:
         conn.close()

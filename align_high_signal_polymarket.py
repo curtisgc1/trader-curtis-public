@@ -453,12 +453,154 @@ def build_alignments(conn: sqlite3.Connection, candidate_limit: int = 80, market
     return written
 
 
+def _crossfeed_polymarket_to_equity(conn: sqlite3.Connection) -> int:
+    """
+    Phase 6: Bidirectional signal bridge — Polymarket → equity/crypto.
+
+    When a Polymarket crypto market moves significantly (>15% probability shift in 24h),
+    write a signal to external_signals for equity pipeline consumption.
+    Also feeds options-implied probabilities from polymarket_options_bridge.
+    """
+    ctl = _load_controls(conn)
+    if ctl.get("polymarket_crossfeed_enabled", "1") != "1":
+        return 0
+
+    if not _table_exists(conn, "external_signals"):
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS external_signals (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              source TEXT NOT NULL DEFAULT '',
+              ticker TEXT NOT NULL DEFAULT '',
+              direction TEXT NOT NULL DEFAULT '',
+              confidence REAL NOT NULL DEFAULT 0,
+              notes TEXT NOT NULL DEFAULT '',
+              expires_at TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        conn.commit()
+
+    written = 0
+    cur = conn.cursor()
+
+    # 1. Detect significant Polymarket probability shifts in crypto markets
+    if _table_exists(conn, "polymarket_candidates"):
+        ticker_map = {
+            "bitcoin": "BTC", "btc": "BTC",
+            "ethereum": "ETH", "eth": "ETH",
+            "solana": "SOL", "sol": "SOL",
+            "xrp": "XRP", "ripple": "XRP",
+            "dogecoin": "DOGE", "doge": "DOGE",
+        }
+
+        cur.execute(
+            """
+            SELECT question, implied_prob, model_prob, edge, strategy_id, slug
+            FROM polymarket_candidates
+            WHERE datetime(created_at) >= datetime('now', '-4 hours')
+              AND ABS(edge) >= 8.0
+            ORDER BY ABS(edge) DESC
+            LIMIT 30
+            """
+        )
+        for question, implied, model, edge, strategy, slug in cur.fetchall():
+            q = str(question or "").lower()
+            matched_ticker = None
+            for keyword, ticker in ticker_map.items():
+                if keyword in q:
+                    matched_ticker = ticker
+                    break
+            if not matched_ticker:
+                continue
+
+            direction = "long" if float(edge or 0) > 0 else "short"
+            conf = min(0.85, abs(float(edge or 0)) / 20.0)
+
+            # Avoid duplicate signals
+            cur.execute(
+                """
+                SELECT 1 FROM external_signals
+                WHERE source='polymarket_crossfeed' AND ticker=?
+                  AND datetime(created_at) >= datetime('now', '-4 hours')
+                LIMIT 1
+                """,
+                (matched_ticker,),
+            )
+            if cur.fetchone():
+                continue
+
+            conn.execute(
+                """
+                INSERT INTO external_signals
+                (created_at, source, ticker, direction, confidence, notes, expires_at)
+                VALUES (?, 'polymarket_crossfeed', ?, ?, ?, ?, datetime('now', '+24 hours'))
+                """,
+                (
+                    now_iso(), matched_ticker, direction, round(conf, 4),
+                    f"polymarket {strategy} edge={float(edge or 0):+.2f}% "
+                    f"implied={float(implied or 0):.4f} model={float(model or 0):.4f} "
+                    f"slug={slug}",
+                ),
+            )
+            written += 1
+
+    # 2. Feed options-implied probability signals
+    if _table_exists(conn, "options_implied_signals"):
+        cur.execute(
+            """
+            SELECT ticker, options_prob, market_prob, divergence_pct, direction, spot_price, strike
+            FROM options_implied_signals
+            WHERE datetime(created_at) >= datetime('now', '-6 hours')
+              AND divergence_pct >= 10.0
+            ORDER BY divergence_pct DESC
+            LIMIT 10
+            """
+        )
+        for ticker, opts_prob, mkt_prob, div_pct, direction, spot, strike in cur.fetchall():
+            # Avoid duplicate signals
+            cur.execute(
+                """
+                SELECT 1 FROM external_signals
+                WHERE source='options_implied_crossfeed' AND ticker=?
+                  AND datetime(created_at) >= datetime('now', '-6 hours')
+                LIMIT 1
+                """,
+                (str(ticker or ""),),
+            )
+            if cur.fetchone():
+                continue
+
+            sig_direction = "long" if str(direction or "") == "above" else "short"
+            conf = min(0.85, float(div_pct or 0) / 25.0)
+
+            conn.execute(
+                """
+                INSERT INTO external_signals
+                (created_at, source, ticker, direction, confidence, notes, expires_at)
+                VALUES (?, 'options_implied_crossfeed', ?, ?, ?, ?, datetime('now', '+24 hours'))
+                """,
+                (
+                    now_iso(), str(ticker or ""), sig_direction, round(conf, 4),
+                    f"options_implied divergence={float(div_pct or 0):.2f}% "
+                    f"opts_prob={float(opts_prob or 0):.4f} mkt_prob={float(mkt_prob or 0):.4f} "
+                    f"spot={float(spot or 0):.2f} strike={float(strike or 0):.0f}",
+                ),
+            )
+            written += 1
+
+    conn.commit()
+    return written
+
+
 def main() -> int:
     conn = _connect()
     try:
         ensure_tables(conn)
         n = build_alignments(conn, candidate_limit=90, market_limit=900)
-        print(f"POLY_ALIGN: setups={n}")
+        crossfeed = _crossfeed_polymarket_to_equity(conn)
+        print(f"POLY_ALIGN: setups={n} crossfeed_signals={crossfeed}")
         return 0
     finally:
         conn.close()

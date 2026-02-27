@@ -4,7 +4,7 @@ async function fetchJson(url) {
   return res.json();
 }
 
-const UI_BUILD = "20260225e";
+const UI_BUILD = "20260226a";
 
 async function fetchJsonSafe(url, fallback) {
   try {
@@ -335,6 +335,45 @@ function renderTrustPanel(panel) {
   const top = (panel.top_sources || []).slice(0, 4).map((s) => `${s.source} (${s.samples} | ${s.win_rate}%)`).join(" • ");
   lines.push(`<div class="item"><span class="label">Top Sources</span><span>${top || "n/a"}</span></div>`);
   el.innerHTML = lines.join("");
+}
+
+function renderPolymarketScorecard(data) {
+  const el = document.getElementById("polymarket-scorecard");
+  if (!el) return;
+  if (!data || !data.ok) {
+    el.innerHTML = `<div class="empty">No scorecard data</div>`;
+    return;
+  }
+
+  let html = "";
+
+  // Strategy performance table
+  const strats = data.strategies || [];
+  if (strats.length > 0) {
+    const grid = "140px 80px 80px 80px 90px 100px";
+    html += `<div class="row header" style="grid-template-columns:${grid}"><div>Strategy</div><div>Orders</div><div>Fills</div><div>Fails</div><div>Fill%</div><div>Total $</div></div>`;
+    strats.forEach((s) => {
+      const fillCls = s.fill_rate >= 70 ? "good" : (s.fill_rate >= 40 ? "warn" : "bad");
+      html += `<div class="row" style="grid-template-columns:${grid}"><div>${s.strategy}</div><div>${s.total_orders}</div><div>${s.fills}</div><div>${s.fails}</div><div class="${fillCls}">${s.fill_rate}%</div><div>${fmtUsd(s.total_notional)}</div></div>`;
+    });
+  }
+
+  // Summary items
+  html += `<div class="item" style="margin-top:8px"><span class="label">Active Arb Opportunities</span><span>${data.active_arb_opportunities || 0}</span></div>`;
+  html += `<div class="item"><span class="label">Avg Edge at Entry (7d)</span><span>${Number(data.avg_edge_at_entry || 0).toFixed(2)}%</span></div>`;
+
+  // Wallet copy performance
+  const wallets = data.wallet_copy_performance || [];
+  if (wallets.length > 0) {
+    html += `<div style="margin-top:8px;font-weight:600;font-size:0.85rem">Wallet Copy Performance</div>`;
+    const wGrid = "180px 60px 60px 80px 90px";
+    html += `<div class="row header" style="grid-template-columns:${wGrid}"><div>Source</div><div>N</div><div>Fills</div><div>Fill%</div><div>Avg $</div></div>`;
+    wallets.slice(0, 10).forEach((w) => {
+      html += `<div class="row" style="grid-template-columns:${wGrid}"><div>${w.source_tag}</div><div>${w.total}</div><div>${w.fills}</div><div>${w.fill_rate}%</div><div>${fmtUsd(w.avg_notional)}</div></div>`;
+    });
+  }
+
+  el.innerHTML = html;
 }
 
 function renderPolymarketCandidates(rows) {
@@ -688,6 +727,7 @@ async function boot() {
       trackedPolyWallets,
       polyWalletScores,
       trustPanel,
+      polymarketScorecard,
     ] = await Promise.all([
       fetchJsonSafe("/api/system-health", { overall: "warn", checks: [] }),
       fetchJsonSafe("/api/polymarket-overview", {}),
@@ -705,6 +745,7 @@ async function boot() {
       fetchJsonSafe("/api/tracked-poly-wallets", []),
       fetchJsonSafe("/api/polymarket-wallet-scores", []),
       fetchJsonSafe("/api/trust-panel", {}),
+      fetchJsonSafe("/api/polymarket-scorecard", {}),
     ]);
 
     runUiStep("wirePreTradeActions", () => wirePreTradeActions());
@@ -712,6 +753,7 @@ async function boot() {
     runUiStep("wireInputSourceActions", () => wireInputSourceActions());
     runUiStep("wirePolyWalletActions", () => wirePolyWalletActions());
 
+    runUiStep("renderPolymarketScorecard", () => renderPolymarketScorecard(polymarketScorecard || {}));
     runUiStep("renderOverview", () => renderOverview(polymarketOverview || {}));
     runUiStep("renderMmOverview", () => renderMmOverview(polymarketMmOverview || {}));
     runUiStep("renderPreTradeControls", () => renderPreTradeControls(riskControls || []));

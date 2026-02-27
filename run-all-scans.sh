@@ -86,6 +86,8 @@ run_step "Event alert engine"      "event_alerts" /Users/Shared/curtis/trader-cu
 # ── POLYMARKET ────────────────────────────────────────
 echo "── POLYMARKET ───────────────────────────────────"
 run_step "Polymarket pipeline"     "polymarket"  /Users/Shared/curtis/trader-curtis/pipeline_polymarket.py
+run_step "Momentum scanner"        "pm_momentum" /Users/Shared/curtis/trader-curtis/polymarket_momentum_scanner.py
+run_step "Options bridge"          "pm_options"  /Users/Shared/curtis/trader-curtis/polymarket_options_bridge.py
 run_step "Wallet activity ingest"  "pm_wallets"  /Users/Shared/curtis/trader-curtis/ingest_polymarket_wallet_activity.py
 run_step "Wallet scorer"           "pm_scores"   /Users/Shared/curtis/trader-curtis/score_polymarket_wallets.py
 run_step "MM snapshots"            "pm_mm"       /Users/Shared/curtis/trader-curtis/polymarket_mm_engine.py
@@ -120,6 +122,10 @@ run_step "Alpaca order sync"       "alpaca_sync"  $PY /Users/Shared/curtis/trade
 run_step "Open position mgmt"      "pos_mgmt"     $PY /Users/Shared/curtis/trader-curtis/manage_open_positions.py
 run_step "Execute position intents" "pos_intents"  $PY /Users/Shared/curtis/trader-curtis/execute_position_intents.py
 
+# ── RECONCILIATION ───────────────────────────────────
+echo "── RECONCILIATION ─────────────────────────────"
+run_step "Reconcile realized (equity+HL)" "reconcile_equity" $PY /Users/Shared/curtis/trader-curtis/reconcile_realized_outcomes_equity.py
+
 # ── LEARNING & SCORING ────────────────────────────────
 echo "── LEARNING & SCORING ───────────────────────────"
 run_step "Source ranker"           "source_rank"   /Users/Shared/curtis/trader-curtis/source_ranker.py
@@ -139,6 +145,13 @@ if [ "$AGE_HOURS" -ge 20 ]; then
   run_step "Learning feedback (full)" "learning" /Users/Shared/curtis/trader-curtis/update_learning_feedback.py
   TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   sqlite3 "$DB" "INSERT INTO pipeline_runtime_state(key,value,updated_at) VALUES('run:heavy_resolvers:last_run','${TS}','${TS}') ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;" 2>/dev/null || true
+
+  # Candidate scoring (truth layer) — runs during heavy pass only (needs price lookups)
+  SCORING_ENABLED=$(sqlite3 "$DB" "SELECT value FROM execution_controls WHERE key='candidate_scoring_enabled' LIMIT 1;" 2>/dev/null)
+  [ -z "$SCORING_ENABLED" ] && SCORING_ENABLED=1
+  if [ "$SCORING_ENABLED" = "1" ]; then
+    run_step "Score all candidates" "candidate_scoring" $PY /Users/Shared/curtis/trader-curtis/score_all_candidates.py
+  fi
 else
   echo "  → Fast feedback only (heavy resolvers ran ${AGE_HOURS}h ago, skipping price lookups)"
   run_step "Learning feedback (fast)" "learning" env SKIP_HEAVY_RESOLVERS=1 /Users/Shared/curtis/trader-curtis/update_learning_feedback.py

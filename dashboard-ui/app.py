@@ -76,6 +76,12 @@ from data import (
     get_kelly_signals,
     get_exchange_pnl_summary,
 )
+from data_scorecard import (
+    get_signal_scorecard,
+    get_source_premium_breakdown,
+    get_weight_change_history,
+    get_polymarket_scorecard,
+)
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -584,6 +590,33 @@ def api_counterfactual_feedback():
         feedback=str(data.get("feedback", "pending")),
         notes=str(data.get("notes", "")),
     ))
+
+
+@app.get("/api/polymarket-scorecard")
+def api_polymarket_scorecard():
+    return jsonify(get_polymarket_scorecard())
+
+
+@app.get("/api/signal-scorecard")
+def api_signal_scorecard():
+    lookback_days = request.args.get("lookback_days")
+    min_samples = request.args.get("min_samples")
+    return jsonify(get_signal_scorecard(
+        lookback_days=int(lookback_days) if lookback_days else None,
+        min_samples=int(min_samples) if min_samples else None,
+    ))
+
+
+@app.get("/api/source-premium-breakdown")
+def api_source_premium_breakdown():
+    source_tag = str(request.args.get("source_tag", "") or "").strip()
+    return jsonify(get_source_premium_breakdown(source_tag))
+
+
+@app.get("/api/weight-history")
+def api_weight_history():
+    limit = int(request.args.get("limit", 50))
+    return jsonify(get_weight_change_history(limit=limit))
 
 
 if __name__ == "__main__":

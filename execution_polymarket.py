@@ -163,9 +163,13 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         "polymarket_copy_enabled": "1",
         "polymarket_arb_enabled": "1",
         "polymarket_alpha_enabled": "1",
+        "polymarket_momentum_enabled": "1",
+        "polymarket_options_arb_enabled": "1",
         "polymarket_copy_max_notional_usd": "5",
         "polymarket_arb_max_notional_usd": "5",
         "polymarket_alpha_max_notional_usd": "5",
+        "polymarket_momentum_max_notional_usd": "3",
+        "polymarket_arb_max_notional_per_leg": "25",
         "polymarket_manual_approval": "1",
         "polymarket_approval_threshold": "10",
         "polymarket_approval_count": "0",
@@ -173,6 +177,15 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         "polymarket_strict_funding_check": "0",
         "polymarket_edge_unit_mode": "auto",
         "threshold_override_unlocked": "0",
+        "polymarket_momentum_min_gap_pct": "3.0",
+        "polymarket_momentum_min_liquidity": "3000",
+        "polymarket_options_min_divergence_pct": "8.0",
+        "polymarket_arb_min_profit_pct": "1.0",
+        "polymarket_alpha_use_pipeline_signals": "1",
+        "polymarket_alpha_longshot_correction": "1",
+        "polymarket_copy_min_wallet_winrate": "55",
+        "polymarket_copy_min_wallet_samples": "10",
+        "polymarket_crossfeed_enabled": "1",
     }
     cur = conn.cursor()
     for key, value in defaults.items():
@@ -428,10 +441,13 @@ def _fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict[str, An
     if not _table_exists(conn, "polymarket_candidates"):
         return []
     cur = conn.cursor()
+    # Include arb_pair_id if available
+    has_arb_pair = _column_exists(conn, "polymarket_candidates", "arb_pair_id")
+    arb_col = ", COALESCE(arb_pair_id, '') AS arb_pair_id" if has_arb_pair else ", '' AS arb_pair_id"
     cur.execute(
-        """
+        f"""
         SELECT id, created_at, strategy_id, market_id, outcome, implied_prob, model_prob,
-               edge, confidence, source_tag, rationale, question, status
+               edge, confidence, source_tag, rationale, question, status{arb_col}
         FROM polymarket_candidates
         WHERE status IN ('new','approved','awaiting_approval')
         ORDER BY CASE WHEN status='approved' THEN 0 ELSE 1 END ASC,
@@ -444,6 +460,16 @@ def _fetch_candidates(conn: sqlite3.Connection, limit: int) -> List[Dict[str, An
     rows = cur.fetchall()
     cols = [c[0] for c in cur.description]
     return [dict(zip(cols, row)) for row in rows]
+
+
+def _group_arb_pairs(candidates: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Group candidates by arb_pair_id for dual-leg execution."""
+    pairs: Dict[str, List[Dict[str, Any]]] = {}
+    for c in candidates:
+        pair_id = str(c.get("arb_pair_id") or "").strip()
+        if pair_id:
+            pairs.setdefault(pair_id, []).append(c)
+    return pairs
 
 
 def _mark_candidate(conn: sqlite3.Connection, candidate_id: int, status: str) -> None:
@@ -569,7 +595,10 @@ def _strategy_allowed(controls: Dict[str, str], strategy: str) -> bool:
     key = {
         "POLY_COPY": "polymarket_copy_enabled",
         "POLY_ARB": "polymarket_arb_enabled",
+        "POLY_ARB_MICRO": "polymarket_arb_enabled",
         "POLY_ALPHA": "polymarket_alpha_enabled",
+        "POLY_MOMENTUM": "polymarket_momentum_enabled",
+        "POLY_OPTIONS_ARB": "polymarket_options_arb_enabled",
     }.get(str(strategy).upper(), "")
     if not key:
         return True
@@ -579,8 +608,11 @@ def _strategy_allowed(controls: Dict[str, str], strategy: str) -> bool:
 def _strategy_notional_cap(controls: Dict[str, str], strategy: str, fallback: float) -> float:
     key = {
         "POLY_COPY": "polymarket_copy_max_notional_usd",
-        "POLY_ARB": "polymarket_arb_max_notional_usd",
+        "POLY_ARB": "polymarket_arb_max_notional_per_leg",
+        "POLY_ARB_MICRO": "polymarket_arb_max_notional_per_leg",
         "POLY_ALPHA": "polymarket_alpha_max_notional_usd",
+        "POLY_MOMENTUM": "polymarket_momentum_max_notional_usd",
+        "POLY_OPTIONS_ARB": "polymarket_alpha_max_notional_usd",
     }.get(str(strategy).upper(), "")
     if not key:
         return fallback
@@ -658,7 +690,10 @@ def _evaluate_candidate(
     approval_threshold = _as_int(controls.get("polymarket_approval_threshold"), 10)
     approval_count = _as_int(controls.get("polymarket_approval_count"), 0)
 
-    if manual:
+    # Momentum and micro-arb candidates bypass manual approval (time-sensitive — 15-min window)
+    time_sensitive = strategy in ("POLY_MOMENTUM", "POLY_ARB_MICRO")
+
+    if manual and not time_sensitive:
         # First N requires approval; if threshold <= 0 then always require approval.
         require_approval = (approval_threshold <= 0) or (approval_count < approval_threshold)
         if require_approval and str(candidate.get("status") or "") != "approved":
@@ -812,7 +847,11 @@ def run() -> int:
             print(f"POLYMARKET_EXECUTOR wallet_note='{wallet_fix_note}'")
 
         cycle_limit = _as_int(controls.get("polymarket_cycle_limit"), 8)
-        candidates = _fetch_candidates(conn, max(1, cycle_limit))
+        candidates = _fetch_candidates(conn, max(1, cycle_limit * 2))
+
+        # Group arb pairs — execute both legs together
+        arb_pairs = _group_arb_pairs(candidates)
+        executed_pair_ids: set = set()
 
         stats = {
             "mode": mode,
@@ -822,10 +861,17 @@ def run() -> int:
             "failed": 0,
             "awaiting_approval": 0,
             "synced": synced,
+            "arb_pairs_executed": 0,
         }
 
         for c in candidates:
             cid = int(c.get("id") or 0)
+
+            # Skip if this candidate is part of an arb pair already executed
+            pair_id = str(c.get("arb_pair_id") or "").strip()
+            if pair_id and pair_id in executed_pair_ids:
+                continue
+
             ok, notional, decision_status, reason = _evaluate_candidate(conn, controls, c, mode)
             current_status = _candidate_status(conn, cid)
 
@@ -910,6 +956,29 @@ def run() -> int:
                 )
                 _mark_candidate(conn, cid, "submitted_paper")
                 stats["executed"] += 1
+
+                # Execute arb pair second leg (paper)
+                if pair_id and pair_id in arb_pairs:
+                    for leg in arb_pairs[pair_id]:
+                        leg_id = int(leg.get("id") or 0)
+                        if leg_id == cid:
+                            continue
+                        leg_token, leg_price, leg_reason = _candidate_token_and_price(conn, leg)
+                        if leg_token:
+                            leg_px = max(0.01, min(0.99, float(leg_price or 0.5)))
+                            leg_size = round(float(notional) / leg_px, 6)
+                            leg_order_id = f"poly-paper-{leg_id}-{int(time.time())}"
+                            _insert_order_event(
+                                conn, leg, mode="paper", status="submitted_paper",
+                                notes=f"arb pair leg (pair={pair_id})",
+                                notional=notional, token_id=leg_token, side="BUY",
+                                price=leg_px, size=leg_size, order_id=leg_order_id,
+                                response={"paper": True, "candidate_id": leg_id, "arb_pair_id": pair_id},
+                            )
+                            _mark_candidate(conn, leg_id, "submitted_paper")
+                            stats["executed"] += 1
+                    executed_pair_ids.add(pair_id)
+                    stats["arb_pairs_executed"] += 1
                 continue
 
             try:
@@ -944,6 +1013,42 @@ def run() -> int:
                 _mark_candidate(conn, cid, status)
                 stats["executed"] += 1
 
+                # Execute arb pair second leg (live)
+                if pair_id and pair_id in arb_pairs:
+                    for leg in arb_pairs[pair_id]:
+                        leg_id = int(leg.get("id") or 0)
+                        if leg_id == cid:
+                            continue
+                        leg_token, leg_price, leg_reason = _candidate_token_and_price(conn, leg)
+                        if leg_token:
+                            try:
+                                if backend == "cli":
+                                    l_oid, l_px, l_sz, l_st, l_pl, l_rs = _submit_live_order_cli(
+                                        env=env, token_id=leg_token, notional=notional)
+                                else:
+                                    assert client is not None
+                                    l_oid, l_px, l_sz, l_st, l_pl, l_rs = _submit_live_order(
+                                        client=client, token_id=leg_token,
+                                        notional=notional, price_hint=leg_price)
+                                _insert_order_event(
+                                    conn, leg, mode="live", status=l_st,
+                                    notes=f"arb pair leg (pair={pair_id}) status={l_rs}",
+                                    notional=notional, token_id=leg_token, side="BUY",
+                                    price=l_px, size=l_sz, order_id=l_oid, response=l_pl,
+                                )
+                                _mark_candidate(conn, leg_id, l_st)
+                                stats["executed"] += 1
+                            except Exception as leg_exc:
+                                _insert_order_event(
+                                    conn, leg, mode="live", status="submission_failed",
+                                    notes=f"arb pair leg failed: {leg_exc}",
+                                    notional=notional, token_id=leg_token,
+                                )
+                                _mark_candidate(conn, leg_id, "submission_failed")
+                                stats["failed"] += 1
+                    executed_pair_ids.add(pair_id)
+                    stats["arb_pairs_executed"] += 1
+
                 # First-N manual approvals consumed only on successful live submissions.
                 if _as_bool(controls.get("polymarket_manual_approval"), default=True):
                     current = _as_int(controls.get("polymarket_approval_count"), 0)
@@ -970,7 +1075,8 @@ def run() -> int:
         print(
             "POLYMARKET_EXECUTOR "
             f"mode={stats['mode']} candidates={stats['candidates']} executed={stats['executed']} "
-            f"awaiting_approval={stats['awaiting_approval']} blocked={stats['blocked']} failed={stats['failed']} synced={stats['synced']}"
+            f"awaiting_approval={stats['awaiting_approval']} blocked={stats['blocked']} failed={stats['failed']} "
+            f"synced={stats['synced']} arb_pairs={stats['arb_pairs_executed']}"
         )
         return 0
     finally:
