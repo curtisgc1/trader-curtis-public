@@ -6435,3 +6435,175 @@ def get_exchange_pnl_summary() -> Dict[str, Any]:
         }
     finally:
         conn.close()
+
+
+# ── Alpaca / Hyperliquid venue-specific queries ────────────────────────────
+
+
+def get_alpaca_orders(limit: int = 120) -> List[Dict[str, Any]]:
+    """Execution orders filtered to stocks/Alpaca venue with fill data."""
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "execution_orders"):
+            return []
+        cur = conn.cursor()
+        has_fill = _table_exists(conn, "alpaca_fill_sync")
+        if has_fill:
+            cur.execute(
+                """
+                SELECT eo.created_at, eo.route_id, eo.ticker, eo.direction, eo.mode,
+                       eo.notional, eo.order_status, eo.broker_order_id, eo.notes,
+                       afs.filled_qty, afs.filled_price, afs.filled_at
+                FROM execution_orders eo
+                LEFT JOIN alpaca_fill_sync afs ON eo.broker_order_id = afs.order_id
+                ORDER BY eo.created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT created_at, route_id, ticker, direction, mode,
+                       notional, order_status, broker_order_id, notes,
+                       NULL AS filled_qty, NULL AS filled_price, NULL AS filled_at
+                FROM execution_orders
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_hyperliquid_intents(limit: int = 120) -> List[Dict[str, Any]]:
+    """Trade intents filtered to venue='hyperliquid'."""
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "trade_intents"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, created_at, venue, symbol, side, qty, notional, status, details
+            FROM trade_intents
+            WHERE LOWER(COALESCE(venue, '')) = 'hyperliquid'
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    finally:
+        conn.close()
+
+
+def submit_alpaca_quick_trade(
+    symbol: str, side: str, notional: float
+) -> Dict[str, Any]:
+    """Submit a manual Alpaca market order via REST API."""
+    env = _load_env()
+    api_key = env.get("ALPACA_API_KEY", "")
+    secret = env.get("ALPACA_SECRET_KEY", "")
+    base_url = env.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+    if not api_key or not secret:
+        return {"ok": False, "error": "missing Alpaca credentials"}
+
+    symbol = str(symbol).strip().upper()
+    side = str(side).strip().lower()
+    if side not in ("buy", "sell"):
+        return {"ok": False, "error": f"invalid side: {side}"}
+    if notional <= 0:
+        return {"ok": False, "error": "notional must be positive"}
+
+    order_body = json.dumps({
+        "symbol": symbol,
+        "notional": str(round(notional, 2)),
+        "side": side,
+        "type": "market",
+        "time_in_force": "day",
+    }).encode("utf-8")
+
+    headers = {
+        "APCA-API-KEY-ID": api_key,
+        "APCA-API-SECRET-KEY": secret,
+        "Content-Type": "application/json",
+    }
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/v2/orders",
+            data=order_body,
+            headers=headers,
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        order_id = result.get("id", "")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        return {"ok": False, "error": f"Alpaca API {exc.code}: {body}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    # Record in execution_orders + trade_intents
+    conn = _connect()
+    try:
+        if _table_exists(conn, "execution_orders"):
+            conn.execute(
+                """
+                INSERT INTO execution_orders
+                (created_at, route_id, ticker, direction, mode, notional, order_status, broker_order_id, notes)
+                VALUES (datetime('now'), 0, ?, ?, 'manual', ?, 'submitted', ?, 'quick-trade-ui')
+                """,
+                (symbol, side, notional, order_id),
+            )
+        if _table_exists(conn, "trade_intents"):
+            conn.execute(
+                """
+                INSERT INTO trade_intents
+                (created_at, venue, symbol, side, qty, notional, status, details)
+                VALUES (datetime('now'), 'alpaca', ?, ?, 0, ?, 'submitted', ?)
+                """,
+                (symbol, side, notional, json.dumps({"order_id": order_id, "source": "quick-trade-ui"})),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"ok": True, "order_id": order_id}
+
+
+def submit_hyperliquid_quick_trade(
+    symbol: str, side: str, notional: float
+) -> Dict[str, Any]:
+    """Submit a manual Hyperliquid market order via execution_adapters."""
+    symbol = str(symbol).strip().upper()
+    side = str(side).strip().lower()
+    if side not in ("buy", "sell"):
+        return {"ok": False, "error": f"invalid side: {side}"}
+    if notional <= 0:
+        return {"ok": False, "error": "notional must be positive"}
+
+    # Import execution adapter from parent directory
+    adapter_path = str(BASE_DIR)
+    if adapter_path not in sys.path:
+        sys.path.insert(0, adapter_path)
+    try:
+        from execution_adapters import hyperliquid_submit_notional_live
+    except ImportError as exc:
+        return {"ok": False, "error": f"cannot import execution_adapters: {exc}"}
+
+    try:
+        result = hyperliquid_submit_notional_live(symbol, side, notional)
+        ok = result.get("ok", False) if isinstance(result, dict) else False
+        intent_id = result.get("intent_id", "") if isinstance(result, dict) else ""
+        error = result.get("error", "") if isinstance(result, dict) else ""
+        return {"ok": ok, "intent_id": intent_id, "error": error}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}

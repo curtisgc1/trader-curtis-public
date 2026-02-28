@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Alpaca - Trader Curtis</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <h1>Alpaca</h1>
+          <p class="sub">Stock venue — live positions, orders, and manual trading</p>
+          <p class="sub"><a href="/">Main</a> &bull; <a href="/consensus">Consensus</a> &bull; <a href="/signals">Signals</a> &bull; <a href="/polymarket">Polymarket</a> &bull; <a href="/hyperliquid">Hyperliquid</a> &bull; <a href="/learning">Learning</a></p>
+        </div>
+        <div class="status" id="status-pill">loading</div>
+      </header>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Account Overview</h2>
+          <div id="alpaca-overview" class="health"></div>
+        </div>
+        <div class="card">
+          <h2>Open Positions</h2>
+          <div id="alpaca-positions" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Pre-Trade Controls</h2>
+          <div class="controls">
+            <div class="control-row"><label><input type="checkbox" id="ctl-stocks-enabled" /> Stocks Venue Enabled</label></div>
+            <div class="control-row">Mode <select id="ctl-stocks-mode"><option value="paper">Paper</option><option value="live">Live</option></select></div>
+            <div class="control-row">Min score <input id="ctl-stocks-min-score" type="number" min="0" max="100" step="1" /></div>
+            <div class="control-row">Max notional ($) <input id="ctl-stocks-max-notional" type="number" min="1" step="1" /></div>
+            <div class="control-actions">
+              <button id="btn-stocks-save">Save</button>
+            </div>
+            <div id="stocks-control-status" class="control-warning"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Quick Trade</h2>
+          <div class="controls">
+            <div class="control-row">Symbol <input id="qt-alp-symbol" type="text" placeholder="AAPL" /></div>
+            <div class="control-row">Notional ($) <input id="qt-alp-notional" type="number" min="1" step="1" value="100" /></div>
+            <div class="control-actions">
+              <button id="btn-alp-buy" class="btn-buy">Buy</button>
+              <button id="btn-alp-sell" class="btn-sell">Sell</button>
+            </div>
+            <div id="qt-alp-status" class="control-warning"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Execution Orders</h2>
+          <div id="alpaca-orders" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Signal Routes (Stocks)</h2>
+          <div id="alpaca-routes" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Closed Trades</h2>
+          <div id="alpaca-closed" class="table"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/alpaca.js?v=20260227a"></script>
+  </body>
+</html>

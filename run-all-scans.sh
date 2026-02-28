@@ -82,6 +82,7 @@ run_step "Pipeline B (Innovation)" "pipeline_b"  /Users/Shared/curtis/trader-cur
 run_step "Pipeline E (Breakthroughs)" "pipeline_e" /Users/Shared/curtis/trader-curtis/pipeline_e_breakthroughs.py
 run_step "Pipeline C (Events)"     "pipeline_c"  /Users/Shared/curtis/trader-curtis/pipeline_c_event.py
 run_step "Pipeline K (VIX Regime)" "pipeline_k"  /Users/Shared/curtis/trader-curtis/pipeline_k_vix_regime.py
+run_step "Pipeline L (DAPO Agent)" "pipeline_l"  /Users/Shared/curtis/trader-curtis/pipeline_l_dapo_agent.py
 run_step "Event alert engine"      "event_alerts" /Users/Shared/curtis/trader-curtis/event_alert_engine.py
 
 # ── POLYMARKET ────────────────────────────────────────

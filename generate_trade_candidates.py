@@ -69,6 +69,7 @@ def seed_input_source_controls(conn: sqlite3.Connection) -> None:
         ("family:momentum", "Momentum Rank", "family"),
         ("family:event_alpha", "Event Alpha (Macro/Geo)", "family"),
         ("family:vix_regime", "VIX Regime Switch (TQQQ/BTAL)", "family"),
+        ("family:dapo_agent", "DAPO RL Agent", "family"),
     ]
     for key, label, klass in seeds:
         conn.execute(
@@ -358,7 +359,7 @@ def main() -> int:
                 SELECT asset, score, direction, pipeline_id, generated_at
                 FROM pipeline_signals
                 WHERE status = 'new'
-                  AND UPPER(pipeline_id) NOT IN ('CHART_LIQUIDITY', 'KYLE_WILLIAMS', 'B_LONGTERM', 'E_BREAKTHROUGH', 'VIX_REGIME')
+                  AND UPPER(pipeline_id) NOT IN ('CHART_LIQUIDITY', 'KYLE_WILLIAMS', 'B_LONGTERM', 'E_BREAKTHROUGH', 'VIX_REGIME', 'DAPO_AGENT')
                 ORDER BY generated_at DESC
                 """,
             )
@@ -394,6 +395,18 @@ def main() -> int:
                 FROM pipeline_signals
                 WHERE status = 'new'
                   AND UPPER(pipeline_id) = 'VIX_REGIME'
+                ORDER BY generated_at DESC
+                """,
+            )
+            # DAPO_AGENT — RL-based trading agent (Pipeline L)
+            # Standalone family with its own weight; gated on checkpoint existence
+            dapo_agent_signals = latest_map(
+                cur,
+                """
+                SELECT asset, score, direction, pipeline_id, generated_at
+                FROM pipeline_signals
+                WHERE status = 'new'
+                  AND UPPER(pipeline_id) = 'DAPO_AGENT'
                 ORDER BY generated_at DESC
                 """,
             )
@@ -655,7 +668,24 @@ def main() -> int:
                     "value": round(c_vr, 6),
                 })
 
-            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_kw + c_event_alpha + c_mom + c_vr
+            # DAPO RL agent — standalone RL-based signal, weight 0.70
+            dapo_score = 0.0
+            dapo_direction = "unknown"
+            dapo_hit = ticker in dapo_agent_signals
+            c_dapo = 0.0
+            if dapo_hit:
+                dapo_score = float(dapo_agent_signals[ticker][0] or 0.0)
+                dapo_direction = dapo_agent_signals[ticker][1] or "unknown"
+            if dapo_hit and dapo_score > 0:
+                c_dapo, w_dapo = contribution(input_controls, "family:dapo_agent", (dapo_score / 100.0) * 0.70)
+                breakdown.append({
+                    "key": "family:dapo_agent",
+                    "base": round((dapo_score / 100.0) * 0.70, 6),
+                    "weight": round(w_dapo, 6),
+                    "value": round(c_dapo, 6),
+                })
+
+            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_kw + c_event_alpha + c_mom + c_vr + c_dapo
             final_score = round(min(max(blended, 0.0), 1.0) * 100.0, 2)
 
             if direction_consensus_enabled:
@@ -669,6 +699,7 @@ def main() -> int:
                     (kw_direction, weight_for(input_controls, "family:kyle_williams")),
                     (ea_direction, weight_for(input_controls, "family:event_alpha")),
                     (vr_direction, weight_for(input_controls, "family:vix_regime")),
+                    (dapo_direction, weight_for(input_controls, "family:dapo_agent")),
                 ]
                 for dir_val, w_dir in dir_inputs:
                     d = str(dir_val or "").strip().lower()
@@ -701,6 +732,8 @@ def main() -> int:
                     direction = ea_direction
                 if direction == "unknown" and vr_direction != "unknown":
                     direction = vr_direction
+                if direction == "unknown" and dapo_direction != "unknown":
+                    direction = dapo_direction
 
             source_tag = ext_source if ext_source != "internal" else (copy_source or pipe_source or "internal")
             if source_tag == "internal" and kw_hit:
@@ -709,6 +742,8 @@ def main() -> int:
                 source_tag = "C_EVENT"
             if source_tag == "internal" and vr_hit:
                 source_tag = "VIX_REGIME"
+            if source_tag == "internal" and dapo_hit:
+                source_tag = "DAPO_AGENT"
             evidence = []
             if ticker in sentiment:
                 evidence.append("social_sentiment")
@@ -732,9 +767,11 @@ def main() -> int:
                 evidence.append(f"momentum:rank_{momentum_map[ticker][1]}_of_{momentum_map[ticker][2]}")
             if vr_hit:
                 evidence.append(f"vix_regime:{vr_direction}:{vr_score:.0f}")
+            if dapo_hit:
+                evidence.append(f"dapo_agent:{dapo_direction}:{dapo_score:.0f}")
 
             confirmations = len(set([e.split(":")[0] if ":" in e else e for e in evidence]))
-            sources_total = 10  # social, pattern, external, copy, pipeline, liquidity, kyle_williams, event_alpha, momentum, vix_regime
+            sources_total = 11  # social, pattern, external, copy, pipeline, liquidity, kyle_williams, event_alpha, momentum, vix_regime, dapo_agent
             consensus_ratio = round(min(1.0, confirmations / max(1, sources_total)), 4)
             consensus_flag = 1 if (
                 confirmations >= min_confirmations

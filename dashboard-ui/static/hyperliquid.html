@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hyperliquid - Trader Curtis</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div>
+          <h1>Hyperliquid</h1>
+          <p class="sub">Crypto venue — perp positions, spot balances, and manual trading</p>
+          <p class="sub"><a href="/">Main</a> &bull; <a href="/consensus">Consensus</a> &bull; <a href="/signals">Signals</a> &bull; <a href="/polymarket">Polymarket</a> &bull; <a href="/alpaca">Alpaca</a> &bull; <a href="/learning">Learning</a></p>
+        </div>
+        <div class="status" id="status-pill">loading</div>
+      </header>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Account Overview</h2>
+          <div id="hl-overview" class="health"></div>
+        </div>
+        <div class="card">
+          <h2>Perp Positions</h2>
+          <div id="hl-perp-positions" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Spot Balances</h2>
+          <div id="hl-spot-balances" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Pre-Trade Controls</h2>
+          <div class="controls">
+            <div class="control-row"><label><input type="checkbox" id="ctl-crypto-enabled" /> Crypto Venue Enabled</label></div>
+            <div class="control-row">Mode <select id="ctl-crypto-mode"><option value="paper">Paper</option><option value="live">Live</option></select></div>
+            <div class="control-row">Min score <input id="ctl-crypto-min-score" type="number" min="0" max="100" step="1" /></div>
+            <div class="control-row">Max notional ($) <input id="ctl-crypto-max-notional" type="number" min="1" step="1" /></div>
+            <div class="control-actions">
+              <button id="btn-crypto-save">Save</button>
+            </div>
+            <div id="crypto-control-status" class="control-warning"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Quick Trade</h2>
+          <div class="controls">
+            <div class="control-row">Symbol
+              <select id="qt-hl-symbol">
+                <option value="BTC">BTC</option>
+                <option value="ETH">ETH</option>
+                <option value="SOL">SOL</option>
+                <option value="DOGE">DOGE</option>
+                <option value="XRP">XRP</option>
+                <option value="AVAX">AVAX</option>
+                <option value="BNB">BNB</option>
+                <option value="LTC">LTC</option>
+                <option value="SUI">SUI</option>
+                <option value="HYPE">HYPE</option>
+              </select>
+            </div>
+            <div class="control-row">Notional ($) <input id="qt-hl-notional" type="number" min="1" step="1" value="50" /></div>
+            <div class="control-actions">
+              <button id="btn-hl-buy" class="btn-buy">Long</button>
+              <button id="btn-hl-sell" class="btn-sell">Short</button>
+            </div>
+            <div id="qt-hl-status" class="control-warning"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Trade Intents</h2>
+          <div id="hl-intents" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Position Management</h2>
+          <div id="hl-pos-mgmt" class="table"></div>
+        </div>
+        <div class="card span-2">
+          <h2>Signal Routes (Crypto)</h2>
+          <div id="hl-routes" class="table"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/hyperliquid.js?v=20260227a"></script>
+  </body>
+</html>

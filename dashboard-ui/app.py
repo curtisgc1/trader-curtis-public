@@ -75,6 +75,10 @@ from data import (
     submit_counterfactual_feedback,
     get_kelly_signals,
     get_exchange_pnl_summary,
+    get_alpaca_orders,
+    get_hyperliquid_intents,
+    submit_alpaca_quick_trade,
+    submit_hyperliquid_quick_trade,
 )
 from data_scorecard import (
     get_signal_scorecard,
@@ -118,6 +122,16 @@ def polymarket_page():
 @app.get("/consensus")
 def consensus_page():
     return send_from_directory(app.static_folder, "consensus.html")
+
+
+@app.get("/alpaca")
+def alpaca_page():
+    return send_from_directory(app.static_folder, "alpaca.html")
+
+
+@app.get("/hyperliquid")
+def hyperliquid_page():
+    return send_from_directory(app.static_folder, "hyperliquid.html")
 
 
 @app.get("/api/summary")
@@ -617,6 +631,36 @@ def api_source_premium_breakdown():
 def api_weight_history():
     limit = int(request.args.get("limit", 50))
     return jsonify(get_weight_change_history(limit=limit))
+
+
+@app.get("/api/alpaca-orders")
+def api_alpaca_orders():
+    limit = int(request.args.get("limit", 120))
+    return jsonify(get_alpaca_orders(limit=limit))
+
+
+@app.get("/api/hyperliquid-intents")
+def api_hyperliquid_intents():
+    limit = int(request.args.get("limit", 120))
+    return jsonify(get_hyperliquid_intents(limit=limit))
+
+
+@app.post("/api/alpaca-quick-trade")
+def api_alpaca_quick_trade():
+    payload = request.get_json(silent=True) or {}
+    symbol = str(payload.get("symbol", "")).strip()
+    side = str(payload.get("side", "")).strip()
+    notional = float(payload.get("notional", 0))
+    return jsonify(submit_alpaca_quick_trade(symbol, side, notional))
+
+
+@app.post("/api/hyperliquid-quick-trade")
+def api_hyperliquid_quick_trade():
+    payload = request.get_json(silent=True) or {}
+    symbol = str(payload.get("symbol", "")).strip()
+    side = str(payload.get("side", "")).strip()
+    notional = float(payload.get("notional", 0))
+    return jsonify(submit_hyperliquid_quick_trade(symbol, side, notional))
 
 
 if __name__ == "__main__":
