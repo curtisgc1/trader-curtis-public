@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, request, send_from_directory
 from data import (
     approve_polymarket_candidates,
+    get_arb_opportunities,
+    get_arb_overview,
     get_bookmark_theses,
     get_bookmark_alpha_ideas,
     get_breakthrough_events,
@@ -80,6 +82,14 @@ from data import (
     submit_alpaca_quick_trade,
     submit_hyperliquid_quick_trade,
     get_system_intelligence,
+    get_source_decay_status,
+    apply_source_dampening,
+    get_x_consensus_status,
+    approve_x_discovery,
+    reject_x_discovery,
+    get_fresh_whale_discoveries,
+    get_health_pulse,
+    get_market_regime_status,
 )
 from data_scorecard import (
     get_signal_scorecard,
@@ -241,6 +251,26 @@ def api_performance_curve():
 @app.get("/api/system-intelligence")
 def api_system_intelligence():
     return jsonify(get_system_intelligence())
+
+
+@app.get("/api/source-decay")
+def api_source_decay():
+    window_days = int(request.args.get("window_days", 14))
+    min_lifetime_trades = int(request.args.get("min_lifetime_trades", 10))
+    return jsonify(get_source_decay_status(window_days=window_days, min_lifetime_trades=min_lifetime_trades))
+
+
+@app.post("/api/source-decay")
+def api_source_decay_action():
+    payload = request.get_json(silent=True) or {}
+    source_tag = str(payload.get("source_tag", "")).strip()
+    action = str(payload.get("action", "")).strip()
+    return jsonify(apply_source_dampening(source_tag, action))
+
+
+@app.get("/api/market-regime")
+def api_market_regime():
+    return jsonify(get_market_regime_status())
 
 
 @app.get("/api/pnl-breakdown")
@@ -667,6 +697,54 @@ def api_hyperliquid_quick_trade():
     side = str(payload.get("side", "")).strip()
     notional = float(payload.get("notional", 0))
     return jsonify(submit_hyperliquid_quick_trade(symbol, side, notional))
+
+
+@app.get("/api/x-consensus")
+def api_x_consensus():
+    return jsonify(get_x_consensus_status())
+
+
+@app.post("/api/x-discovery")
+def api_x_discovery_action():
+    payload = request.get_json(silent=True) or {}
+    action = str(payload.get("action", "")).strip()
+    handle = str(payload.get("handle", "")).strip()
+    if action == "approve":
+        return jsonify(approve_x_discovery(handle))
+    elif action == "reject":
+        return jsonify(reject_x_discovery(handle))
+    return jsonify({"ok": False, "error": f"unknown action: {action}"})
+
+
+@app.get("/api/fresh-whales")
+def api_fresh_whales():
+    limit = int(request.args.get("limit", 50))
+    return jsonify(get_fresh_whale_discoveries(limit=limit))
+
+
+@app.get("/api/health-pulse")
+def api_health_pulse():
+    return jsonify(get_health_pulse())
+
+
+@app.post("/api/x-consensus-settings")
+def api_x_consensus_settings():
+    payload = request.get_json(silent=True) or {}
+    min_hits = payload.get("x_consensus_min_hits")
+    if min_hits is not None:
+        return jsonify(set_execution_controls({"x_consensus_min_hits": str(int(float(min_hits)))}))
+    return jsonify({"ok": False, "error": "no settings provided"})
+
+
+@app.get("/api/arb-opportunities")
+def api_arb_opportunities():
+    limit = int(request.args.get("limit", 100))
+    return jsonify(get_arb_opportunities(limit=limit))
+
+
+@app.get("/api/arb-overview")
+def api_arb_overview():
+    return jsonify(get_arb_overview())
 
 
 if __name__ == "__main__":

@@ -87,6 +87,28 @@
       </section>
 
       <section class="grid">
+        <div class="card">
+          <h2>Cross-Platform Arb Scanner</h2>
+          <p class="sub">Polymarket x Kalshi — automated spread detection &amp; execution</p>
+          <div id="arb-overview"></div>
+          <div class="controls" style="margin-top:8px">
+            <div class="control-row"><label><input type="checkbox" id="ctl-arb-enabled" /> Arb Scanner ON</label></div>
+            <div class="control-row">Min spread (%) <input id="ctl-arb-spread" type="number" min="0" step="0.5" /></div>
+            <div class="control-row">Max per leg ($) <input id="ctl-arb-leg" type="number" min="1" step="1" /></div>
+            <div class="control-actions">
+              <button id="btn-arb-save">Save Arb Settings</button>
+            </div>
+            <div id="arb-control-status" class="control-warning"></div>
+          </div>
+        </div>
+        <div class="card span-2">
+          <h2>Arb Opportunities</h2>
+          <p class="sub">Detected and executed cross-platform arb pairs (last 7 days)</p>
+          <div id="arb-opportunities" class="table"></div>
+        </div>
+      </section>
+
+      <section class="grid">
         <div class="card span-2">
           <h2>Polymarket Order Events</h2>
           <div id="polymarket-orders" class="table"></div>
@@ -135,6 +157,11 @@
           <div id="poly-wallet-scores" class="table"></div>
         </div>
         <div class="card span-2">
+          <h2>Fresh Whale Discoveries</h2>
+          <p class="sub">New accounts (&#8804;7 days old) placing &#8805;$50k trades &mdash; auto-tracked for copy trading</p>
+          <div id="fresh-whale-list" class="table"></div>
+        </div>
+        <div class="card span-2">
           <h2>Input Weight Engine (All Inputs)</h2>
           <div class="controls">
             <div class="control-row"><label><input type="checkbox" id="ctl-x-influence" checked /> Use X Inputs in Scoring</label></div>
@@ -170,6 +197,6 @@
       </section>
     </div>
 
-    <script src="/static/polymarket.js?v=20260226a"></script>
+    <script src="/static/polymarket.js?v=20260228a"></script>
   </body>
 </html>

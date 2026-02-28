@@ -3135,6 +3135,8 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "premium_gate_liq_crypto",
         "premium_gate_mom_stocks",
         "premium_gate_mom_crypto",
+        # X consensus
+        "x_consensus_min_hits",
         # Venue promotion controls
         "auto_promote_enabled",
         "promote_min_paper_trades",
@@ -5079,12 +5081,14 @@ def get_tracked_sources(limit: int = 200) -> List[Dict[str, Any]]:
             return []
         has_x_api = _column_exists(conn, "tracked_x_sources", "x_api_enabled")
         has_weight = _column_exists(conn, "tracked_x_sources", "source_weight")
+        has_kol = _column_exists(conn, "tracked_x_sources", "kol_category")
         x_api_expr = "x_api_enabled" if has_x_api else "1 AS x_api_enabled"
         weight_expr = "source_weight" if has_weight else "1.0 AS source_weight"
+        kol_expr = "kol_category" if has_kol else "'stocks' AS kol_category"
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, created_at, updated_at, handle, role_copy, role_alpha, active, """ + x_api_expr + """, """ + weight_expr + """, notes
+            SELECT id, created_at, updated_at, handle, role_copy, role_alpha, active, """ + x_api_expr + """, """ + weight_expr + """, notes, """ + kol_expr + """
             FROM tracked_x_sources
             ORDER BY updated_at DESC
             LIMIT ?
@@ -5110,6 +5114,9 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
     if source_weight > 3.0:
         source_weight = 3.0
     notes = str((payload or {}).get("notes") or "").strip()
+    kol_category = str((payload or {}).get("kol_category") or "stocks").strip()
+    if kol_category not in ("stocks", "crypto", "polymarket", "mixed"):
+        kol_category = "stocks"
 
     if not DB_PATH.exists():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -5127,7 +5134,8 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
               active INTEGER NOT NULL DEFAULT 1,
               x_api_enabled INTEGER NOT NULL DEFAULT 1,
               source_weight REAL NOT NULL DEFAULT 1.0,
-              notes TEXT NOT NULL DEFAULT ''
+              notes TEXT NOT NULL DEFAULT '',
+              kol_category TEXT NOT NULL DEFAULT 'stocks'
             )
             """
         )
@@ -5135,6 +5143,8 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
             conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN x_api_enabled INTEGER NOT NULL DEFAULT 1")
         if not _column_exists(conn, "tracked_x_sources", "source_weight"):
             conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN source_weight REAL NOT NULL DEFAULT 1.0")
+        if not _column_exists(conn, "tracked_x_sources", "kol_category"):
+            conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN kol_category TEXT NOT NULL DEFAULT 'stocks'")
         cur = conn.cursor()
         cur.execute(
             """
@@ -5158,17 +5168,18 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
                   active=?,
                   x_api_enabled=?,
                   source_weight=?,
-                  notes=?
+                  notes=?,
+                  kol_category=?
                 WHERE handle=?
                 """,
-                (handle, role_copy, role_alpha, active, x_api_enabled, float(source_weight), notes, str(existing[0])),
+                (handle, role_copy, role_alpha, active, x_api_enabled, float(source_weight), notes, kol_category, str(existing[0])),
             )
             conn.commit()
             return {"ok": True, "handle": handle, "sources": get_tracked_sources()}
         conn.execute(
             """
-            INSERT INTO tracked_x_sources (created_at, updated_at, handle, role_copy, role_alpha, active, x_api_enabled, source_weight, notes)
-            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tracked_x_sources (created_at, updated_at, handle, role_copy, role_alpha, active, x_api_enabled, source_weight, notes, kol_category)
+            VALUES (datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(handle) DO UPDATE SET
               updated_at=datetime('now'),
               role_copy=excluded.role_copy,
@@ -5176,9 +5187,10 @@ def upsert_tracked_source(payload: Dict[str, Any]) -> Dict[str, Any]:
               active=excluded.active,
               x_api_enabled=excluded.x_api_enabled,
               source_weight=excluded.source_weight,
-              notes=excluded.notes
+              notes=excluded.notes,
+              kol_category=excluded.kol_category
             """,
-            (handle, role_copy, role_alpha, active, x_api_enabled, float(source_weight), notes),
+            (handle, role_copy, role_alpha, active, x_api_enabled, float(source_weight), notes, kol_category),
         )
         conn.commit()
         return {"ok": True, "handle": handle, "sources": get_tracked_sources()}
@@ -6719,3 +6731,959 @@ def get_system_intelligence() -> Dict[str, Any]:
         conn.close()
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Source Decay Detection + Dampening
+# ---------------------------------------------------------------------------
+
+
+def _ensure_weight_change_log_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS weight_change_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          changed_at TEXT NOT NULL,
+          source_key TEXT NOT NULL,
+          old_auto_weight REAL NOT NULL,
+          new_auto_weight REAL NOT NULL,
+          reason TEXT NOT NULL DEFAULT '',
+          sample_size INTEGER NOT NULL DEFAULT 0,
+          win_rate REAL NOT NULL DEFAULT 0
+        )
+        """
+    )
+    conn.commit()
+
+
+def _log_decay_change(
+    conn: sqlite3.Connection,
+    source_key: str,
+    old_w: float,
+    new_w: float,
+    reason: str,
+    sample_size: int,
+    win_rate: float,
+) -> None:
+    if abs(old_w - new_w) < 0.0001:
+        return
+    conn.execute(
+        """
+        INSERT INTO weight_change_log
+        (changed_at, source_key, old_auto_weight, new_auto_weight, reason, sample_size, win_rate)
+        VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)
+        """,
+        (source_key, old_w, new_w, reason, sample_size, round(win_rate, 2)),
+    )
+
+
+def get_source_decay_status(
+    window_days: int = 14, min_lifetime_trades: int = 10
+) -> Dict[str, Any]:
+    """Compare recent vs lifetime per-source performance and flag decay."""
+    import math
+
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "route_outcomes"):
+            return {"ok": True, "window_days": window_days, "sources": [], "summary": {"healthy": 0, "decaying": 0, "improving": 0}}
+
+        cur = conn.cursor()
+
+        # Q1 — lifetime stats per source
+        cur.execute(
+            """
+            SELECT source_tag,
+                   COUNT(*) AS n,
+                   AVG(CASE WHEN pnl_percent > 0 THEN 1.0 ELSE 0.0 END) * 100 AS wr,
+                   AVG(pnl_percent) AS avg_pnl
+            FROM route_outcomes
+            WHERE pnl_percent IS NOT NULL
+            GROUP BY source_tag
+            HAVING COUNT(*) >= ?
+            """,
+            (min_lifetime_trades,),
+        )
+        lifetime = {}
+        for row in cur.fetchall():
+            tag = str(row[0] or "")
+            lifetime[tag] = {
+                "n": int(row[1] or 0),
+                "win_rate": round(float(row[2] or 0.0), 2),
+                "avg_pnl": round(float(row[3] or 0.0), 4),
+            }
+
+        # Q2 — recent window stats
+        cur.execute(
+            """
+            SELECT source_tag,
+                   COUNT(*) AS n,
+                   AVG(CASE WHEN pnl_percent > 0 THEN 1.0 ELSE 0.0 END) * 100 AS wr,
+                   AVG(pnl_percent) AS avg_pnl
+            FROM route_outcomes
+            WHERE pnl_percent IS NOT NULL
+              AND datetime(resolved_at) >= datetime('now', ? || ' days')
+            GROUP BY source_tag
+            """,
+            (str(-window_days),),
+        )
+        recent = {}
+        for row in cur.fetchall():
+            tag = str(row[0] or "")
+            recent[tag] = {
+                "n": int(row[1] or 0),
+                "win_rate": round(float(row[2] or 0.0), 2),
+                "avg_pnl": round(float(row[3] or 0.0), 4),
+            }
+
+        # auto_weight lookup
+        has_isc = _table_exists(conn, "input_source_controls")
+
+        sources_out = []
+        counts = {"healthy": 0, "decaying": 0, "improving": 0}
+
+        for tag, lt in sorted(lifetime.items(), key=lambda x: x[1]["win_rate"]):
+            rc = recent.get(tag, {"n": 0, "win_rate": 0.0, "avg_pnl": 0.0})
+
+            # Q3 — EMA series from ordered pnl values
+            cur.execute(
+                """
+                SELECT pnl_percent FROM route_outcomes
+                WHERE source_tag = ? AND pnl_percent IS NOT NULL
+                ORDER BY datetime(COALESCE(resolved_at, '1970-01-01')) ASC
+                """,
+                (tag,),
+            )
+            pnl_rows = [float(r[0]) for r in cur.fetchall()]
+            alpha = 2.0 / (14.0 + 1.0)
+            ema_series = []
+            ema = 50.0
+            for val in pnl_rows:
+                win_val = 100.0 if val > 0 else 0.0
+                ema = alpha * win_val + (1.0 - alpha) * ema
+                ema_series.append(round(ema, 2))
+
+            # Decay signal: Bernoulli σ
+            lt_p = lt["win_rate"] / 100.0
+            sigma = math.sqrt(max(lt_p * (1.0 - lt_p), 0.0001)) * 100.0
+            if rc["n"] >= 5:
+                if rc["win_rate"] < lt["win_rate"] - sigma:
+                    decay_signal = "decaying"
+                elif rc["win_rate"] > lt["win_rate"] + sigma:
+                    decay_signal = "improving"
+                else:
+                    decay_signal = "stable"
+            else:
+                decay_signal = "stable"
+
+            severity = round(max(0.0, lt["win_rate"] - rc["win_rate"]) / max(sigma, 1.0), 2) if rc["n"] >= 5 else 0.0
+
+            # auto_weight
+            auto_weight = 1.0
+            if has_isc:
+                cur.execute(
+                    "SELECT auto_weight FROM input_source_controls WHERE source_key = ? LIMIT 1",
+                    ("source:" + tag.lower(),),
+                )
+                aw_row = cur.fetchone()
+                if aw_row:
+                    auto_weight = round(float(aw_row[0] or 1.0), 4)
+
+            # Suggested action
+            if decay_signal == "decaying":
+                suggested = "dampen"
+            elif decay_signal == "improving" and auto_weight < 0.95:
+                suggested = "boost"
+            else:
+                suggested = "hold"
+
+            if decay_signal == "decaying":
+                counts["decaying"] += 1
+            elif decay_signal == "improving":
+                counts["improving"] += 1
+            else:
+                counts["healthy"] += 1
+
+            sources_out.append({
+                "source_tag": tag,
+                "lifetime_n": lt["n"],
+                "lifetime_win_rate": lt["win_rate"],
+                "lifetime_avg_pnl_pct": lt["avg_pnl"],
+                "recent_n": rc["n"],
+                "recent_win_rate": rc["win_rate"],
+                "recent_avg_pnl_pct": rc["avg_pnl"],
+                "ema_series": ema_series,
+                "decay_signal": decay_signal,
+                "severity": severity,
+                "current_auto_weight": auto_weight,
+                "suggested_action": suggested,
+            })
+
+        return {
+            "ok": True,
+            "window_days": window_days,
+            "sources": sources_out,
+            "summary": counts,
+        }
+    finally:
+        conn.close()
+
+
+def apply_source_dampening(source_tag: str, action: str) -> Dict[str, Any]:
+    """Apply dampen/restore/disable to a source's auto_weight."""
+    if action not in ("dampen", "restore", "disable"):
+        return {"ok": False, "error": f"unknown action: {action}"}
+    if not source_tag:
+        return {"ok": False, "error": "missing source_tag"}
+
+    source_key = "source:" + source_tag.lower()
+    conn = _connect()
+    try:
+        _ensure_weight_change_log_table(conn)
+
+        # Ensure row exists
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO input_source_controls
+            (created_at, updated_at, source_key, source_label, source_class, enabled, manual_weight, auto_weight, notes)
+            VALUES (datetime('now'), datetime('now'), ?, ?, '', 1, 1.0, 1.0, '')
+            """,
+            (source_key, source_tag),
+        )
+
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT auto_weight, enabled FROM input_source_controls WHERE source_key = ?",
+            (source_key,),
+        )
+        row = cur.fetchone()
+        old_weight = float(row[0]) if row else 1.0
+        old_enabled = int(row[1]) if row else 1
+
+        new_weight = old_weight
+        new_enabled = old_enabled
+        reason = ""
+
+        if action == "dampen":
+            new_weight = 0.0
+            reason = "dashboard_decay_dampening"
+        elif action == "restore":
+            new_weight = 1.0
+            reason = "dashboard_decay_restore"
+        elif action == "disable":
+            new_enabled = 0
+            reason = "dashboard_decay_disable"
+
+        conn.execute(
+            """
+            UPDATE input_source_controls
+            SET auto_weight = ?, enabled = ?, updated_at = datetime('now')
+            WHERE source_key = ?
+            """,
+            (new_weight, new_enabled, source_key),
+        )
+
+        _log_decay_change(conn, source_key, old_weight, new_weight, reason, 0, 0.0)
+        conn.commit()
+
+        return {
+            "ok": True,
+            "source_key": source_key,
+            "action": action,
+            "old_auto_weight": round(old_weight, 4),
+            "new_auto_weight": round(new_weight, 4),
+        }
+    finally:
+        conn.close()
+
+
+def auto_dampen_decaying_sources() -> Dict[str, Any]:
+    """Auto-zero any source flagged as decaying. Controlled by auto_decay_enabled."""
+    conn = _connect()
+    try:
+        enabled = True
+        if _table_exists(conn, "execution_controls"):
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM execution_controls WHERE key='auto_decay_enabled' LIMIT 1")
+            row = cur.fetchone()
+            if row and str(row[0]) == "0":
+                enabled = False
+        if not enabled:
+            return {"auto_decay_enabled": False, "checked": 0, "zeroed": []}
+
+        decay = get_source_decay_status()
+        sources = decay.get("sources") or []
+        zeroed: List[str] = []
+        for s in sources:
+            if s.get("decay_signal") == "decaying":
+                tag = s.get("source_tag", "")
+                if tag:
+                    apply_source_dampening(tag, "dampen")
+                    zeroed.append(tag)
+        return {"auto_decay_enabled": True, "checked": len(sources), "zeroed": zeroed}
+    finally:
+        conn.close()
+
+
+def get_fresh_whale_discoveries(limit: int = 50) -> Dict[str, Any]:
+    """Return recent fresh whale discoveries with summary stats."""
+    if not DB_PATH.exists():
+        return {"ok": False, "discoveries": [], "summary": {"total_discovered": 0, "total_auto_tracked": 0}}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "fresh_whale_discoveries"):
+            return {"ok": True, "discoveries": [], "summary": {"total_discovered": 0, "total_auto_tracked": 0}}
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT discovered_at, wallet_address, handle, join_date, account_age_days,
+                   market_slug, condition_id, trade_size_usdc, side, outcome, auto_tracked, notes
+            FROM fresh_whale_discoveries
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        cols = [c[0] for c in cur.description]
+        discoveries = [dict(zip(cols, row)) for row in cur.fetchall()]
+
+        cur.execute("SELECT COUNT(*) FROM fresh_whale_discoveries")
+        total = int(cur.fetchone()[0] or 0)
+        cur.execute("SELECT COUNT(*) FROM fresh_whale_discoveries WHERE auto_tracked=1")
+        tracked = int(cur.fetchone()[0] or 0)
+
+        return {
+            "ok": True,
+            "discoveries": discoveries,
+            "summary": {"total_discovered": total, "total_auto_tracked": tracked},
+        }
+    finally:
+        conn.close()
+
+
+def get_market_regime_status() -> Dict[str, Any]:
+    """Read latest market regime state for all asset classes."""
+    if not DB_PATH.exists():
+        return {"ok": False, "regimes": []}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "market_regime_state"):
+            return {"ok": True, "regimes": []}
+        cur = conn.cursor()
+        regimes: List[Dict[str, Any]] = []
+        for ac in ("stocks", "crypto"):
+            cur.execute(
+                """
+                SELECT fetched_at, symbol, ema_fast, ema_slow, hl2_current, trend, cloud_width_pct
+                FROM market_regime_state
+                WHERE asset_class = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (ac,),
+            )
+            row = cur.fetchone()
+            if row:
+                regimes.append({
+                    "asset_class": ac,
+                    "fetched_at": str(row[0]),
+                    "symbol": str(row[1]),
+                    "ema_fast": float(row[2]),
+                    "ema_slow": float(row[3]),
+                    "hl2_current": float(row[4]),
+                    "trend": str(row[5]),
+                    "cloud_width_pct": float(row[6]),
+                })
+        return {"ok": True, "regimes": regimes}
+    finally:
+        conn.close()
+
+
+def get_x_consensus_status() -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {"consensus_signals": [], "discovery_candidates": [], "settings": {"x_consensus_min_hits": 3}}
+    conn = _connect()
+    try:
+        consensus_signals: List[Dict[str, Any]] = []
+        if _table_exists(conn, "x_consensus_signals"):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT ticker, direction, source_count, sources, avg_confidence,
+                       weighted_confidence, created_at
+                FROM x_consensus_signals
+                WHERE status = 'active'
+                ORDER BY source_count DESC, created_at DESC
+                LIMIT 100
+                """
+            )
+            consensus_signals = _rows_to_dicts(cur, cur.fetchall())
+
+        discovery_candidates: List[Dict[str, Any]] = []
+        if _table_exists(conn, "x_discovery_candidates"):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT handle, display_name, followers, description, sample_call,
+                       discovery_source, status, discovered_at,
+                       COALESCE(kol_category, 'stocks') AS kol_category
+                FROM x_discovery_candidates
+                ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
+                         discovered_at DESC
+                LIMIT 200
+                """
+            )
+            discovery_candidates = _rows_to_dicts(cur, cur.fetchall())
+
+        min_hits = 3
+        if _table_exists(conn, "execution_controls"):
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM execution_controls WHERE key='x_consensus_min_hits' LIMIT 1")
+            row = cur.fetchone()
+            if row and row[0]:
+                min_hits = int(float(row[0]))
+
+        return {
+            "consensus_signals": consensus_signals,
+            "discovery_candidates": discovery_candidates,
+            "settings": {"x_consensus_min_hits": min_hits},
+        }
+    finally:
+        conn.close()
+
+
+def approve_x_discovery(handle: str) -> Dict[str, Any]:
+    handle = str(handle or "").strip().lower().lstrip("@")
+    if not handle:
+        return {"ok": False, "error": "handle required"}
+    if not DB_PATH.exists():
+        return {"ok": False, "error": "database not found"}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "x_discovery_candidates"):
+            return {"ok": False, "error": "no discovery candidates table"}
+
+        conn.execute(
+            "UPDATE x_discovery_candidates SET status='approved' WHERE lower(handle)=?",
+            (handle,),
+        )
+
+        # Read kol_category from discovery candidate
+        kol_category = "stocks"
+        if _column_exists(conn, "x_discovery_candidates", "kol_category"):
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT kol_category FROM x_discovery_candidates WHERE lower(handle)=? LIMIT 1",
+                (handle,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                kol_category = str(row[0])
+
+        # Auto-insert into tracked_x_sources
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tracked_x_sources (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              handle TEXT NOT NULL UNIQUE,
+              role_copy INTEGER NOT NULL DEFAULT 1,
+              role_alpha INTEGER NOT NULL DEFAULT 1,
+              active INTEGER NOT NULL DEFAULT 1,
+              x_api_enabled INTEGER NOT NULL DEFAULT 1,
+              source_weight REAL NOT NULL DEFAULT 1.0,
+              notes TEXT NOT NULL DEFAULT '',
+              kol_category TEXT NOT NULL DEFAULT 'stocks'
+            )
+            """
+        )
+        if not _column_exists(conn, "tracked_x_sources", "kol_category"):
+            conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN kol_category TEXT NOT NULL DEFAULT 'stocks'")
+        conn.execute(
+            """
+            INSERT INTO tracked_x_sources
+            (created_at, updated_at, handle, role_copy, role_alpha, active, x_api_enabled, source_weight, notes, kol_category)
+            VALUES (datetime('now'), datetime('now'), ?, 0, 1, 1, 1, 1.0, 'auto-approved from discovery', ?)
+            ON CONFLICT(handle) DO UPDATE SET
+              active=1, x_api_enabled=1, updated_at=datetime('now'),
+              kol_category=excluded.kol_category
+            """,
+            (handle, kol_category),
+        )
+        conn.commit()
+        return {"ok": True, "handle": handle, "action": "approved", "kol_category": kol_category}
+    finally:
+        conn.close()
+
+
+def reject_x_discovery(handle: str) -> Dict[str, Any]:
+    handle = str(handle or "").strip().lower().lstrip("@")
+    if not handle:
+        return {"ok": False, "error": "handle required"}
+    if not DB_PATH.exists():
+        return {"ok": False, "error": "database not found"}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "x_discovery_candidates"):
+            return {"ok": False, "error": "no discovery candidates table"}
+        conn.execute(
+            "UPDATE x_discovery_candidates SET status='rejected' WHERE lower(handle)=?",
+            (handle,),
+        )
+        conn.commit()
+        return {"ok": True, "handle": handle, "action": "rejected"}
+    finally:
+        conn.close()
+
+
+def get_health_pulse() -> Dict[str, Any]:
+    """Aggregate ~15 indicators from existing data functions into a health pulse."""
+    indicators: List[Dict[str, Any]] = []
+
+    # ── Fetch upstream data (reuse existing endpoints, zero new SQL) ──
+    summary = get_summary()
+    perf = get_performance_curve()
+    intel = get_system_intelligence()
+    rdns = get_signal_readiness()
+    guard = get_trade_claim_guard()
+    overview = get_master_overview()
+    learning = get_learning_health()
+    monitor = get_learning_monitor()
+    decay = get_source_decay_status()
+    consensus = get_x_consensus_status()
+
+    from data_scorecard import get_signal_scorecard as _scorecard
+    scorecard = _scorecard()
+
+    # ── Helper ──
+    def _ind(
+        ind_id: str,
+        label: str,
+        value: Any,
+        display: str,
+        status: str,
+        delta: str,
+        sparkline: List[float],
+        tooltip: str,
+        thresholds: str,
+        category: str,
+    ) -> Dict[str, Any]:
+        return {
+            "id": ind_id,
+            "label": label,
+            "value": value,
+            "display": display,
+            "status": status,
+            "delta": delta,
+            "sparkline": sparkline,
+            "tooltip": tooltip,
+            "thresholds": thresholds,
+            "category": category,
+        }
+
+    # ── 1. Rolling Sharpe ──
+    rolling = intel.get("rolling") or []
+    sharpe_vals = [float(r.get("sharpe") or 0) for r in rolling if r.get("sharpe") is not None]
+    sharpe = sharpe_vals[-1] if sharpe_vals else 0.0
+    sharpe_prev = sharpe_vals[-2] if len(sharpe_vals) >= 2 else sharpe
+    sharpe_delta = sharpe - sharpe_prev
+    sharpe_status = "green" if sharpe > 1.0 else ("yellow" if sharpe >= 0.5 else "red")
+    indicators.append(_ind(
+        "sharpe", "Rolling Sharpe", round(sharpe, 2), f"{sharpe:.2f}",
+        sharpe_status,
+        f"{'+' if sharpe_delta >= 0 else ''}{sharpe_delta:.2f}",
+        sharpe_vals[-20:],
+        "How much reward you're getting for the risk you take. Imagine two lemonade stands — "
+        "both make $10/day, but one has wild swings ($0 some days, $20 others). Sharpe measures "
+        "which stand is more reliable. Above 1.0 = solid, above 2.0 = excellent, below 0.5 = too "
+        "risky for the return. Fed by: route_outcomes \u2192 30-trade rolling window \u2192 sharpe ratio.",
+        "green >1.0 \u00b7 yellow 0.5\u20131.0 \u00b7 red <0.5",
+        "performance",
+    ))
+
+    # ── 2. Win Rate (30-trade rolling) ──
+    wr_vals = [float(r.get("win_rate") or 0) for r in rolling if r.get("win_rate") is not None]
+    wr = wr_vals[-1] if wr_vals else float(summary.get("win_rate") or 0)
+    wr_prev = wr_vals[-2] if len(wr_vals) >= 2 else wr
+    wr_delta = wr - wr_prev
+    wr_status = "green" if wr > 55 else ("yellow" if wr >= 45 else "red")
+    indicators.append(_ind(
+        "win_rate", "Win Rate (30-trade)", round(wr, 1), f"{wr:.1f}%",
+        wr_status,
+        f"{'+' if wr_delta >= 0 else ''}{wr_delta:.1f}%",
+        wr_vals[-20:],
+        "Of your last 30 closed trades, what percentage were winners. Think of it like a batting "
+        "average \u2014 above 55% means you're hitting more than you're missing. Below 45% means "
+        "the system is struggling. Fed by: route_outcomes \u2192 30-trade rolling window \u2192 win/loss count.",
+        "green >55% \u00b7 yellow 45\u201355% \u00b7 red <45%",
+        "performance",
+    ))
+
+    # ── 3. Max Drawdown ──
+    max_dd = float(perf.get("max_drawdown") or 0)
+    dd_pct = abs(max_dd)
+    dd_status = "green" if dd_pct < 10 else ("yellow" if dd_pct <= 20 else "red")
+    by_trade = perf.get("by_trade") or []
+    dd_series: List[float] = []
+    peak = 0.0
+    for pt in by_trade:
+        cum = float(pt.get("cumulative_pnl") or pt.get("cum_pnl") or 0)
+        if cum > peak:
+            peak = cum
+        dd_series.append(peak - cum)
+    indicators.append(_ind(
+        "max_drawdown", "Max Drawdown", round(dd_pct, 1), f"{dd_pct:.1f}%",
+        dd_status, "", dd_series[-20:] if dd_series else [],
+        "The biggest peak-to-trough drop in your account. If you had $1000 and it dropped to $900, "
+        "that's a 10% drawdown. Smaller is better \u2014 under 10% = disciplined risk, over 20% = "
+        "painful losses piling up. Fed by: route_outcomes \u2192 cumulative P&L curve \u2192 peak-to-trough.",
+        "green <10% \u00b7 yellow 10\u201320% \u00b7 red >20%",
+        "performance",
+    ))
+
+    # ── 4. Total P&L ──
+    total_pnl = float(summary.get("total_pnl") or 0)
+    pnl_status = "green" if total_pnl > 0 else ("yellow" if total_pnl == 0 else "red")
+    pnl_display = f"${total_pnl:+,.2f}" if abs(total_pnl) < 100000 else f"${total_pnl:+,.0f}"
+    indicators.append(_ind(
+        "total_pnl", "Total P&L", round(total_pnl, 2), pnl_display,
+        pnl_status, "", [],
+        "Your total profit or loss across all closed trades. Green = making money, red = losing "
+        "money. This is the bottom line \u2014 everything else is about improving this number. "
+        "Fed by: route_outcomes (realized) or trades table \u2192 sum of P&L.",
+        "green >$0 \u00b7 red <$0",
+        "performance",
+    ))
+
+    # ── 5. Source Health ──
+    decay_summary = decay.get("summary") or {}
+    n_decaying = int(decay_summary.get("decaying") or 0)
+    n_healthy = int(decay_summary.get("healthy") or 0)
+    n_improving = int(decay_summary.get("improving") or 0)
+    src_status = "green" if n_decaying == 0 else ("yellow" if n_decaying <= 2 else "red")
+    indicators.append(_ind(
+        "source_health", "Source Health", n_decaying,
+        f"{n_healthy}ok {n_decaying}decay {n_improving}up",
+        src_status, "", [],
+        "How your signal sources (X accounts, pipelines) are performing recently vs their lifetime "
+        "average. 'Decaying' means a source that used to win is now losing \u2014 like a baseball "
+        "player in a slump. 0 decaying = healthy ecosystem, 3+ = multiple sources going bad at once. "
+        "Fed by: route_outcomes \u2192 per-source EMA decay detection \u2192 14d vs lifetime comparison.",
+        "green 0 decaying \u00b7 yellow 1\u20132 \u00b7 red 3+",
+        "signal_quality",
+    ))
+
+    # ── 6. Quant Gate Edge ──
+    gate = intel.get("gate_effectiveness") or {}
+    passed = gate.get("passed") or {}
+    rejected = gate.get("rejected") or {}
+    passed_wr = float(passed.get("win_rate") or 0)
+    rejected_wr = float(rejected.get("win_rate") or 0)
+    gate_delta_val = passed_wr - rejected_wr
+    gate_status = "green" if gate_delta_val > 5 else ("yellow" if gate_delta_val >= 0 else "red")
+    indicators.append(_ind(
+        "gate_delta", "Quant Gate Edge", round(gate_delta_val, 1), f"{gate_delta_val:+.1f}%",
+        gate_status, "", [],
+        "The quant gate is a filter that blocks low-quality trades before they execute. This shows "
+        "whether the gate is helping: positive = trades it approved win more than those it rejected "
+        "(good!). Negative = the gate is blocking good trades (bad \u2014 it's hurting you). "
+        "Fed by: route_outcomes \u2192 comparing win rates of passed vs rejected candidates.",
+        "green >5% \u00b7 yellow 0\u20135% \u00b7 red <0%",
+        "signal_quality",
+    ))
+
+    # ── 7. Source Grades ──
+    sources_sc = scorecard.get("sources") or []
+    grade_counts: Dict[str, int] = {"green": 0, "yellow": 0, "red": 0}
+    for s in sources_sc:
+        g = str(s.get("grade") or "").lower()
+        if g in grade_counts:
+            grade_counts[g] += 1
+    total_graded = sum(grade_counts.values())
+    green_pct = (grade_counts["green"] / total_graded * 100) if total_graded else 0
+    red_pct = (grade_counts["red"] / total_graded * 100) if total_graded else 0
+    grades_status = "green" if green_pct >= 60 else ("red" if red_pct >= 50 else "yellow")
+    indicators.append(_ind(
+        "source_grades", "Source Grades", grade_counts,
+        f"{grade_counts['green']}G {grade_counts['yellow']}Y {grade_counts['red']}R",
+        grades_status, "", [],
+        "A summary of how your signal sources grade out. Each source gets green (>55% win rate), "
+        "yellow (45\u201355%), or red (<45%). Mostly green = your sources are strong. Mostly red = "
+        "time to prune bad sources or find new ones. Fed by: signal_scorecard \u2192 per-source grade.",
+        "green mostly green \u00b7 yellow mixed \u00b7 red mostly red",
+        "signal_quality",
+    ))
+
+    # ── 8. Missed Winners (7d) ──
+    missed = overview.get("missed") or {}
+    missed_wins = int(missed.get("not_taken_wins") or 0)
+    missed_status = "green" if missed_wins <= 2 else ("yellow" if missed_wins <= 5 else "red")
+    indicators.append(_ind(
+        "missed_winners", "Missed Winners (7d)", missed_wins, str(missed_wins),
+        missed_status, "", [],
+        "Trades the system identified but didn't take that turned out to be winners. A few misses "
+        "are normal (risk limits, timing). But 6+ means the system is being too cautious or filters "
+        "are blocking profitable opportunities. Fed by: route_outcomes \u2192 not-taken routes resolved "
+        "as wins in the last 7 days.",
+        "green 0\u20132 \u00b7 yellow 3\u20135 \u00b7 red 6+",
+        "signal_quality",
+    ))
+
+    # ── 9. System Readiness ──
+    readiness_score = int(rdns.get("score") or 0)
+    rdns_status = "green" if readiness_score > 80 else ("yellow" if readiness_score >= 50 else "red")
+    indicators.append(_ind(
+        "readiness", "System Readiness", readiness_score, f"{readiness_score}/100",
+        rdns_status, "", [],
+        "An overall score of whether all pipeline components are working. Checks: do you have "
+        "candidates flowing in, routes being created, quant validations passing, signals arriving? "
+        "Above 80 = everything humming. Below 50 = something major is broken or stale. "
+        "Fed by: signal_readiness \u2192 weighted checklist of pipeline components.",
+        "green >80 \u00b7 yellow 50\u201380 \u00b7 red <50",
+        "pipeline",
+    ))
+
+    # ── 10. Trade Ready ──
+    trade_ready = bool(guard.get("trade_ready"))
+    tr_status = "green" if trade_ready else "red"
+    indicators.append(_ind(
+        "trade_ready", "Trade Ready", trade_ready, "YES" if trade_ready else "NO",
+        tr_status, "", [],
+        "Can the system actually execute trades right now? Checks: is trading enabled, are exchange "
+        "adapters connected, is Python runtime healthy, are signing keys valid (for Polymarket). "
+        "If NO, nothing will trade until the blocker is fixed. "
+        "Fed by: trade_claim_guard \u2192 all execution prerequisites checked.",
+        "green yes \u00b7 red no",
+        "pipeline",
+    ))
+
+    # ── 11. Learning Coverage ──
+    coverage = float(learning.get("coverage_pct") or learning.get("tracked_coverage_pct") or 0)
+    cov_status = "green" if coverage > 70 else ("yellow" if coverage >= 40 else "red")
+    indicators.append(_ind(
+        "learning_coverage", "Learning Coverage", round(coverage, 1), f"{coverage:.0f}%",
+        cov_status, "", [],
+        "What percentage of your signal routes have tracked outcomes (win/loss resolution). "
+        "High coverage means the system is learning from most of its decisions. Low coverage means "
+        "many trades go untracked \u2014 the system can't learn from what it doesn't measure. "
+        "Fed by: learning_health \u2192 tracked_routes / eligible_routes.",
+        "green >70% \u00b7 yellow 40\u201370% \u00b7 red <40%",
+        "pipeline",
+    ))
+
+    # ── 12. Last Learning Update ──
+    outcomes = monitor.get("outcomes") or {}
+    age_min = outcomes.get("last_resolved_age_min")
+    if age_min is not None:
+        age_val = float(age_min)
+        age_display = f"{int(age_val)}m" if age_val < 60 else f"{age_val / 60:.1f}h"
+        age_status = "green" if age_val < 60 else ("yellow" if age_val <= 360 else "red")
+    else:
+        age_val = None
+        age_display = "\u2014"
+        age_status = "yellow"
+    indicators.append(_ind(
+        "learning_age", "Last Learning Update", age_val, age_display,
+        age_status, "", [],
+        "How long ago the system last resolved a trade outcome (marked a route as win or loss). "
+        "Under 60 minutes = outcomes are flowing fresh. Over 6 hours = learning pipeline may be "
+        "stalled, and the system is flying blind on recent performance. "
+        "Fed by: learning_monitor \u2192 most recent resolved_at timestamp \u2192 age in minutes.",
+        "green <60m \u00b7 yellow 60\u2013360m \u00b7 red >6h",
+        "pipeline",
+    ))
+
+    # ── 13. Queued Trades ──
+    queued = int(guard.get("approved_queued_routes") or 0)
+    queued_status = "green" if queued >= 1 else "yellow"
+    indicators.append(_ind(
+        "queued_routes", "Queued Trades", queued, str(queued),
+        queued_status, "", [],
+        "How many trade routes are approved and waiting to execute. 1+ means the pipeline has "
+        "actionable ideas ready to go. 0 means nothing is queued \u2014 either the market is quiet, "
+        "filters are too strict, or the pipeline isn't generating candidates. "
+        "Fed by: trade_claim_guard \u2192 approved_queued_routes count.",
+        "green 1+ \u00b7 yellow 0",
+        "execution",
+    ))
+
+    # ── 14. Trades Made (24h) ──
+    venue_24h = overview.get("venue_24h") or {}
+    trades_24h = 0
+    for venue_data in venue_24h.values():
+        if isinstance(venue_data, dict):
+            trades_24h += int(venue_data.get("filled") or 0)
+    indicators.append(_ind(
+        "trades_24h", "Trades Made (24h)", trades_24h, str(trades_24h),
+        "info", "", [],
+        "Total trades that actually filled across all venues (Alpaca, Hyperliquid, Polymarket) "
+        "in the last 24 hours. This is informational \u2014 not good or bad, just activity level. "
+        "Zero trades could mean safe mode, no signals, or market hours. "
+        "Fed by: master_overview \u2192 per-venue 24h fill counts.",
+        "info only",
+        "execution",
+    ))
+
+    # ── 15. X Consensus Active ──
+    consensus_signals = consensus.get("consensus_signals") or []
+    n_consensus = len(consensus_signals)
+    consensus_status = "green" if n_consensus >= 1 else "yellow"
+    indicators.append(_ind(
+        "x_consensus", "X Consensus Active", n_consensus, str(n_consensus),
+        consensus_status, "", [],
+        "How many consensus signals are active \u2014 meaning 3+ X accounts agree on the same "
+        "ticker and direction. Consensus adds conviction to a trade idea. 1+ active = the "
+        "crowd sees something. 0 = no strong multi-source agreement right now. "
+        "Fed by: x_consensus_signals \u2192 active signals where source_count >= min_hits.",
+        "green 1+ \u00b7 yellow 0",
+        "execution",
+    ))
+
+    # ── 16. Stocks Regime ──
+    regime_data = get_market_regime_status()
+    regime_map = {r["asset_class"]: r for r in (regime_data.get("regimes") or [])}
+    stocks_r = regime_map.get("stocks")
+    stocks_trend = stocks_r["trend"] if stocks_r else "unknown"
+    stocks_regime_status = "green" if stocks_trend == "bullish" else ("red" if stocks_trend == "bearish" else "yellow")
+    stocks_display = stocks_trend.upper() if stocks_r else "NO DATA"
+    indicators.append(_ind(
+        "stocks_regime", "Stocks Regime", stocks_trend, stocks_display,
+        stocks_regime_status, "", [],
+        "Ripster 34/50 EMA cloud on SPY hl2. Bullish = EMA34 above EMA50 (green cloud), "
+        "bearish = EMA34 below EMA50 (red cloud). When bearish, the regime filter blocks "
+        "stock longs in the signal router. Two indicators, zero confusion. "
+        "Fed by: market_regime_state \u2192 SPY trend.",
+        "green bullish \u00b7 red bearish",
+        "regime",
+    ))
+
+    # ── 17. Crypto Regime ──
+    crypto_r = regime_map.get("crypto")
+    crypto_trend = crypto_r["trend"] if crypto_r else "unknown"
+    crypto_regime_status = "green" if crypto_trend == "bullish" else ("red" if crypto_trend == "bearish" else "yellow")
+    crypto_display = crypto_trend.upper() if crypto_r else "NO DATA"
+    indicators.append(_ind(
+        "crypto_regime", "Crypto Regime", crypto_trend, crypto_display,
+        crypto_regime_status, "", [],
+        "Ripster 34/50 EMA cloud on BTC-USD hl2. Bullish = EMA34 above EMA50 (green cloud), "
+        "bearish = EMA34 below EMA50 (red cloud). When bearish, the regime filter blocks "
+        "crypto longs in the signal router. Clouds not green = no trade. "
+        "Fed by: market_regime_state \u2192 BTC-USD trend.",
+        "green bullish \u00b7 red bearish",
+        "regime",
+    ))
+
+    # ── 18. Fresh Whales (24h) ──
+    fw_count_24h = 0
+    try:
+        fw_conn = _connect()
+        if _table_exists(fw_conn, "fresh_whale_discoveries"):
+            fw_cur = fw_conn.cursor()
+            fw_cur.execute(
+                """
+                SELECT COUNT(*) FROM fresh_whale_discoveries
+                WHERE auto_tracked=1
+                  AND datetime(discovered_at) >= datetime('now', '-24 hours')
+                """
+            )
+            fw_count_24h = int(fw_cur.fetchone()[0] or 0)
+        fw_conn.close()
+    except Exception:
+        pass
+    fw_status = "green" if fw_count_24h >= 1 else "yellow"
+    indicators.append(_ind(
+        "fresh_whales", "Fresh Whales (24h)", fw_count_24h, str(fw_count_24h),
+        fw_status, "", [],
+        "New Polymarket accounts (under 7 days old) caught placing large bets ($50k+) in the "
+        "last 24 hours and auto-added for copy trading. Fresh whales are high-signal because "
+        "insiders often create new accounts before placing informed bets. 1+ = discovery working, "
+        "0 = no new whales found (normal on quiet days). "
+        "Fed by: scan_fresh_whales \u2192 CLOB trade scan \u2192 profile age check \u2192 auto-track.",
+        "green 1+ \u00b7 yellow 0",
+        "execution",
+    ))
+
+    return {"indicators": indicators}
+
+
+# ── Cross-platform arb opportunities (brain_arb_opportunities) ──────────────
+def get_arb_opportunities(limit: int = 100) -> List[Dict[str, Any]]:
+    if not DB_PATH.exists():
+        return []
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "brain_arb_opportunities"):
+            return []
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, detected_at, poly_condition_id, kalshi_ticker, title,
+                   similarity, poly_price, kalshi_price, spread, spread_after_fees,
+                   direction, poly_size_usd, kalshi_size_usd, action,
+                   poly_order_id, kalshi_order_id, notes
+            FROM brain_arb_opportunities
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return _rows_to_dicts(cur, cur.fetchall())
+    except Exception:
+        return []
+    finally:
+        conn.close()
+
+
+def get_arb_overview() -> Dict[str, Any]:
+    if not DB_PATH.exists():
+        return {}
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "brain_arb_opportunities"):
+            return {"total_scanned": 0, "executed": 0, "partial": 0, "avg_spread": 0}
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS total_scanned,
+                SUM(CASE WHEN action='executed' THEN 1 ELSE 0 END) AS executed,
+                SUM(CASE WHEN action='partial' THEN 1 ELSE 0 END) AS partial,
+                AVG(CASE WHEN spread_after_fees > 0 THEN spread_after_fees ELSE NULL END) AS avg_spread,
+                SUM(CASE WHEN action='executed' THEN poly_size_usd + kalshi_size_usd ELSE 0 END) AS total_notional
+            FROM brain_arb_opportunities
+            WHERE datetime(detected_at) >= datetime('now', '-7 days')
+            """
+        )
+        row = cur.fetchone()
+        # Fetch arb controls
+        arb_enabled = "1"
+        min_spread = "5.0"
+        max_leg = "25"
+        if _table_exists(conn, "execution_controls"):
+            for key in ("tb_arb_enabled", "tb_arb_min_spread_pct", "tb_arb_max_per_leg"):
+                c = conn.execute(
+                    "SELECT value FROM execution_controls WHERE key=?", (key,)
+                )
+                r = c.fetchone()
+                if r:
+                    if key == "tb_arb_enabled":
+                        arb_enabled = r[0]
+                    elif key == "tb_arb_min_spread_pct":
+                        min_spread = r[0]
+                    elif key == "tb_arb_max_per_leg":
+                        max_leg = r[0]
+        return {
+            "total_scanned": int(row[0] or 0),
+            "executed": int(row[1] or 0),
+            "partial": int(row[2] or 0),
+            "avg_spread": round(float(row[3] or 0), 4),
+            "total_notional": round(float(row[4] or 0), 2),
+            "arb_enabled": arb_enabled == "1",
+            "min_spread_pct": float(min_spread),
+            "max_per_leg": float(max_leg),
+        }
+    except Exception:
+        return {}
+    finally:
+        conn.close()

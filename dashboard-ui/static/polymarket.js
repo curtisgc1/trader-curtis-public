@@ -4,7 +4,7 @@ async function fetchJson(url) {
   return res.json();
 }
 
-const UI_BUILD = "20260226a";
+const UI_BUILD = "20260228a";
 
 async function fetchJsonSafe(url, fallback) {
   try {
@@ -707,6 +707,106 @@ function wirePolyWalletActions() {
   });
 }
 
+function renderArbOverview(data) {
+  const el = document.getElementById("arb-overview");
+  if (!el) return;
+  if (!data || typeof data.total_scanned === "undefined") {
+    el.innerHTML = `<div class="empty">No arb data</div>`;
+    return;
+  }
+  const enabledCls = data.arb_enabled ? "good" : "bad";
+  const enabledText = data.arb_enabled ? "ON" : "OFF";
+  el.innerHTML = [
+    `<div class="item"><span class="label">Scanner</span><span class="${enabledCls}">${enabledText}</span></div>`,
+    `<div class="item"><span class="label">Pairs Scanned (7d)</span><span>${data.total_scanned || 0}</span></div>`,
+    `<div class="item"><span class="label">Executed</span><span>${data.executed || 0}</span></div>`,
+    `<div class="item"><span class="label">Partial (unhedged)</span><span>${data.partial || 0}</span></div>`,
+    `<div class="item"><span class="label">Avg Spread (net)</span><span>${Number(data.avg_spread || 0).toFixed(4)}</span></div>`,
+    `<div class="item"><span class="label">Total Notional</span><span>${fmtUsd(data.total_notional || 0)}</span></div>`,
+    `<div class="item"><span class="label">Min Spread Threshold</span><span>${data.min_spread_pct || 5}%</span></div>`,
+    `<div class="item"><span class="label">Max Per Leg</span><span>${fmtUsd(data.max_per_leg || 25)}</span></div>`,
+  ].join("");
+  // Populate controls
+  const arbEnabled = document.getElementById("ctl-arb-enabled");
+  const arbSpread = document.getElementById("ctl-arb-spread");
+  const arbLeg = document.getElementById("ctl-arb-leg");
+  if (arbEnabled) arbEnabled.checked = !!data.arb_enabled;
+  if (arbSpread) arbSpread.value = data.min_spread_pct || 5;
+  if (arbLeg) arbLeg.value = data.max_per_leg || 25;
+}
+
+function renderArbOpportunities(rows) {
+  const el = document.getElementById("arb-opportunities");
+  if (!el) return;
+  if (!rows || rows.length === 0) {
+    el.innerHTML = `<div class="empty">No arb opportunities detected yet</div>`;
+    return;
+  }
+  const grid = "150px 100px 1fr 70px 70px 70px 80px 80px 90px";
+  const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Time</div><div>Kalshi</div><div>Title</div><div>Sim%</div><div>P.Price</div><div>K.Price</div><div>Net</div><div>Action</div><div>Leg $</div></div>`;
+  const body = rows.slice(0, 50).map((r) => {
+    const t = (r.detected_at || "").replace("T", " ").slice(0, 16);
+    const actionCls = r.action === "executed" ? "good" : (r.action === "partial" ? "bad" : "");
+    const legUsd = (r.action === "executed" || r.action === "partial")
+      ? fmtUsd((r.poly_size_usd || 0) + (r.kalshi_size_usd || 0))
+      : "-";
+    return `<div class="row" style="grid-template-columns:${grid}"><div>${t}</div><div>${r.kalshi_ticker || ""}</div><div title="${r.title || ""}">${(r.title || "").slice(0, 40)}</div><div>${r.similarity || 0}</div><div>${Number(r.poly_price || 0).toFixed(2)}</div><div>${Number(r.kalshi_price || 0).toFixed(2)}</div><div>${Number(r.spread_after_fees || 0).toFixed(3)}</div><div class="${actionCls}">${r.action || ""}</div><div>${legUsd}</div></div>`;
+  }).join("");
+  el.innerHTML = head + body;
+}
+
+function wireArbActions() {
+  const btn = document.getElementById("btn-arb-save");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  btn.addEventListener("click", async () => {
+    const status = document.getElementById("arb-control-status");
+    try {
+      await postJson("/api/risk-controls", {
+        updates: {
+          tb_arb_enabled: document.getElementById("ctl-arb-enabled")?.checked ? "1" : "0",
+          tb_arb_min_spread_pct: String(document.getElementById("ctl-arb-spread")?.value || "5.0"),
+          tb_arb_max_per_leg: String(document.getElementById("ctl-arb-leg")?.value || "25"),
+        },
+      });
+      if (status) { status.textContent = "Saved arb settings"; status.className = "control-warning good"; }
+      await boot();
+    } catch (err) {
+      console.error(err);
+      if (status) { status.textContent = "Save failed"; status.className = "control-warning bad"; }
+    }
+  });
+}
+
+function renderFreshWhales(data) {
+  const el = document.getElementById("fresh-whale-list");
+  if (!el) return;
+  const discoveries = (data && data.discoveries) || [];
+  if (!discoveries.length) {
+    el.innerHTML = `<div class="empty">No fresh whale discoveries yet.</div>`;
+    return;
+  }
+  const now = Date.now();
+  const rows = discoveries.map((d) => {
+    const ago = d.discovered_at ? (() => {
+      const ms = now - new Date(d.discovered_at).getTime();
+      const h = Math.floor(ms / 3600000);
+      return h < 1 ? "<1h ago" : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+    })() : "";
+    const handleLink = d.handle
+      ? `<a href="https://polymarket.com/@${d.handle}" target="_blank" rel="noopener">@${d.handle}</a>`
+      : d.wallet_address ? d.wallet_address.slice(0, 10) + "..." : "—";
+    const age = d.account_age_days >= 0 ? `${Math.round(d.account_age_days)}d` : "—";
+    const size = d.trade_size_usdc ? "$" + Number(d.trade_size_usdc).toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—";
+    const slug = d.market_slug || "—";
+    const tracked = d.auto_tracked
+      ? `<span style="color:var(--green,#4caf50);font-weight:600">YES</span>`
+      : `<span style="opacity:0.5">NO</span>`;
+    return `<tr><td>${ago}</td><td>${handleLink}</td><td>${age}</td><td>${size}</td><td title="${slug}">${slug.length > 30 ? slug.slice(0, 30) + "…" : slug}</td><td>${tracked}</td></tr>`;
+  }).join("");
+  el.innerHTML = `<table><thead><tr><th>Discovered</th><th>Handle</th><th>Age</th><th>Trade Size</th><th>Market</th><th>Tracked</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
 async function boot() {
   try {
     setStatus("loading");
@@ -728,6 +828,8 @@ async function boot() {
       polyWalletScores,
       trustPanel,
       polymarketScorecard,
+      arbOverview,
+      arbOpportunities,
     ] = await Promise.all([
       fetchJsonSafe("/api/system-health", { overall: "warn", checks: [] }),
       fetchJsonSafe("/api/polymarket-overview", {}),
@@ -746,12 +848,15 @@ async function boot() {
       fetchJsonSafe("/api/polymarket-wallet-scores", []),
       fetchJsonSafe("/api/trust-panel", {}),
       fetchJsonSafe("/api/polymarket-scorecard", {}),
+      fetchJsonSafe("/api/arb-overview", {}),
+      fetchJsonSafe("/api/arb-opportunities", []),
     ]);
 
     runUiStep("wirePreTradeActions", () => wirePreTradeActions());
     runUiStep("wireSourceActions", () => wireSourceActions());
     runUiStep("wireInputSourceActions", () => wireInputSourceActions());
     runUiStep("wirePolyWalletActions", () => wirePolyWalletActions());
+    runUiStep("wireArbActions", () => wireArbActions());
 
     runUiStep("renderPolymarketScorecard", () => renderPolymarketScorecard(polymarketScorecard || {}));
     runUiStep("renderOverview", () => renderOverview(polymarketOverview || {}));
@@ -761,6 +866,8 @@ async function boot() {
     runUiStep("renderPolymarketMarkets", () => renderPolymarketMarkets(polymarketMarkets || []));
     runUiStep("renderPolymarketOrders", () => renderPolymarketOrders(polymarketOrders || []));
     runUiStep("renderMmSnapshots", () => renderMmSnapshots(polymarketMmSnapshots || []));
+    runUiStep("renderArbOverview", () => renderArbOverview(arbOverview || {}));
+    runUiStep("renderArbOpportunities", () => renderArbOpportunities(arbOpportunities || []));
     runUiStep("renderWeatherMarketProbs", () => renderWeatherMarketProbs(weatherMarketProbs || []));
     runUiStep("renderBookmarkAlphaIdeas", () => renderBookmarkAlphaIdeas(bookmarkAlphaIdeas || []));
     runUiStep("renderTrackedSources", () => renderTrackedSources(trackedSources || []));
@@ -768,6 +875,8 @@ async function boot() {
     runUiStep("renderTrackedPolyWallets", () => renderTrackedPolyWallets(trackedPolyWallets || []));
     runUiStep("renderPolyWalletScores", () => renderPolyWalletScores(polyWalletScores || []));
     runUiStep("renderTrustPanel", () => renderTrustPanel(trustPanel || {}));
+    fetchJsonSafe("/api/fresh-whales", {}).then(d => runUiStep("renderFreshWhales", () => renderFreshWhales(d || {})));
+
     runUiStep("renderExternalSignals", () => {
       renderTable(
         "external-signals",
