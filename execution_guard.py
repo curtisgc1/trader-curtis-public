@@ -123,6 +123,35 @@ DEFAULT_CONTROLS = {
     "polymarket_strict_funding_check": "0",
     "polymarket_edge_unit_mode": "auto",
     "threshold_override_unlocked": "0",
+    "regime_filter_enabled": "1",
+    "regime_filter_stale_hours": "26",
+    "auto_decay_enabled": "1",
+    "fw_scanner_enabled": "1",
+    "fw_min_trade_usdc": "50000",
+    "fw_max_account_age_days": "7",
+    "fw_top_markets": "30",
+    "fw_watcher_poll_seconds": "30",
+    # trader_brain.py controls
+    "tb_enabled": "1",
+    "tb_min_trade_usdc": "5000",
+    "tb_min_wallet_win_rate": "0.58",
+    "tb_min_wallet_trades": "50",
+    "tb_min_wallet_pnl": "5000",
+    "tb_convergence_min": "2",
+    "tb_convergence_window_hours": "2",
+    "tb_kelly_fraction": "0.25",
+    "tb_max_notional_per_trade": "50",
+    "tb_max_daily_exposure": "200",
+    "tb_max_open_positions": "10",
+    "tb_notify_on_signal": "0",
+    "tb_notify_on_execute": "1",
+    # trader_brain arb scanner controls
+    "tb_arb_enabled": "1",
+    "tb_arb_min_spread_pct": "5.0",
+    "tb_arb_min_similarity": "95",
+    "tb_arb_max_per_leg": "25",
+    "tb_arb_poly_fee_pct": "3.15",
+    "tb_arb_kalshi_fee_pct": "7.0",
 }
 
 
@@ -164,9 +193,10 @@ def init_controls(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute("DROP TRIGGER IF EXISTS trg_lock_threshold_controls")
     conn.execute(
         """
-        CREATE TRIGGER IF NOT EXISTS trg_lock_threshold_controls
+        CREATE TRIGGER trg_lock_threshold_controls
         BEFORE UPDATE OF value ON execution_controls
         WHEN NEW.key IN (
           'min_candidate_score',
@@ -183,7 +213,11 @@ def init_controls(conn: sqlite3.Connection) -> None:
           'training_consensus_min_score',
           'training_alpaca_min_route_score',
           'training_hyperliquid_min_route_score',
-          'training_polymarket_min_confidence_pct'
+          'training_polymarket_min_confidence_pct',
+          'tb_min_wallet_win_rate',
+          'tb_min_wallet_trades',
+          'tb_min_wallet_pnl',
+          'tb_convergence_min'
         )
         AND COALESCE((SELECT value FROM execution_controls WHERE key='threshold_override_unlocked' LIMIT 1),'0') != '1'
         AND COALESCE(OLD.value,'') <> COALESCE(NEW.value,'')
