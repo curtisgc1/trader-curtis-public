@@ -3020,6 +3020,10 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "training_alpaca_min_route_score",
         "training_hyperliquid_min_route_score",
         "training_polymarket_min_confidence_pct",
+        "promote_min_paper_trades",
+        "promote_min_win_rate",
+        "promote_min_sharpe",
+        "promote_max_drawdown",
     }
     allowed = {
         "agent_master_enabled",
@@ -3131,6 +3135,12 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "premium_gate_liq_crypto",
         "premium_gate_mom_stocks",
         "premium_gate_mom_crypto",
+        # Venue promotion controls
+        "auto_promote_enabled",
+        "promote_min_paper_trades",
+        "promote_min_win_rate",
+        "promote_min_sharpe",
+        "promote_max_drawdown",
     }
     if not DB_PATH.exists():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -6517,39 +6527,55 @@ def submit_alpaca_quick_trade(
 
     symbol = str(symbol).strip().upper()
     side = str(side).strip().lower()
-    if side not in ("buy", "sell"):
+    if side not in ("buy", "sell", "close"):
         return {"ok": False, "error": f"invalid side: {side}"}
-    if notional <= 0:
-        return {"ok": False, "error": "notional must be positive"}
-
-    order_body = json.dumps({
-        "symbol": symbol,
-        "notional": str(round(notional, 2)),
-        "side": side,
-        "type": "market",
-        "time_in_force": "day",
-    }).encode("utf-8")
 
     headers = {
         "APCA-API-KEY-ID": api_key,
         "APCA-API-SECRET-KEY": secret,
         "Content-Type": "application/json",
     }
-    try:
-        req = urllib.request.Request(
-            f"{base_url}/v2/orders",
-            data=order_body,
-            headers=headers,
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-        order_id = result.get("id", "")
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        return {"ok": False, "error": f"Alpaca API {exc.code}: {body}"}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+
+    if side == "close":
+        try:
+            req = urllib.request.Request(
+                f"{base_url}/v2/positions/{symbol}",
+                headers=headers,
+                method="DELETE",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+            order_id = result.get("id", "")
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            return {"ok": False, "error": f"Alpaca API {exc.code}: {body}"}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+    else:
+        if notional <= 0:
+            return {"ok": False, "error": "notional must be positive"}
+        order_body = json.dumps({
+            "symbol": symbol,
+            "notional": str(round(notional, 2)),
+            "side": side,
+            "type": "market",
+            "time_in_force": "day",
+        }).encode("utf-8")
+        try:
+            req = urllib.request.Request(
+                f"{base_url}/v2/orders",
+                data=order_body,
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+            order_id = result.get("id", "")
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            return {"ok": False, "error": f"Alpaca API {exc.code}: {body}"}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
 
     # Record in execution_orders + trade_intents
     conn = _connect()

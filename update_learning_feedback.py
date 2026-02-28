@@ -9,6 +9,7 @@ import os
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from statistics import pstdev
 from typing import Dict, Tuple
 import requests
 
@@ -62,10 +63,13 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
           pushes INTEGER NOT NULL,
           win_rate REAL NOT NULL,
           avg_pnl REAL NOT NULL,
-          avg_pnl_percent REAL NOT NULL
+          avg_pnl_percent REAL NOT NULL,
+          sharpe_ratio REAL NOT NULL DEFAULT 0
         )
         """
     )
+    if not column_exists(conn, "source_learning_stats", "sharpe_ratio"):
+        conn.execute("ALTER TABLE source_learning_stats ADD COLUMN sharpe_ratio REAL NOT NULL DEFAULT 0")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS strategy_learning_stats (
@@ -1504,11 +1508,22 @@ def refresh_source_learning(conn: sqlite3.Connection, outcome_scope: str = "all"
         losses = int(losses or 0)
         pushes = int(pushes or 0)
         win_rate = round((wins / n) * 100.0, 2) if n else 0.0
+        avg_pnl_pct = round(float(avg_pnl_percent or 0.0), 4)
+        sharpe = 0.0
+        if n > 1:
+            pnl_cur = conn.cursor()
+            pnl_sql = "SELECT pnl_percent FROM route_outcomes WHERE source_tag=?"
+            if normalized_scope == "realized":
+                pnl_sql += " AND COALESCE(outcome_type, 'realized')='realized'"
+            pnl_cur.execute(pnl_sql, (source_tag,))
+            pnl_vals = [float(r[0] or 0.0) for r in pnl_cur.fetchall()]
+            vol = pstdev(pnl_vals) if len(pnl_vals) > 1 else 0.0
+            sharpe = round(avg_pnl_pct / vol, 4) if vol > 0 else 0.0
         cur.execute(
             """
             INSERT INTO source_learning_stats
-            (computed_at, source_tag, sample_size, wins, losses, pushes, win_rate, avg_pnl, avg_pnl_percent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (computed_at, source_tag, sample_size, wins, losses, pushes, win_rate, avg_pnl, avg_pnl_percent, sharpe_ratio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 now_iso(),
@@ -1519,7 +1534,8 @@ def refresh_source_learning(conn: sqlite3.Connection, outcome_scope: str = "all"
                 pushes,
                 win_rate,
                 round(float(avg_pnl or 0.0), 4),
-                round(float(avg_pnl_percent or 0.0), 4),
+                avg_pnl_pct,
+                sharpe,
             ),
         )
     conn.commit()

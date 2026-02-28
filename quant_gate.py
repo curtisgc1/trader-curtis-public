@@ -20,6 +20,7 @@ DEFAULT_THRESHOLDS = {
     "max_drawdown_pct": 35.0,
     "max_corr_to_open_book": 0.85,
     "min_regime_score": 0.35,
+    "min_sharpe_ratio": 0.5,
 }
 WARMUP_ALLOW_NO_SAMPLE = True
 
@@ -32,6 +33,12 @@ def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return cur.fetchone() is not None
+
+
+def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA table_info({table})")
+    return any(row[1] == column for row in cur.fetchall())
 
 
 def ensure_tables(conn: sqlite3.Connection) -> None:
@@ -57,6 +64,8 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    if not column_exists(conn, "quant_validations", "sharpe_ratio"):
+        conn.execute("ALTER TABLE quant_validations ADD COLUMN sharpe_ratio REAL DEFAULT 0")
     conn.commit()
 
 
@@ -181,6 +190,7 @@ def evaluate_quant_candidate(
     p_loss = (losses / n) if n else 0.0
     ev = round((p_win * avg_win) + (p_loss * avg_loss), 4)
     vol = round(float(pstdev(series)) if n > 1 else 0.0, 4)
+    sharpe = round(avg_pnl / vol, 4) if vol > 0 else 0.0
     max_dd = _max_drawdown_pct(series)
     corr_open_book = _corr_to_open_book(conn, ticker=ticker)
     regime = _regime_score(conn, ticker=ticker, direction=direction)
@@ -200,6 +210,8 @@ def evaluate_quant_candidate(
         reasons.append(f"vol>{th['max_volatility_pct']}")
     if max_dd > th["max_drawdown_pct"]:
         reasons.append(f"drawdown>{th['max_drawdown_pct']}")
+    if n >= th["min_sample_size"] and sharpe < th["min_sharpe_ratio"]:
+        reasons.append(f"sharpe<{th['min_sharpe_ratio']}")
     if corr_open_book > th["max_corr_to_open_book"]:
         reasons.append("corr_open_book_high")
     if regime < th["min_regime_score"]:
@@ -217,6 +229,7 @@ def evaluate_quant_candidate(
         "avg_pnl_percent": avg_pnl,
         "expected_value_percent": ev,
         "volatility_percent": vol,
+        "sharpe_ratio": sharpe,
         "max_drawdown_percent": max_dd,
         "corr_to_open_book": corr_open_book,
         "regime_score": regime,
@@ -228,10 +241,10 @@ def evaluate_quant_candidate(
         INSERT INTO quant_validations
         (
           validated_at, ticker, direction, source_tag, candidate_score, sample_size, win_rate,
-          avg_pnl_percent, expected_value_percent, volatility_percent, max_drawdown_percent,
-          corr_to_open_book, regime_score, passed, reason
+          avg_pnl_percent, expected_value_percent, volatility_percent, sharpe_ratio,
+          max_drawdown_percent, corr_to_open_book, regime_score, passed, reason
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             now_iso(),
@@ -244,6 +257,7 @@ def evaluate_quant_candidate(
             float(metrics["avg_pnl_percent"]),
             float(metrics["expected_value_percent"]),
             float(metrics["volatility_percent"]),
+            float(metrics["sharpe_ratio"]),
             float(metrics["max_drawdown_percent"]),
             float(metrics["corr_to_open_book"]),
             float(metrics["regime_score"]),

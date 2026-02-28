@@ -73,7 +73,7 @@ async function boot() {
     renderMemoryIntegrity(memoryIntegrity || {});
     renderTable("trade-intents", (tradeIntents || []).slice(0, 20), ["Venue", "Symbol", "Side", "Status"], ["venue", "symbol", "side", "status"]);
     renderTable("execution-learning", (executionLearning || []).slice(0, 20), ["Ticker", "Source", "Venue", "Order"], ["ticker", "source_tag", "venue", "order_status"]);
-    renderTable("source-learning", (sourceLearning || []).slice(0, 20), ["Source", "N", "Win %", "Avg PnL%"], ["source_tag", "sample_size", "win_rate", "avg_pnl_percent"]);
+    renderTable("source-learning", (sourceLearning || []).slice(0, 20), ["Source", "N", "Win %", "Avg PnL%", "Sharpe"], ["source_tag", "sample_size", "win_rate", "avg_pnl_percent", "sharpe_ratio"]);
     renderTable("strategy-learning", (strategyLearning || []).slice(0, 20), ["Strategy", "N", "Win %", "Avg PnL%"], ["strategy_tag", "sample_size", "win_rate", "avg_pnl_percent"]);
     renderTable(
       "input-feature-stats",

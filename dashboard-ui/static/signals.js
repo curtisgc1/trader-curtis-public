@@ -579,7 +579,7 @@ async function loadAdvancedDiagnostics(force = false) {
   renderTable("execution-orders", execRows, ["Ticker", "Dir", "Mode", "Lev Allowed", "Leverage", "Status"], ["ticker", "direction", "mode", "leverage_allowed", "leverage", "order_status"]);
   renderTable("source-scores", (sourceScores || []).slice(0, 20), ["Source", "N", "Appr", "Reliability"], ["source_tag", "sample_size", "approved_rate", "reliability_score"]);
   renderTable("event-alerts", (eventAlerts || []).slice(0, 20), ["Playbook", "Asset", "Dir", "Priority"], ["playbook_id", "proposed_asset", "direction", "priority"]);
-  renderTable("quant-validations", (quantValidations || []).slice(0, 40), ["Ticker", "Pass", "EV%", "Win%"], ["ticker", "passed", "expected_value_percent", "win_rate"]);
+  renderTable("quant-validations", (quantValidations || []).slice(0, 40), ["Ticker", "Pass", "EV%", "Win%", "Sharpe"], ["ticker", "passed", "expected_value_percent", "win_rate", "sharpe_ratio"]);
   renderChartLiquidity(chartLiquidity || []);
   renderBreakthroughEvents(breakthroughEvents || []);
   renderBreakthroughMap(breakthroughEvents || []);

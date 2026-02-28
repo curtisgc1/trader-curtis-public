@@ -114,6 +114,7 @@ ROUTE_NOTIONAL=$(sqlite3 "$DB" "SELECT value FROM execution_controls WHERE key='
 [ -z "$ROUTE_NOTIONAL" ] && ROUTE_NOTIONAL=75
 
 run_step "Signal router (paper)"   "router"  /Users/Shared/curtis/trader-curtis/signal_router.py --mode paper --limit "$ROUTE_LIMIT" --notional "$ROUTE_NOTIONAL"
+run_step "Venue promotion check"   "promote" /Users/Shared/curtis/trader-curtis/promote_venues.py
 run_step "Execution worker (paper)" "exec_worker" /Users/Shared/curtis/trader-curtis/execution_worker.py
 run_step "Polymarket execution"    "pm_exec" /Users/Shared/curtis/trader-curtis/scripts/run_polymarket_exec.sh
 
