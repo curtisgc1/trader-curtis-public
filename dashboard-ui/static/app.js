@@ -1876,6 +1876,127 @@ function bindTrackedSources(rows) {
 }
 
 let booting = false;
+function renderSystemIntelligence(data) {
+  const chartEl = document.getElementById("intel-chart");
+  const statsEl = document.getElementById("intel-stats");
+  const gateEl = document.getElementById("intel-gate");
+  const barsEl = document.getElementById("intel-source-bars");
+
+  // --- Panel 1: Rolling Sharpe + Win Rate dual-line chart ---
+  if (chartEl) {
+    const rolling = data.rolling || [];
+    if (!rolling.length) {
+      chartEl.innerHTML = `<div class="empty">Not enough resolved trades for rolling analysis</div>`;
+      if (statsEl) statsEl.innerHTML = "";
+    } else {
+      const width = 860, height = 220, pad = 26;
+      const sharpePts = rolling.map(r => ({ y: r.sharpe }));
+      const winPts = rolling.map(r => ({ y: r.win_rate }));
+      const sharpeResult = buildLinePath(sharpePts, width, height, pad);
+      const winResult = buildLinePath(winPts, width, height, pad);
+
+      // Sharpe line uses its own Y scale; win rate uses its own
+      // We render two SVGs stacked or overlay with dual Y-axes
+      // Simpler: render in same SVG with normalized Y (0..1 range)
+      const allSharpe = rolling.map(r => r.sharpe);
+      const allWin = rolling.map(r => r.win_rate);
+      const sMin = Math.min(...allSharpe), sMax = Math.max(...allSharpe);
+      const wMin = Math.min(...allWin), wMax = Math.max(...allWin);
+      const sRange = sMax === sMin ? 1 : sMax - sMin;
+      const wRange = wMax === wMin ? 1 : wMax - wMin;
+      const innerW = width - pad * 2, innerH = height - pad * 2;
+      const toX = (i) => pad + (rolling.length <= 1 ? innerW / 2 : (i / (rolling.length - 1)) * innerW);
+      const toYS = (v) => pad + (sMax - v) / sRange * innerH;
+      const toYW = (v) => pad + (wMax - v) / wRange * innerH;
+
+      const sharpePath = rolling.map((r, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(2)} ${toYS(r.sharpe).toFixed(2)}`).join(" ");
+      const winPath = rolling.map((r, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(2)} ${toYW(r.win_rate).toFixed(2)}`).join(" ");
+
+      chartEl.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+          <line class="perf-axis" x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" />
+          <line class="perf-axis" x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" />
+          <path d="${sharpePath}" fill="none" stroke="#4caf50" stroke-width="2" />
+          <path d="${winPath}" fill="none" stroke="#2196f3" stroke-width="2" />
+          <text class="perf-label" x="${pad}" y="${pad - 6}" fill="#4caf50">Sharpe ${sMax.toFixed(2)}</text>
+          <text class="perf-label" x="${pad + 120}" y="${pad - 6}" fill="#2196f3">WR ${wMax.toFixed(1)}%</text>
+          <text class="perf-label" x="${pad}" y="${height - 8}" fill="#4caf50">${sMin.toFixed(2)}</text>
+          <text class="perf-label" x="${pad + 120}" y="${height - 8}" fill="#2196f3">${wMin.toFixed(1)}%</text>
+        </svg>
+      `;
+
+      if (statsEl) {
+        const cur = rolling[rolling.length - 1] || {};
+        const prev = rolling.length > 12 ? rolling[rolling.length - 13] : rolling[0];
+        const sharpeTrend = cur.sharpe > (prev?.sharpe || 0) ? "\u2191" : (cur.sharpe < (prev?.sharpe || 0) ? "\u2193" : "\u2192");
+        const wrTrend = cur.win_rate > (prev?.win_rate || 0) ? "\u2191" : (cur.win_rate < (prev?.win_rate || 0) ? "\u2193" : "\u2192");
+        statsEl.innerHTML = [
+          ["Sharpe", `${cur.sharpe.toFixed(3)} ${sharpeTrend}`],
+          ["Win Rate", `${cur.win_rate.toFixed(1)}% ${wrTrend}`],
+          ["Window", "30 trades"],
+          ["Data Points", String(rolling.length)],
+          ["Trades Covered", String(cur.idx || 0)],
+        ].map(([k, v]) => `<div class="item"><span class="label">${k}</span><span>${v}</span></div>`).join("");
+      }
+    }
+  }
+
+  // --- Panel 2: Quant Gate Proof ---
+  if (gateEl) {
+    const gate = data.gate_effectiveness || {};
+    const passed = gate.passed || {};
+    const rejected = gate.rejected || {};
+    if (!passed.n && !rejected.n) {
+      gateEl.innerHTML = `<div class="empty">No gate data yet</div>`;
+    } else {
+      const delta = (passed.win_rate || 0) - (rejected.win_rate || 0);
+      const deltaClass = delta > 0 ? "good" : (delta < 0 ? "bad" : "");
+      const deltaLabel = delta > 0
+        ? `Gate adds +${delta.toFixed(1)}% win rate`
+        : (delta < 0 ? `Gate NOT helping (${delta.toFixed(1)}%)` : "No difference");
+      gateEl.innerHTML = `
+        <div class="item"><span class="label">Passed</span><span>${passed.n || 0} trades, ${(passed.win_rate || 0).toFixed(1)}% WR, ${(passed.avg_pnl_pct || 0).toFixed(2)}% avg</span></div>
+        <div class="item"><span class="label">Rejected</span><span>${rejected.n || 0} trades, ${(rejected.win_rate || 0).toFixed(1)}% WR, ${(rejected.avg_pnl_pct || 0).toFixed(2)}% avg</span></div>
+        <div class="item ${deltaClass}" style="font-weight:600;"><span class="label">Delta</span><span>${deltaLabel}</span></div>
+      `;
+    }
+  }
+
+  // --- Panel 3: Source P&L Contribution horizontal bars ---
+  if (barsEl) {
+    const sources = data.source_contribution || [];
+    if (!sources.length) {
+      barsEl.innerHTML = `<div class="empty">No source contribution data</div>`;
+    } else {
+      const maxAbs = Math.max(...sources.map(s => Math.abs(s.total_pnl_pct)), 0.01);
+      const barHeight = 28;
+      const labelWidth = 160;
+      const barAreaWidth = 500;
+      const svgWidth = labelWidth + barAreaWidth + 80;
+      const svgHeight = sources.length * barHeight + 10;
+
+      const bars = sources.map((s, i) => {
+        const pct = s.total_pnl_pct || 0;
+        const barW = Math.abs(pct) / maxAbs * barAreaWidth;
+        const fill = pct >= 0 ? "#4caf50" : "#ef5350";
+        const y = i * barHeight + 4;
+        const barX = pct >= 0 ? labelWidth : labelWidth - barW;
+        return `
+          <text x="${2}" y="${y + 18}" fill="#ccc" font-size="12">${s.source_tag || "unknown"}</text>
+          <rect x="${labelWidth}" y="${y + 4}" width="${barW.toFixed(1)}" height="18" fill="${fill}" rx="2" />
+          <text x="${labelWidth + barW + 4}" y="${y + 18}" fill="#aaa" font-size="11">${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (${s.n})</text>
+        `;
+      }).join("");
+
+      barsEl.innerHTML = `
+        <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" preserveAspectRatio="xMinYMin meet" style="margin-top:8px;">
+          ${bars}
+        </svg>
+      `;
+    }
+  }
+}
+
 async function boot() {
   if (booting) return;
   booting = true;
@@ -1939,6 +2060,7 @@ async function boot() {
     // Signal Scorecard (non-blocking)
     fetchJsonSafe("/api/signal-scorecard", {}).then(d => renderSignalScorecard(d || {}));
     fetchJsonSafe("/api/weight-history?limit=30", {}).then(d => renderWeightHistory(d || {}));
+    fetchJsonSafe("/api/system-intelligence", {}).then(d => renderSystemIntelligence(d || {}));
 
     const topState = (systemHealth && systemHealth.overall) || "warn";
     const awareState = (awareness && awareness.overall) || "warn";

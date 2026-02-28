@@ -6633,3 +6633,89 @@ def submit_hyperliquid_quick_trade(
         return {"ok": ok, "intent_id": intent_id, "error": error}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+def get_system_intelligence() -> Dict[str, Any]:
+    """Rolling Sharpe + win rate, quant gate effectiveness, and source P&L contribution."""
+    from statistics import pstdev
+
+    result: Dict[str, Any] = {"rolling": [], "gate_effectiveness": {}, "source_contribution": []}
+    if not DB_PATH.exists():
+        return result
+
+    conn = _connect()
+    try:
+        # --- Rolling Sharpe & Win Rate ---
+        if _table_exists(conn, "route_outcomes"):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT resolved_at, pnl_percent
+                FROM route_outcomes
+                WHERE pnl_percent IS NOT NULL
+                ORDER BY datetime(COALESCE(resolved_at, '1970-01-01')) ASC
+                """
+            )
+            all_outcomes = cur.fetchall()
+            window = 30
+            step = 5
+            rolling: List[Dict[str, Any]] = []
+            for i in range(window, len(all_outcomes) + 1, step):
+                chunk = all_outcomes[i - window:i]
+                pnls = [float(r[1] or 0.0) for r in chunk]
+                wins = sum(1 for p in pnls if p > 0)
+                win_rate = round(100.0 * wins / len(pnls), 1)
+                mean_pnl = sum(pnls) / len(pnls)
+                std_pnl = pstdev(pnls) if len(pnls) > 1 else 0.0
+                sharpe = round(mean_pnl / std_pnl, 3) if std_pnl > 1e-9 else 0.0
+                ts = str(chunk[-1][0] or "")
+                rolling.append({"ts": ts, "sharpe": sharpe, "win_rate": win_rate, "idx": i})
+            result["rolling"] = rolling
+
+        # --- Gate Effectiveness ---
+        if _table_exists(conn, "quant_validations") and _table_exists(conn, "route_outcomes"):
+            cur = conn.cursor()
+            for passed_val, label in [(1, "passed"), (0, "rejected")]:
+                cur.execute(
+                    """
+                    SELECT
+                      COUNT(*) AS n,
+                      AVG(CASE WHEN o.pnl_percent > 0 THEN 1.0 ELSE 0.0 END) * 100 AS win_rate,
+                      AVG(o.pnl_percent) AS avg_pnl_pct
+                    FROM (
+                      SELECT DISTINCT UPPER(ticker) AS tk, source_tag AS st
+                      FROM quant_validations
+                      WHERE passed = ?
+                    ) qv
+                    JOIN route_outcomes o
+                      ON UPPER(o.ticker) = qv.tk AND o.source_tag = qv.st
+                    WHERE o.pnl_percent IS NOT NULL
+                    """,
+                    (passed_val,),
+                )
+                row = cur.fetchone()
+                n = int(row[0] or 0) if row else 0
+                wr = round(float(row[1] or 0.0), 1) if row and n > 0 else 0.0
+                avg = round(float(row[2] or 0.0), 2) if row and n > 0 else 0.0
+                result["gate_effectiveness"][label] = {"n": n, "win_rate": wr, "avg_pnl_pct": avg}
+
+        # --- Source P&L Contribution ---
+        if _table_exists(conn, "route_outcomes"):
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT source_tag, SUM(pnl_percent) AS total, COUNT(*) AS n
+                FROM route_outcomes
+                WHERE pnl_percent IS NOT NULL
+                GROUP BY source_tag
+                ORDER BY SUM(pnl_percent) DESC
+                """
+            )
+            result["source_contribution"] = [
+                {"source_tag": str(r[0] or ""), "total_pnl_pct": round(float(r[1] or 0.0), 2), "n": int(r[2] or 0)}
+                for r in cur.fetchall()
+            ]
+    finally:
+        conn.close()
+
+    return result

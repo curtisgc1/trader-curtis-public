@@ -79,6 +79,7 @@ from data import (
     get_hyperliquid_intents,
     submit_alpaca_quick_trade,
     submit_hyperliquid_quick_trade,
+    get_system_intelligence,
 )
 from data_scorecard import (
     get_signal_scorecard,
@@ -235,6 +236,11 @@ def api_agent_awareness():
 @app.get("/api/performance-curve")
 def api_performance_curve():
     return jsonify(get_performance_curve())
+
+
+@app.get("/api/system-intelligence")
+def api_system_intelligence():
+    return jsonify(get_system_intelligence())
 
 
 @app.get("/api/pnl-breakdown")
