@@ -14,6 +14,7 @@ from execution_guard import evaluate_candidate, init_controls, log_risk_event
 from execution_adapters import is_hl_eligible
 from market_regime_cloud import get_regime
 from quant_gate import evaluate_quant_candidate, ensure_tables as ensure_quant_tables
+from kelly_signal import _get_win_prob, _get_payout, kelly_formula
 from allocator_causal import (
     ensure_tables as ensure_allocator_tables,
     allocate_candidate,
@@ -514,6 +515,27 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
 
             score_adj = float(alloc.adjusted_score)
             notional_adj = float(alloc.adjusted_notional)
+
+            # Kelly sizing: scale notional by fractional Kelly if data exists
+            _kelly_ctl = conn.execute(
+                "SELECT value FROM execution_controls WHERE key='kelly_scale_routing' LIMIT 1"
+            ).fetchone()
+            kelly_scale_enabled = str(_kelly_ctl[0]) == "1" if _kelly_ctl else True
+            kelly_fraction_applied = 1.0
+            if kelly_scale_enabled:
+                try:
+                    win_prob, k_n = _get_win_prob(conn, source, ticker, direction)
+                    if k_n >= 3 and win_prob > 0.0:
+                        payout_map = {}  # Lightweight: use default payout
+                        avg_win, avg_loss, _ = _get_payout(payout_map, source, 24)
+                        b = avg_win / max(abs(avg_loss), 0.01) if avg_loss != 0 else 1.5
+                        fk = kelly_formula(win_prob, b)
+                        if fk > 0:
+                            # Quarter-Kelly cap: never bet more than 25% of full Kelly
+                            kelly_fraction_applied = min(fk * 0.25, 1.0)
+                            notional_adj = round(notional_adj * kelly_fraction_applied, 2)
+                except Exception:
+                    pass  # Non-fatal: fall through to allocator notional
 
             q_ok, q_reason, q_metrics = evaluate_quant_candidate(
                 conn=conn,

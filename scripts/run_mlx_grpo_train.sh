@@ -164,7 +164,7 @@ log "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] mlx_grpo_train=prepare"
 KAGGLE_MAX_PCT="$(get_control "grpo_kaggle_max_pct" "0")"
 INCLUDE_CANDIDATE_OUTCOMES="$(get_control "grpo_include_candidate_outcomes" "1")"
 
-BUILD_ARGS=(--include-operational --wins-only --counterfactual-horizon 24 --kaggle-max-pct "$KAGGLE_MAX_PCT")
+BUILD_ARGS=(--include-operational --counterfactual-horizon 24 --kaggle-max-pct "$KAGGLE_MAX_PCT" --eval-ratio 0.2)
 if [ "$INCLUDE_CANDIDATE_OUTCOMES" = "1" ]; then
   BUILD_ARGS+=(--include-candidate-outcomes)
 fi

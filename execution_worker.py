@@ -485,7 +485,7 @@ def process_queue(limit: int = 20) -> int:
                         f"{note}: {reason}",
                     ),
                 )
-                route_status = "executed" if ok else "blocked"
+                route_status = "submitted" if ok else "blocked"
                 cur.execute("UPDATE signal_routes SET status=?, reason=? WHERE id=?", (route_status, reason[:200], route_id))
                 _upsert_route_link(
                     conn=conn,
@@ -635,7 +635,7 @@ def process_queue(limit: int = 20) -> int:
                         f"alpaca paper: {reason}",
                     ),
                 )
-                route_status = "executed" if ok else "blocked"
+                route_status = "submitted" if ok else "blocked"
                 cur.execute("UPDATE signal_routes SET status=?, reason=? WHERE id=?", (route_status, reason[:200], route_id))
                 _upsert_route_link(
                     conn=conn,
@@ -722,7 +722,7 @@ def process_queue(limit: int = 20) -> int:
                 """,
                 (now_iso(), route_id, ticker_u, direction, mode, float(notional), 1.0, 0, synthetic_id),
             )
-            cur.execute("UPDATE signal_routes SET status='executed' WHERE id=?", (route_id,))
+            cur.execute("UPDATE signal_routes SET status='submitted' WHERE id=?", (route_id,))
             _upsert_route_link(
                 conn=conn,
                 route_id=route_id,

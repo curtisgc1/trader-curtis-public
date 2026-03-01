@@ -1,3 +1,4 @@
+import os
 from flask import Flask, jsonify, request, send_from_directory
 from data import (
     approve_polymarket_candidates,
@@ -103,7 +104,11 @@ from data_scorecard import (
     get_polymarket_scorecard,
 )
 
-app = Flask(__name__, static_folder="static", static_url_path="/static")
+_DIST_DIR = os.path.join(os.path.dirname(__file__), "dist")
+_HAS_DIST = os.path.isdir(_DIST_DIR) and os.path.isfile(os.path.join(_DIST_DIR, "index.html"))
+_STATIC = _DIST_DIR if _HAS_DIST else os.path.join(os.path.dirname(__file__), "static")
+
+app = Flask(__name__, static_folder=_STATIC, static_url_path="/static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 
@@ -116,38 +121,21 @@ def add_no_cache_headers(resp):
 
 
 @app.get("/")
-def index():
+@app.get("/learning")
+@app.get("/signals")
+@app.get("/polymarket")
+@app.get("/consensus")
+@app.get("/alpaca")
+@app.get("/hyperliquid")
+def spa_catch_all():
+    """Serve SPA index.html for all client-side routes."""
     return send_from_directory(app.static_folder, "index.html")
 
 
-@app.get("/learning")
-def learning_page():
-    return send_from_directory(app.static_folder, "learning.html")
-
-
-@app.get("/signals")
-def signals_page():
-    return send_from_directory(app.static_folder, "signals.html")
-
-
-@app.get("/polymarket")
-def polymarket_page():
-    return send_from_directory(app.static_folder, "polymarket.html")
-
-
-@app.get("/consensus")
-def consensus_page():
-    return send_from_directory(app.static_folder, "consensus.html")
-
-
-@app.get("/alpaca")
-def alpaca_page():
-    return send_from_directory(app.static_folder, "alpaca.html")
-
-
-@app.get("/hyperliquid")
-def hyperliquid_page():
-    return send_from_directory(app.static_folder, "hyperliquid.html")
+@app.get("/assets/<path:filename>")
+def serve_assets(filename):
+    """Serve Vite build assets (JS/CSS bundles)."""
+    return send_from_directory(os.path.join(app.static_folder, "assets"), filename)
 
 
 @app.get("/api/summary")
@@ -780,6 +768,71 @@ def api_arb_opportunities():
 @app.get("/api/arb-overview")
 def api_arb_overview():
     return jsonify(get_arb_overview())
+
+
+# ── Simulation Engine Endpoints ─────────────────────────────────
+import sys
+from pathlib import Path as _Path
+sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+
+
+@app.get("/api/simulation/run")
+def api_simulation_run():
+    """Run ensemble simulation for a contract."""
+    contract = request.args.get("contract", "")
+    prob = float(request.args.get("prob", 0.5))
+    market_price = float(request.args.get("market_price", 0.5))
+    if not contract:
+        return jsonify({"error": "contract parameter required"}), 400
+    try:
+        from simulations.ensemble_engine import EnsembleEngine
+        engine = EnsembleEngine(n_mc_paths=5000, n_particles=300, n_market_steps=200)
+        result = engine.run(
+            contract=contract,
+            prob_estimate=prob,
+            market_price=market_price,
+            persist=True,
+        )
+        return jsonify(result.to_dict())
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.get("/api/simulation/history")
+def api_simulation_history():
+    """Fetch recent simulation runs."""
+    limit = int(request.args.get("limit", 20))
+    layer = request.args.get("layer", "")
+    try:
+        from simulations import _db
+        conn = _db.get_conn()
+        cur = conn.cursor()
+        if layer:
+            cur.execute(
+                """SELECT id, run_at, layer, contract, ticker, brier, edge_pct, n_paths, elapsed_ms
+                   FROM simulation_runs WHERE layer = ?
+                   ORDER BY datetime(run_at) DESC LIMIT ?""",
+                (layer, limit),
+            )
+        else:
+            cur.execute(
+                """SELECT id, run_at, layer, contract, ticker, brier, edge_pct, n_paths, elapsed_ms
+                   FROM simulation_runs
+                   ORDER BY datetime(run_at) DESC LIMIT ?""",
+                (limit,),
+            )
+        rows = [
+            {
+                "id": r[0], "run_at": r[1], "layer": r[2], "contract": r[3],
+                "ticker": r[4], "brier": r[5], "edge_pct": r[6],
+                "n_paths": r[7], "elapsed_ms": r[8],
+            }
+            for r in cur.fetchall()
+        ]
+        conn.close()
+        return jsonify(rows)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 if __name__ == "__main__":

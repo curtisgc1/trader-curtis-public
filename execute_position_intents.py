@@ -172,20 +172,29 @@ def _run_stop_protection(
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        output = result.stdout.strip()
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
         if result.returncode == 0:
             try:
-                data = json.loads(output)
+                data = json.loads(stdout)
                 if data.get("ok"):
-                    return True, output
-                return False, data.get("message", output)
+                    return True, stdout
+                return False, data.get("message") or stdout or "stop returned ok=false with no message"
             except Exception:
-                return True, output
-        return False, result.stderr.strip() or output or f"exit {result.returncode}"
+                return True, stdout
+        # Build detailed error message for debugging
+        parts = []
+        if stderr:
+            parts.append(f"stderr={stderr[-500:]}")
+        if stdout:
+            parts.append(f"stdout={stdout[-500:]}")
+        if not parts:
+            parts.append(f"exit_code={result.returncode} (no output)")
+        return False, "; ".join(parts)
     except subprocess.TimeoutExpired:
-        return False, "apply_hl_protection.py timed out"
+        return False, f"apply_hl_protection.py timed out (30s) for {symbol}"
     except Exception as exc:
-        return False, str(exc)
+        return False, f"subprocess error: {type(exc).__name__}: {exc}"
 
 
 def _consult_live_signals(

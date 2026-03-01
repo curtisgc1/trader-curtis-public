@@ -344,6 +344,22 @@ def main() -> int:
         use_llm = get_control(conn, "grpo_llm_reasoner_enabled", "1") == "1"
         model = get_control(conn, "grpo_local_model", "qwen2.5:14b")
 
+        # SAFETY: Only apply live weight updates when we have enough REALIZED
+        # outcomes (not proxy MTM marks). Proxy labels can mislead optimization.
+        min_realized = int(float(get_control(conn, "grpo_min_realized_for_live", "10") or 10))
+        if apply_live:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) FROM route_outcomes WHERE COALESCE(outcome_type,'')='realized'"
+            )
+            realized_count = int(cur.fetchone()[0])
+            if realized_count < min_realized:
+                print(
+                    f"GRPO_HGRM: apply_live=1 but only {realized_count} realized outcomes "
+                    f"(need {min_realized}). Downgrading to report-only mode."
+                )
+                apply_live = False
+
         sample_count = build_samples(conn, lookback_days=lookback_days)
         applied_updates, updates = apply_updates(
             conn,

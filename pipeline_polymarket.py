@@ -428,7 +428,7 @@ def _pipeline_signal_adjustment(conn: sqlite3.Connection, question: str) -> floa
         """
         SELECT direction, score
         FROM pipeline_signals
-        WHERE upper(ticker)=?
+        WHERE upper(asset)=?
         ORDER BY datetime(COALESCE(created_at,'1970-01-01')) DESC
         LIMIT 1
         """,
@@ -626,8 +626,9 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             continue
 
         # ── Phase 3: Gabagool-style intra-market arb ──────────────────
-        # Check for guaranteed profit from dual-sided trade (YES + NO < 1.0)
-        if len(prices) >= 2:
+        # SAFETY: Only execute arb on strictly binary markets (exactly 2 outcomes).
+        # Multi-outcome markets (3+) can lose both legs even if sum < 1.0.
+        if len(prices) == 2 and len(outcomes) == 2:
             cost_per_pair = prices[0] + prices[1]
             if cost_per_pair > 0.01 and cost_per_pair < 1.0 and float(liquidity or 0) >= 5000:
                 guaranteed_profit_pct = ((1.0 - cost_per_pair) / cost_per_pair) * 100.0

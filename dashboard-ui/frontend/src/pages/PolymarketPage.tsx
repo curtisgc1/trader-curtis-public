@@ -8,6 +8,7 @@ import { GrokAlpha } from '@/features/polymarket/GrokAlpha';
 import { GrokScores } from '@/features/polymarket/GrokScores';
 import { FilteredSignals } from '@/features/polymarket/FilteredSignals';
 import { BrainControls } from '@/features/polymarket/BrainControls';
+import { SimulationPanel } from '@/features/polymarket/SimulationPanel';
 
 export function PolymarketPage() {
   return (
@@ -45,6 +46,9 @@ export function PolymarketPage() {
         <FilteredSignals />
         <BrainControls />
       </div>
+
+      {/* Row 7: Simulation Engine */}
+      <SimulationPanel />
     </div>
   );
 }

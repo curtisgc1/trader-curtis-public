@@ -1272,7 +1272,7 @@ def resolve_route_outcomes(conn: sqlite3.Connection) -> int:
             SELECT r.id, r.ticker, COALESCE(r.source_tag, 'internal'), r.routed_at
             FROM signal_routes r
             LEFT JOIN route_outcomes o ON o.route_id = r.id
-            WHERE r.status='executed'
+            WHERE r.status IN ('executed', 'submitted')
               AND r.decision='approved'
               AND (o.route_id IS NULL OR o.outcome_type='operational')
             ORDER BY r.id DESC

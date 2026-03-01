@@ -306,6 +306,29 @@ def _get_win_prob(
         if row and row[1] and int(row[1]) > 0:
             return float(row[0]) / 100.0, int(row[1])
 
+    # Fallback: simulation engine ensemble estimate (if fresh run exists)
+    if _table_exists(conn, "simulation_runs"):
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT result, edge_pct
+               FROM simulation_runs
+               WHERE layer = 'ensemble' AND contract = ?
+                 AND datetime(run_at) > datetime('now', '-24 hours')
+               ORDER BY datetime(run_at) DESC LIMIT 1""",
+            (ticker,),
+        )
+        row = cur.fetchone()
+        if row and row[0]:
+            try:
+                import json as _json
+                res = _json.loads(row[0])
+                sim_prob = float(res.get("ensemble_prob", 0))
+                sim_n = int(res.get("effective_n", 0))
+                if 0.01 < sim_prob < 0.99 and sim_n > 0:
+                    return sim_prob, sim_n
+            except Exception:
+                pass
+
     return 0.50, 0  # no data — use 50% as prior (coin flip)
 
 

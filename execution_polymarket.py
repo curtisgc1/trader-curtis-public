@@ -266,7 +266,21 @@ def _normalize_live_wallet(env: Dict[str, str]) -> Tuple[Dict[str, str], str]:
     return out, ""
 
 
+def _configure_proxy(env: Dict[str, str]) -> None:
+    """Inject HTTP proxy into py_clob_client's global httpx client if POLY_PROXY_URL is set."""
+    proxy_url = str(env.get("POLY_PROXY_URL") or "").strip()
+    if not proxy_url:
+        return
+    try:
+        import httpx
+        from py_clob_client.http_helpers import helpers as _clob_helpers
+        _clob_helpers._http_client = httpx.Client(http2=True, proxy=proxy_url)
+    except Exception:
+        pass  # Non-fatal: falls back to direct connection
+
+
 def _make_client(env: Dict[str, str]) -> ClobClient:
+    _configure_proxy(env)
     creds = ApiCreds(
         api_key=env["POLY_API_KEY"],
         api_secret=env["POLY_API_SECRET"],
@@ -1068,7 +1082,9 @@ def run() -> int:
                 stats["executed"] += 1
 
                 # Execute arb pair second leg (live)
+                # SAFETY: If leg 2 fails, cancel leg 1 to avoid unhedged exposure.
                 if pair_id and pair_id in arb_pairs:
+                    leg2_ok = False
                     for leg in arb_pairs[pair_id]:
                         leg_id = int(leg.get("id") or 0)
                         if leg_id == cid:
@@ -1092,6 +1108,7 @@ def run() -> int:
                                 )
                                 _mark_candidate(conn, leg_id, l_st)
                                 stats["executed"] += 1
+                                leg2_ok = True
                             except Exception as leg_exc:
                                 _insert_order_event(
                                     conn, leg, mode="live", status="submission_failed",
@@ -1100,8 +1117,30 @@ def run() -> int:
                                 )
                                 _mark_candidate(conn, leg_id, "submission_failed")
                                 stats["failed"] += 1
-                    executed_pair_ids.add(pair_id)
-                    stats["arb_pairs_executed"] += 1
+                    # If leg 2 failed, attempt to cancel leg 1 to avoid unhedged exposure
+                    if not leg2_ok and order_id:
+                        try:
+                            if client is not None:
+                                client.cancel(order_id)
+                            _insert_order_event(
+                                conn, candidate, mode="live",
+                                status="arb_leg1_cancelled",
+                                notes=f"cancelled leg 1 (pair={pair_id}) — leg 2 failed",
+                                notional=notional, token_id=token_id,
+                            )
+                            _mark_candidate(conn, cid, "arb_leg1_cancelled")
+                            stats["executed"] -= 1
+                            stats["failed"] += 1
+                        except Exception as cancel_exc:
+                            _insert_order_event(
+                                conn, candidate, mode="live",
+                                status="arb_cancel_failed",
+                                notes=f"CRITICAL: leg 2 failed AND leg 1 cancel failed: {cancel_exc}",
+                                notional=notional, token_id=token_id,
+                            )
+                    else:
+                        executed_pair_ids.add(pair_id)
+                        stats["arb_pairs_executed"] += 1
 
                 # First-N manual approvals consumed only on successful live submissions.
                 if _as_bool(controls.get("polymarket_manual_approval"), default=True):

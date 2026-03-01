@@ -709,6 +709,8 @@ def main() -> int:
             blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_x_consensus + c_kw + c_event_alpha + c_mom + c_vr + c_dapo
             final_score = round(min(max(blended, 0.0), 1.0) * 100.0, 2)
 
+            evidence = []
+
             if direction_consensus_enabled:
                 # Weighted voting: collect direction votes weighted by input family weights
                 votes = {"long": 0.0, "short": 0.0}
@@ -765,7 +767,6 @@ def main() -> int:
                 source_tag = "VIX_REGIME"
             if source_tag == "internal" and dapo_hit:
                 source_tag = "DAPO_AGENT"
-            evidence = []
             if ticker in sentiment:
                 evidence.append("social_sentiment")
             if pattern_type and pattern_type != "none":

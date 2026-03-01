@@ -145,6 +145,9 @@ def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[D
         has_quant = cur.fetchone() is not None
 
         if has_quant:
+            # Two-step approach: SQLite correlated subqueries can't reference
+            # outer-join tables in ON clauses, so we fetch base rows first
+            # then enrich with nearest quant_validation per ticker/source.
             cur.execute(
                 f"""
                 SELECT
@@ -157,25 +160,41 @@ def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[D
                   COALESCE(rf.strategy_tag,''),
                   COALESCE(rf.venue,''),
                   COALESCE(rf.direction,''),
-                  COALESCE(rf.route_score,0.0),
-                  COALESCE(qv.volatility_percent, 0.0),
-                  COALESCE(qv.max_drawdown_percent, 0.0)
+                  COALESCE(rf.route_score,0.0)
                 FROM route_outcomes ro
                 LEFT JOIN route_feedback_features rf ON rf.route_id = ro.route_id
-                LEFT JOIN quant_validations qv
-                  ON UPPER(qv.ticker) = UPPER(COALESCE(rf.ticker,''))
-                  AND qv.source_tag = COALESCE(rf.source_tag,'')
-                  AND qv.id = (
-                    SELECT qv2.id FROM quant_validations qv2
-                    WHERE UPPER(qv2.ticker) = UPPER(COALESCE(rf.ticker,''))
-                      AND qv2.source_tag = COALESCE(rf.source_tag,'')
-                    ORDER BY ABS(julianday(qv2.validated_at) - julianday(COALESCE(ro.resolved_at,'')))
-                    LIMIT 1
-                  )
                 WHERE {where}
                 ORDER BY datetime(ro.resolved_at) ASC
                 """
             )
+            base_rows = cur.fetchall()
+            # Build quant_validations lookup keyed by (upper_ticker, source_tag)
+            cur.execute("SELECT id, ticker, source_tag, volatility_percent, max_drawdown_percent, validated_at FROM quant_validations")
+            qv_by_key: dict = {}
+            for qid, qt, qs, qvol, qdd, qva in cur.fetchall():
+                key = (str(qt or "").upper(), str(qs or ""))
+                qv_by_key.setdefault(key, []).append((qid, float(qvol or 0), float(qdd or 0), str(qva or "")))
+
+            enriched = []
+            for row in base_rows:
+                ticker_upper = str(row[4] or "").upper()
+                src = str(row[5] or "")
+                resolved = str(row[1] or "")
+                entries = qv_by_key.get((ticker_upper, src), [])
+                vol, dd = 0.0, 0.0
+                if entries and resolved:
+                    from datetime import datetime as _dt
+                    def _jd(s: str) -> float:
+                        try:
+                            return _dt.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+                        except Exception:
+                            return 0.0
+                    r_ts = _jd(resolved)
+                    best = min(entries, key=lambda e: abs(_jd(e[3]) - r_ts))
+                    vol, dd = best[1], best[2]
+                enriched.append((*row, vol, dd))
+            # Replace fetchall result
+            base_rows = enriched
         else:
             cur.execute(
                 f"""
@@ -199,6 +218,7 @@ def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[D
                 """
             )
 
+        result_rows = base_rows if has_quant else cur.fetchall()
         rows = []
         for (
             route_id,
@@ -213,7 +233,7 @@ def _internal_rows(include_operational: bool, wins_only: bool = False) -> List[D
             route_score,
             vol_pct,
             dd_pct,
-        ) in cur.fetchall():
+        ) in result_rows:
             target = _hgrm_target(
                 float(pnl_pct or 0.0),
                 float(route_score or 0.0),

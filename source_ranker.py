@@ -66,7 +66,7 @@ def compute() -> int:
             SELECT COALESCE(source_tag,'internal') AS src,
                    COUNT(*) AS total,
                    SUM(CASE WHEN decision='approved' THEN 1 ELSE 0 END) AS approved_count,
-                   SUM(CASE WHEN status='executed' THEN 1 ELSE 0 END) AS executed_count
+                   SUM(CASE WHEN status IN ('executed','submitted') THEN 1 ELSE 0 END) AS executed_count
             FROM signal_routes
             WHERE COALESCE(source_tag,'') NOT LIKE 'manual-%'
             GROUP BY src

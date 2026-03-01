@@ -144,10 +144,33 @@ def _corr_to_open_book(conn: sqlite3.Connection, ticker: str) -> float:
     return min(0.8, round(0.25 + (open_total * 0.05), 4))
 
 
+def _simulation_regime_boost(conn: sqlite3.Connection, ticker: str) -> float:
+    """Boost regime_score when ensemble simulation shows edge > 10%."""
+    if not table_exists(conn, "simulation_runs"):
+        return 0.0
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT edge_pct FROM simulation_runs
+               WHERE layer = 'ensemble' AND (contract = ? OR ticker = ?)
+                 AND datetime(run_at) > datetime('now', '-24 hours')
+               ORDER BY datetime(run_at) DESC LIMIT 1""",
+            (ticker, ticker),
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            edge = float(row[0])
+            if edge > 10.0:
+                return min(0.2, edge / 100.0)
+    except Exception:
+        pass
+    return 0.0
+
+
 def _regime_score(conn: sqlite3.Connection, ticker: str, direction: str) -> float:
     score = 0.5
     if not table_exists(conn, "event_alerts"):
-        return score
+        return max(0.0, min(1.0, round(score + _simulation_regime_boost(conn, ticker), 4)))
     cur = conn.cursor()
     cur.execute(
         """
@@ -166,6 +189,7 @@ def _regime_score(conn: sqlite3.Connection, ticker: str, direction: str) -> floa
             if str(priority).lower() in {"high", "critical"}:
                 score += 0.1
             break
+    score += _simulation_regime_boost(conn, ticker)
     return max(0.0, min(1.0, round(score, 4)))
 
 
