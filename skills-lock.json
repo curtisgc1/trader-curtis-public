@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "predexon": {
+      "source": "docs.predexon.com",
+      "sourceType": "well-known",
+      "computedHash": "25f1316eaac39248913428e95b8475387df3ce3daaa3427a2ccde0688f00b7b8"
+    }
+  }
+}

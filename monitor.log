@@ -1,0 +1,340 @@
+========== 2026-02-28 18:04:39 ==========
+BRAIN: heartbeat 2026-03-01T02:03:21.334049+00:00
+BAL: [02:03:30] ARB: balances — Poly $429.41, Kalshi $48.85
+--- GROK ALPHA (last 30min) ---
+2026-03-01T02:01:18.677394+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|18|0.2105|no|3.05|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Russia x Ukraine ceasefire by end of 2026?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Barcelona win the 2025–26 Champions League?|18|0.115|yes|6.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|27|0.2105|yes|5.95|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will MegaETH perform an airdrop by June 30? |85|0.7155|yes|13.45|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Portugal win the 2026 FIFA World Cup?|35|0.073|yes|27.7|executed|15.0
+2026-03-01T01:50:58.822476+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|82|0.685|yes|13.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Arsenal win the 2025–26 English Premier League?|55|0.635|no|8.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Democratic Party control the House after the 2026 Midterm elections?|92|0.845|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|76|0.685|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Oklahoma City Thunder win the 2026 NBA Finals?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|28|0.2105|yes|6.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Lens win the 2025–26 French Ligue 1?|4|0.0795|no|3.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Argentina win the 2026 FIFA World Cup?|85|0.1185|yes|73.15|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|65|0.355|yes|29.5|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the Minnesota Wild win the 2026 NHL Stanley Cup?|14|0.067|yes|7.3|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|12|0.055|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Jesus Christ return before GTA VI?|55|0.485|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Alexandria Ocasio-Cortez win the 2028 US Presidential Election?|2|0.0595|no|3.95|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will China invade Taiwan by end of 2026?|5|0.097|no|4.7|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Russia x Ukraine ceasefire by end of 2026?|58|0.355|yes|22.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|48|0.635|no|15.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:17:59.125963+00:00|Will MegaETH perform an airdrop by June 30? |78|0.7155|yes|6.45|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|81|0.77|yes|4.0|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Liverpool win the 2025–26 Champions League?|14|0.085|yes|5.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|58|0.355|yes|22.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|18|0.055|yes|12.5|detected|0.0
+ALPHA TOTALS: 34|5|75.0
+--- ARB (last 30min) ---
+2026-03-01T01:55:41.986470+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|partial|spread_pct=40.8% partial
+2026-03-01T02:00:01.006951+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|executed|spread_pct=40.8% executed
+2026-03-01T01:59:16.153759+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.11|0.0365|detected|spread_pct=3.9%
+2026-03-01T02:04:11.070270+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.11|0.0365|detected|spread_pct=3.9%
+2026-03-01T01:54:58.681442+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.13|0.0151|detected|spread_pct=1.6%
+2026-03-01T01:58:12.635493+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.13|0.0151|detected|spread_pct=1.6%
+2026-03-01T01:54:41.042581+00:00|Will "Marty Supreme" win exactly 2 awards at the Oscars?|0.883|0.09|-0.0071|detected|spread_pct=-0.7%
+2026-03-01T01:57:51.574208+00:00|Will "Marty Supreme" win exactly 2 awards at the Oscars?|0.884|0.09|-0.0081|detected|spread_pct=-0.8%
+2026-03-01T01:58:58.250516+00:00|Will "Marty Supreme" win exactly 2 awards at the Oscars?|0.884|0.09|-0.0081|detected|spread_pct=-0.8%
+2026-03-01T02:03:53.957860+00:00|Will "Marty Supreme" win exactly 2 awards at the Oscars?|0.884|0.09|-0.0081|detected|spread_pct=-0.8%
+ARB TOTALS: 108|1|1
+--- ERRORS (last 30min) ---
+[01:58:22] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:00:04] ARB: Kalshi order attempt 1 failed (count=27 price=18c): 409 Client E
+[02:00:05] ARB: Kalshi order attempt 2 failed (count=13 price=18c): 409 Client E
+[02:01:18] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:03:25] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+BEST ARBS EVER: Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|partial
+Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|executed
+Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.0365|detected
+
+========== 2026-02-28 18:34:39 ==========
+BRAIN: heartbeat 2026-03-01T02:34:09.488675+00:00
+BAL: [02:30:10] ARB: balances — Poly $429.41, Kalshi $47.70
+--- GROK ALPHA (last 30min) ---
+2026-03-01T02:29:57.506347+00:00|MegaETH market cap (FDV) >$2B one day after launch?|12|0.175|no|5.5|skipped|0.0
+2026-03-01T02:29:57.506347+00:00|Will MegaETH perform an airdrop by June 30? |55|0.7155|no|16.55|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will JD Vance win the 2028 US Presidential Election?|35|0.222|yes|12.8|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will Gavin Newsom win the 2028 US Presidential Election?|42|0.1745|yes|24.55|executed|15.0
+2026-03-01T02:19:36.639540+00:00|Russia x Ukraine ceasefire by end of 2026?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will China invade Taiwan by end of 2026?|28|0.097|yes|18.3|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will England win the 2026 FIFA World Cup?|24|0.1315|yes|10.85|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|48|0.355|yes|12.5|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|MegaETH market cap (FDV) >$2B one day after launch?|11|0.175|no|6.5|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|62|0.77|no|15.0|skipped|0.0
+2026-03-01T02:01:18.677394+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|18|0.2105|no|3.05|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Russia x Ukraine ceasefire by end of 2026?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Barcelona win the 2025–26 Champions League?|18|0.115|yes|6.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|27|0.2105|yes|5.95|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will MegaETH perform an airdrop by June 30? |85|0.7155|yes|13.45|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Portugal win the 2026 FIFA World Cup?|35|0.073|yes|27.7|executed|15.0
+2026-03-01T01:50:58.822476+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|82|0.685|yes|13.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Arsenal win the 2025–26 English Premier League?|55|0.635|no|8.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Democratic Party control the House after the 2026 Midterm elections?|92|0.845|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|76|0.685|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Oklahoma City Thunder win the 2026 NBA Finals?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|28|0.2105|yes|6.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Lens win the 2025–26 French Ligue 1?|4|0.0795|no|3.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Argentina win the 2026 FIFA World Cup?|85|0.1185|yes|73.15|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|65|0.355|yes|29.5|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the Minnesota Wild win the 2026 NHL Stanley Cup?|14|0.067|yes|7.3|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|12|0.055|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Jesus Christ return before GTA VI?|55|0.485|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Alexandria Ocasio-Cortez win the 2028 US Presidential Election?|2|0.0595|no|3.95|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will China invade Taiwan by end of 2026?|5|0.097|no|4.7|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Russia x Ukraine ceasefire by end of 2026?|58|0.355|yes|22.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|48|0.635|no|15.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:17:59.125963+00:00|Will MegaETH perform an airdrop by June 30? |78|0.7155|yes|6.45|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|81|0.77|yes|4.0|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Liverpool win the 2025–26 Champions League?|14|0.085|yes|5.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|58|0.355|yes|22.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|18|0.055|yes|12.5|detected|0.0
+ALPHA TOTALS: 47|6|90.0
+--- ARB (last 30min) ---
+2026-03-01T01:55:41.986470+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|partial|spread_pct=40.8% partial
+2026-03-01T02:00:01.006951+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|executed|spread_pct=40.8% executed
+2026-03-01T02:04:55.483554+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.735|0.18|0.0492|executed|spread_pct=5.4% executed
+2026-03-01T02:30:51.694939+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.1|0.0472|executed|spread_pct=5.1% executed
+2026-03-01T02:21:18.462950+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.735|0.19|0.0385|detected|spread_pct=4.2%
+2026-03-01T01:59:16.153759+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.11|0.0365|detected|spread_pct=3.9%
+2026-03-01T02:04:11.070270+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.11|0.0365|detected|spread_pct=3.9%
+2026-03-01T02:20:35.471467+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.12|0.0258|detected|spread_pct=2.7%
+2026-03-01T02:25:30.368032+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.12|0.0258|detected|spread_pct=2.7%
+2026-03-01T01:54:58.681442+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.13|0.0151|detected|spread_pct=1.6%
+ARB TOTALS: 295|3|1
+--- ERRORS (last 30min) ---
+[02:14:13] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:16:34] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:19:41] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:22:57] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:24:42] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:27:50] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:29:59] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:30:54] ARB: Kalshi order attempt 1 failed (count=50 price=10c): 409 Client E
+[02:30:56] ARB: Kalshi order attempt 2 failed (count=25 price=10c): 409 Client E
+[02:33:09] WSS error: 'NoneType' object has no attribute 'resume_reading'
+BEST ARBS EVER: Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|partial
+Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|executed
+Will the US federal government take a stake in Lockheed Martin Corporation?|0.0492|executed
+
+========== 2026-02-28 19:04:39 ==========
+BRAIN: heartbeat 2026-03-01T03:03:57.054048+00:00
+BAL: [03:00:26] ARB: balances — Poly $429.41, Kalshi $36.05
+--- GROK ALPHA (last 30min) ---
+2026-03-01T02:59:55.147797+00:00|Will Nikola Jokic win the 2025–2026 NBA MVP?|12|0.1495|no|2.95|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Gavin Newsom win the 2028 US Presidential Election?|10|0.1745|no|7.45|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Gavin Newsom win the 2028 Democratic presidential nomination?|14|0.2595|no|11.95|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will JD Vance win the 2028 US Presidential Election?|38|0.222|yes|15.8|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will J.D. Vance win the 2028 Republican presidential nomination?|58|0.422|yes|15.8|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Russia x Ukraine ceasefire by end of 2026?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will China invade Taiwan by end of 2026?|3|0.097|no|6.7|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|75|0.685|yes|6.5|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Cade Cunningham win the 2025–2026 NBA MVP?|28|0.086|yes|19.4|skipped|0.0
+2026-03-01T02:39:41.777544+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|85|0.77|yes|8.0|skipped|0.0
+2026-03-01T02:39:41.777544+00:00|Will China invade Taiwan by end of 2026?|4|0.097|no|5.7|skipped|0.0
+2026-03-01T02:29:57.506347+00:00|MegaETH market cap (FDV) >$2B one day after launch?|12|0.175|no|5.5|skipped|0.0
+2026-03-01T02:29:57.506347+00:00|Will MegaETH perform an airdrop by June 30? |55|0.7155|no|16.55|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will JD Vance win the 2028 US Presidential Election?|35|0.222|yes|12.8|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will Gavin Newsom win the 2028 US Presidential Election?|42|0.1745|yes|24.55|executed|15.0
+2026-03-01T02:19:36.639540+00:00|Russia x Ukraine ceasefire by end of 2026?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will China invade Taiwan by end of 2026?|28|0.097|yes|18.3|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will England win the 2026 FIFA World Cup?|24|0.1315|yes|10.85|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|48|0.355|yes|12.5|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|MegaETH market cap (FDV) >$2B one day after launch?|11|0.175|no|6.5|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|62|0.77|no|15.0|skipped|0.0
+2026-03-01T02:01:18.677394+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|18|0.2105|no|3.05|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Russia x Ukraine ceasefire by end of 2026?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Barcelona win the 2025–26 Champions League?|18|0.115|yes|6.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|27|0.2105|yes|5.95|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will MegaETH perform an airdrop by June 30? |85|0.7155|yes|13.45|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Portugal win the 2026 FIFA World Cup?|35|0.073|yes|27.7|executed|15.0
+2026-03-01T01:50:58.822476+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|82|0.685|yes|13.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Arsenal win the 2025–26 English Premier League?|55|0.635|no|8.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Democratic Party control the House after the 2026 Midterm elections?|92|0.845|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|76|0.685|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Oklahoma City Thunder win the 2026 NBA Finals?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|28|0.2105|yes|6.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Lens win the 2025–26 French Ligue 1?|4|0.0795|no|3.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Argentina win the 2026 FIFA World Cup?|85|0.1185|yes|73.15|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|65|0.355|yes|29.5|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the Minnesota Wild win the 2026 NHL Stanley Cup?|14|0.067|yes|7.3|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|12|0.055|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Jesus Christ return before GTA VI?|55|0.485|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Alexandria Ocasio-Cortez win the 2028 US Presidential Election?|2|0.0595|no|3.95|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will China invade Taiwan by end of 2026?|5|0.097|no|4.7|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Russia x Ukraine ceasefire by end of 2026?|58|0.355|yes|22.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|48|0.635|no|15.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:17:59.125963+00:00|Will MegaETH perform an airdrop by June 30? |78|0.7155|yes|6.45|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|81|0.77|yes|4.0|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Liverpool win the 2025–26 Champions League?|14|0.085|yes|5.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|58|0.355|yes|22.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|18|0.055|yes|12.5|detected|0.0
+ALPHA TOTALS: 58|6|90.0
+--- ARB (last 30min) ---
+2026-03-01T01:55:41.986470+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|partial|spread_pct=40.8% partial
+2026-03-01T02:00:01.006951+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|executed|spread_pct=40.8% executed
+2026-03-01T02:35:30.945064+00:00|Will "Marty Supreme" win exactly 2 awards at the Oscars?|0.747|0.09|0.1332|executed|spread_pct=15.9% executed
+2026-03-01T02:46:09.106752+00:00|Will Sporting Kansas City vs. Columbus Crew end in a draw?|0.21|0.62|0.12|executed|spread_pct=14.5% executed
+2026-03-01T02:04:55.483554+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.735|0.18|0.0492|executed|spread_pct=5.4% executed
+2026-03-01T02:30:51.694939+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.1|0.0472|executed|spread_pct=5.1% executed
+2026-03-01T02:21:18.462950+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.735|0.19|0.0385|detected|spread_pct=4.2%
+2026-03-01T02:35:51.943676+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.83|0.1|0.0369|detected|spread_pct=4.0%
+2026-03-01T02:55:56.134506+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.83|0.1|0.0369|detected|spread_pct=4.0%
+2026-03-01T03:01:25.751104+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.83|0.1|0.0369|detected|spread_pct=4.0%
+ARB TOTALS: 511|5|1
+--- ERRORS (last 30min) ---
+[02:42:56] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:45:07] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:48:13] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:50:08] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:53:10] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:55:10] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[02:58:06] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[02:59:55] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[03:00:11] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[03:03:57] WSS error: 'NoneType' object has no attribute 'resume_reading'
+BEST ARBS EVER: Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|partial
+Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|executed
+Will "Marty Supreme" win exactly 2 awards at the Oscars?|0.1332|executed
+
+========== 2026-02-28 19:34:39 ==========
+BRAIN: heartbeat 2026-03-01T03:34:23.557595+00:00
+BAL: [03:30:40] ARB: balances — Poly $422.86, Kalshi $32.77
+--- GROK ALPHA (last 30min) ---
+2026-03-01T03:30:04.155613+00:00|Russia x Ukraine ceasefire by end of 2026?|25|0.355|no|10.5|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will Jesus Christ return before GTA VI?|55|0.485|yes|6.5|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|30|0.2105|yes|8.95|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will Nikola Jokic win the 2025–2026 NBA MVP?|10|0.1495|no|4.95|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will Cade Cunningham win the 2025–2026 NBA MVP?|15|0.086|no|-6.4|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|78|0.685|yes|9.5|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|85|0.77|yes|8.0|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|MegaETH market cap (FDV) >$2B one day after launch?|25|0.175|no|-7.5|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will MegaETH perform an airdrop by June 30? |80|0.7155|yes|8.45|skipped|0.0
+2026-03-01T03:30:04.155613+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|45|0.635|no|18.5|skipped|0.0
+2026-03-01T03:19:12.721704+00:00|MegaETH market cap (FDV) >$2B one day after launch?|25|0.175|no|-7.5|skipped|0.0
+2026-03-01T03:19:12.721704+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T03:19:12.721704+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T03:19:12.721704+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T03:09:27.723766+00:00|Will the Oklahoma City Thunder win the 2026 NBA Finals?|42|0.355|yes|6.5|skipped|0.0
+2026-03-01T03:09:27.723766+00:00|Will Cade Cunningham win the 2025–2026 NBA MVP?|12|0.086|yes|3.4|skipped|0.0
+2026-03-01T03:09:27.723766+00:00|Will MegaETH perform an airdrop by June 30? |40|0.7155|no|31.55|executed|15.0
+2026-03-01T03:09:27.723766+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|82|0.77|yes|5.0|skipped|0.0
+2026-03-01T03:09:27.723766+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T03:09:27.723766+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|75|0.685|yes|6.5|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Nikola Jokic win the 2025–2026 NBA MVP?|12|0.1495|no|2.95|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Gavin Newsom win the 2028 US Presidential Election?|10|0.1745|no|7.45|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Gavin Newsom win the 2028 Democratic presidential nomination?|14|0.2595|no|11.95|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will JD Vance win the 2028 US Presidential Election?|38|0.222|yes|15.8|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will J.D. Vance win the 2028 Republican presidential nomination?|58|0.422|yes|15.8|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Russia x Ukraine ceasefire by end of 2026?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will China invade Taiwan by end of 2026?|3|0.097|no|6.7|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|75|0.685|yes|6.5|skipped|0.0
+2026-03-01T02:59:55.147797+00:00|Will Cade Cunningham win the 2025–2026 NBA MVP?|28|0.086|yes|19.4|skipped|0.0
+2026-03-01T02:39:41.777544+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|85|0.77|yes|8.0|skipped|0.0
+2026-03-01T02:39:41.777544+00:00|Will China invade Taiwan by end of 2026?|4|0.097|no|5.7|skipped|0.0
+2026-03-01T02:29:57.506347+00:00|MegaETH market cap (FDV) >$2B one day after launch?|12|0.175|no|5.5|skipped|0.0
+2026-03-01T02:29:57.506347+00:00|Will MegaETH perform an airdrop by June 30? |55|0.7155|no|16.55|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will JD Vance win the 2028 US Presidential Election?|35|0.222|yes|12.8|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will Gavin Newsom win the 2028 US Presidential Election?|42|0.1745|yes|24.55|executed|15.0
+2026-03-01T02:19:36.639540+00:00|Russia x Ukraine ceasefire by end of 2026?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will China invade Taiwan by end of 2026?|28|0.097|yes|18.3|skipped|0.0
+2026-03-01T02:19:36.639540+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will England win the 2026 FIFA World Cup?|24|0.1315|yes|10.85|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|48|0.355|yes|12.5|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|MegaETH market cap (FDV) >$2B one day after launch?|11|0.175|no|6.5|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T02:09:09.667731+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|62|0.77|no|15.0|skipped|0.0
+2026-03-01T02:01:18.677394+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|18|0.2105|no|3.05|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Russia x Ukraine ceasefire by end of 2026?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Barcelona win the 2025–26 Champions League?|18|0.115|yes|6.5|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|27|0.2105|yes|5.95|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will MegaETH perform an airdrop by June 30? |85|0.7155|yes|13.45|skipped|0.0
+2026-03-01T01:50:58.822476+00:00|Will Portugal win the 2026 FIFA World Cup?|35|0.073|yes|27.7|executed|15.0
+2026-03-01T01:50:58.822476+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|82|0.685|yes|13.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Arsenal win the 2025–26 English Premier League?|55|0.635|no|8.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Democratic Party control the House after the 2026 Midterm elections?|92|0.845|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Shai Gilgeous-Alexander win the 2025–2026 NBA MVP?|76|0.685|yes|7.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Oklahoma City Thunder win the 2026 NBA Finals?|45|0.355|yes|9.5|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the Colorado Avalanche win the 2026 NHL Stanley Cup?|28|0.2105|yes|6.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Lens win the 2025–26 French Ligue 1?|4|0.0795|no|3.95|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will Argentina win the 2026 FIFA World Cup?|85|0.1185|yes|73.15|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|65|0.355|yes|29.5|executed|15.0
+2026-03-01T01:33:53.924570+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the Minnesota Wild win the 2026 NHL Stanley Cup?|14|0.067|yes|7.3|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|12|0.055|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Jesus Christ return before GTA VI?|55|0.485|yes|6.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Alexandria Ocasio-Cortez win the 2028 US Presidential Election?|2|0.0595|no|3.95|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will China invade Taiwan by end of 2026?|5|0.097|no|4.7|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will MegaETH perform an airdrop by June 30? |82|0.7155|yes|10.45|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Russia x Ukraine ceasefire by end of 2026?|58|0.355|yes|22.5|executed|15.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|52|0.355|yes|16.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|48|0.635|no|15.5|skipped|0.0
+2026-03-01T01:22:47.832391+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|88|0.77|yes|11.0|skipped|0.0
+2026-03-01T01:17:59.125963+00:00|Will MegaETH perform an airdrop by June 30? |78|0.7155|yes|6.45|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Ken Paxton win the 2026 Texas Republican Primary?|81|0.77|yes|4.0|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will Liverpool win the 2025–26 Champions League?|14|0.085|yes|5.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Péter Magyar?|35|0.635|no|28.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the next Prime Minister of Hungary be Viktor Orbán?|58|0.355|yes|22.5|detected|0.0
+2026-03-01T01:17:59.125963+00:00|Will the Dallas Stars win the 2026 NHL Stanley Cup?|18|0.055|yes|12.5|detected|0.0
+ALPHA TOTALS: 78|7|105.0
+--- ARB (last 30min) ---
+2026-03-01T01:55:41.986470+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|partial|spread_pct=40.8% partial
+2026-03-01T02:00:01.006951+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.51|0.18|0.2813|executed|spread_pct=40.8% executed
+2026-03-01T03:26:43.552871+00:00|Will Sporting Kansas City vs. Columbus Crew end in a draw?|0.445|0.29|0.2307|executed|spread_pct=31.4% executed
+2026-03-01T03:11:43.792608+00:00|Will Sporting Kansas City vs. Columbus Crew end in a draw?|0.55|0.26|0.1545|partial|spread_pct=19.1% partial
+2026-03-01T02:35:30.945064+00:00|Will "Marty Supreme" win exactly 2 awards at the Oscars?|0.747|0.09|0.1332|executed|spread_pct=15.9% executed
+2026-03-01T02:46:09.106752+00:00|Will Sporting Kansas City vs. Columbus Crew end in a draw?|0.21|0.62|0.12|executed|spread_pct=14.5% executed
+2026-03-01T03:21:52.728466+00:00|Will Sporting Kansas City vs. Columbus Crew end in a draw?|0.24|0.63|0.0783|executed|spread_pct=9.0% partial retry_ok
+2026-03-01T03:31:55.124414+00:00|Will Sporting Kansas City vs. Columbus Crew end in a draw?|0.725|0.17|0.0703|executed|spread_pct=7.9% executed
+2026-03-01T02:04:55.483554+00:00|Will the US federal government take a stake in Lockheed Martin Corporation?|0.735|0.18|0.0492|executed|spread_pct=5.4% executed
+2026-03-01T02:30:51.694939+00:00|Will Max Holloway be the UFC Lightweight Champion on December 31, 2026?|0.82|0.1|0.0472|executed|spread_pct=5.1% executed
+ARB TOTALS: 711|8|2
+--- ERRORS (last 30min) ---
+[03:24:00] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[03:25:21] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[03:25:23] ARB: retry failed for partial #568: 409 Client Error: Conflict for ur
+[03:26:47] ARB: Kalshi order attempt 1 failed (count=17 price=28c): 409 Client E
+[03:26:48] ARB: Kalshi order attempt 2 failed (count=8 price=28c): 409 Client Er
+[03:30:05] WSS error: 'NoneType' object has no attribute 'resume_reading'
+[03:30:23] ARB: retry failed for partial #30: 409 Client Error: Conflict for url
+[03:30:25] ARB: retry failed for partial #568: 409 Client Error: Conflict for ur
+[03:31:59] ARB: Kalshi order attempt 1 failed (count=29 price=17c): 409 Client E
+[03:34:23] WSS error: 'NoneType' object has no attribute 'resume_reading'
+BEST ARBS EVER: Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|partial
+Will the US federal government take a stake in Lockheed Martin Corporation?|0.2813|executed
+Will Sporting Kansas City vs. Columbus Crew end in a draw?|0.2307|executed
+

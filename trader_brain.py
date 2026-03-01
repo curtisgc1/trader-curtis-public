@@ -745,6 +745,59 @@ def _get_smart_activity_markets_sync(data_headers: Dict[str, str]) -> List[str]:
         return []
 
 
+def _get_smart_wallets_sync(data_headers: Dict[str, str]) -> List[str]:
+    """Fetch blend of top-PnL + most-active wallets from leaderboard."""
+    wallets: List[str] = []
+    try:
+        # Tier 1: Top earners (high PnL, good win rate)
+        resp = requests.get(
+            f"{PREDEXON_DATA_URL}/polymarket/leaderboard",
+            headers=data_headers,
+            params={
+                "window": "7d",
+                "sort_by": "realized_pnl",
+                "order": "desc",
+                "min_win_rate": 0.55,
+                "min_trades": 20,
+                "min_realized_pnl": 5000,
+                "exclude_style": "is_market_maker",
+                "limit": 10,
+            },
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            for e in resp.json().get("entries", []):
+                if e.get("user") and e["user"] not in wallets:
+                    wallets.append(e["user"])
+
+        # Tier 2: Most active (high trade count, profitable)
+        resp2 = requests.get(
+            f"{PREDEXON_DATA_URL}/polymarket/leaderboard",
+            headers=data_headers,
+            params={
+                "window": "7d",
+                "sort_by": "trades",
+                "order": "desc",
+                "min_win_rate": 0.55,
+                "min_trades": 500,
+                "min_realized_pnl": 1000,
+                "exclude_style": "is_market_maker",
+                "limit": 10,
+            },
+            timeout=15,
+        )
+        if resp2.status_code == 200:
+            for e in resp2.json().get("entries", []):
+                if e.get("user") and e["user"] not in wallets:
+                    wallets.append(e["user"])
+
+        _log(f"Leaderboard: {len(wallets)} smart wallets (PnL+active blend)")
+        return wallets
+    except Exception as exc:
+        _log(f"leaderboard error: {exc}")
+        return wallets or []
+
+
 # ---------------------------------------------------------------------------
 # Wallet profiling (sync)
 # ---------------------------------------------------------------------------
@@ -1784,18 +1837,18 @@ async def _connect_wss(api_key: str):
     return ws
 
 
-async def _subscribe_markets(ws, condition_ids: List[str]) -> None:
-    if not condition_ids:
+async def _subscribe_wallets(ws, wallets: List[str]) -> None:
+    if not wallets:
         return
     msg = {
         "action": "subscribe",
         "platform": "polymarket",
         "version": 1,
         "type": "orders",
-        "filters": {"condition_ids": condition_ids},
+        "filters": {"users": wallets},
     }
     await ws.send(json.dumps(msg))
-    _log(f"Subscribed to {len(condition_ids)} markets")
+    _log(f"Subscribed to {len(wallets)} smart wallets")
 
 
 async def _unsubscribe_all(ws) -> None:
@@ -1804,7 +1857,7 @@ async def _unsubscribe_all(ws) -> None:
         "platform": "polymarket",
         "version": 1,
         "type": "orders",
-        "filters": {"condition_ids": ["*"]},
+        "filters": {"users": ["*"]},
     }
     try:
         await ws.send(json.dumps(msg))
@@ -1892,14 +1945,14 @@ async def run_daemon() -> None:
                 _log(f"WSS handshake OK: {first.get('message', '')}")
 
             current_markets = await loop.run_in_executor(
-                _executor, _get_smart_activity_markets_sync, data_headers
+                _executor, _get_smart_wallets_sync, data_headers
             )
             if not current_markets:
-                _log("WARNING: no smart-activity markets found, retrying in 60s")
+                _log("WARNING: no smart wallets found, retrying in 60s")
                 await asyncio.sleep(60)
                 continue
 
-            await _subscribe_markets(ws, current_markets)
+            await _subscribe_wallets(ws, current_markets)
             last_market_refresh = _ts()
             backoff = 1
 
@@ -1988,14 +2041,14 @@ async def run_daemon() -> None:
 
                 if now - last_market_refresh > 300:
                     new_markets = await loop.run_in_executor(
-                        _executor, _get_smart_activity_markets_sync, data_headers
+                        _executor, _get_smart_wallets_sync, data_headers
                     )
                     if new_markets and new_markets != current_markets:
                         try:
                             await _unsubscribe_all(ws)
                             current_markets = new_markets
-                            await _subscribe_markets(ws, current_markets)
-                            _log(f"Rotated to {len(current_markets)} markets")
+                            await _subscribe_wallets(ws, current_markets)
+                            _log(f"Rotated to {len(current_markets)} wallets")
                         except Exception as exc:
                             _log(f"WSS dead during rotation: {exc}")
                             break  # break inner loop → reconnect
@@ -2028,13 +2081,18 @@ async def run_daemon() -> None:
                     continue
 
                 event_data = msg.get("data") or {}
-                event_type = str(
-                    event_data.get("type") or msg.get("event_type") or ""
-                )
+                event_type = str(event_data.get("event_type") or "").lower()
+
+                # Skip fee_refund events (arrive alongside fills)
+                if event_type == "fee_refund":
+                    continue
 
                 if event_type != "order_filled":
-                    _log(f"WSS event type={event_type} (not order_filled)")
+                    if signals_seen < 20:
+                        _log(f"WSS event type={event_type} keys={list(event_data.keys())[:8]}")
                     continue
+
+                signals_seen += 1
 
                 signals_seen += 1
                 try:
