@@ -1,0 +1,29 @@
+# Core
+requests>=2.31.0
+python-dotenv>=1.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+
+# Exchanges & Blockchain
+py-clob-client>=0.3.0
+eth-account>=0.11.0
+hyperliquid-python-sdk>=0.4.0
+web3>=6.0.0
+websockets>=12.0
+
+# Dashboard
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Data & Analytics
+clickhouse-driver>=0.2.6
+matplotlib>=3.7.0
+yfinance>=0.2.30
+
+# AI / ML (Apple Silicon)
+# ollama             # via system install
+# mlx-lm             # for GRPO LoRA fine-tuning
+
+# RL (optional)
+gymnasium>=0.29.0

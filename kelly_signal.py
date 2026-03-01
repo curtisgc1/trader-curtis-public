@@ -27,7 +27,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 DB_PATH = Path(__file__).parent / "data" / "trades.db"
 
@@ -436,6 +436,111 @@ def _portfolio_kelly_used(conn: sqlite3.Connection) -> float:
     return round(total_fkelly, 6)
 
 
+def daily_pnl_realized(conn: sqlite3.Connection) -> float:
+    """Sum today's realized PnL from route_outcomes (resolved today UTC)."""
+    if not _table_exists(conn, "route_outcomes"):
+        return 0.0
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT COALESCE(SUM(pnl), 0.0)
+        FROM route_outcomes
+        WHERE DATE(resolved_at) = DATE('now')
+          AND outcome_type = 'realized'
+        """,
+    )
+    row = cur.fetchone()
+    return float(row[0]) if row and row[0] is not None else 0.0
+
+
+def allocate_for_daily_target(conn: sqlite3.Connection) -> Dict[str, Any]:
+    """Compute daily capital allocation with auto-pause on target/drawdown."""
+    # Controls
+    daily_target = _ctl(conn, "daily_target_usd", 100.0)
+    max_dd_pct = _ctl(conn, "daily_max_drawdown_pct", 2.0)
+    kelly_floor = _ctl(conn, "daily_kelly_floor", 0.10)
+
+    # Portfolio equity from runtime state
+    equity = 10000.0
+    if _table_exists(conn, "pipeline_runtime_state"):
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT value FROM pipeline_runtime_state WHERE key='portfolio_equity' LIMIT 1",
+        )
+        row = cur.fetchone()
+        if row and row[0]:
+            try:
+                equity = float(row[0])
+            except (ValueError, TypeError):
+                pass
+
+    realized_today = daily_pnl_realized(conn)
+
+    # Count trades resolved today
+    trades_today = 0
+    if _table_exists(conn, "route_outcomes"):
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM route_outcomes WHERE DATE(resolved_at) = DATE('now')",
+        )
+        row = cur.fetchone()
+        trades_today = int(row[0]) if row and row[0] else 0
+
+    max_dd_abs = equity * max_dd_pct / 100.0
+    risk_budget = min(daily_target * 1.8, max_dd_abs)
+
+    # Auto-pause: daily target hit
+    if realized_today >= daily_target:
+        return {
+            "risk_budget": 0.0,
+            "kelly_scale": 0.0,
+            "should_pause": True,
+            "realized_today": round(realized_today, 4),
+            "trades_today": trades_today,
+            "reason": f"daily target ${daily_target:.0f} reached (realized ${realized_today:.2f})",
+        }
+
+    # Auto-pause: max drawdown exceeded
+    if realized_today <= -max_dd_abs:
+        return {
+            "risk_budget": 0.0,
+            "kelly_scale": 0.0,
+            "should_pause": True,
+            "realized_today": round(realized_today, 4),
+            "trades_today": trades_today,
+            "reason": (
+                f"max drawdown -{max_dd_pct:.1f}% (${max_dd_abs:.2f}) exceeded "
+                f"(realized ${realized_today:.2f})"
+            ),
+        }
+
+    # Scale down as we approach target, but never below floor
+    kelly_scale = max(
+        kelly_floor,
+        min(1.0, 1.0 - (realized_today / daily_target) * 0.5),
+    )
+    risk_budget = risk_budget * kelly_scale
+
+    reason_parts = []
+    if realized_today > 0:
+        pct_of_target = (realized_today / daily_target) * 100.0
+        reason_parts.append(f"{pct_of_target:.0f}% of daily target")
+    elif realized_today < 0:
+        reason_parts.append(f"down ${abs(realized_today):.2f} today")
+    else:
+        reason_parts.append("no realized PnL today")
+    reason_parts.append(f"kelly_scale={kelly_scale:.2f}")
+
+    return {
+        "risk_budget": round(risk_budget, 4),
+        "kelly_scale": round(kelly_scale, 4),
+        "should_pause": False,
+        "realized_today": round(realized_today, 4),
+        "trades_today": trades_today,
+        "reason": "; ".join(reason_parts),
+    }
+
+
 def main() -> int:
     if not DB_PATH.exists():
         print("KELLY_SIGNAL db_missing")
@@ -561,11 +666,29 @@ def main() -> int:
         _set_runtime(conn, "kelly_candidates_scored", str(computed))
         conn.commit()
 
+        # Daily capital allocator
+        alloc = allocate_for_daily_target(conn)
+        _set_runtime(conn, "daily_allocator_risk_budget", str(alloc["risk_budget"]))
+        _set_runtime(conn, "daily_allocator_kelly_scale", str(alloc["kelly_scale"]))
+        _set_runtime(conn, "daily_allocator_should_pause", str(alloc["should_pause"]))
+        _set_runtime(conn, "daily_allocator_realized_today", str(alloc["realized_today"]))
+        _set_runtime(conn, "daily_allocator_last_run", now_iso())
+        conn.commit()
+
+        daily_target = _ctl(conn, "daily_target_usd", 100.0)
+
         print(
             f"KELLY_SIGNAL computed={computed} positive_ev={positive_ev} "
             f"kelly_approved={kelly_approved} "
             f"portfolio_used={portfolio_used:.3f} remaining={portfolio_remaining:.3f} "
             f"max={max_portfolio_kelly:.3f}"
+        )
+        print(
+            f"KELLY_DAILY target=${daily_target:.0f} "
+            f"realized=${alloc['realized_today']:.2f} "
+            f"budget=${alloc['risk_budget']:.2f} "
+            f"scale={alloc['kelly_scale']:.2f} "
+            f"pause={alloc['should_pause']}"
         )
         return 0
     finally:

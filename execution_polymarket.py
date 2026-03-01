@@ -1120,15 +1120,23 @@ def run() -> int:
                     # If leg 2 failed, attempt to cancel leg 1 to avoid unhedged exposure
                     if not leg2_ok and order_id:
                         try:
+                            cancelled = False
                             if client is not None:
                                 client.cancel(order_id)
+                                cancelled = True
+                            cancel_status = "arb_leg1_cancelled" if cancelled else "arb_leg1_cancel_skipped"
+                            cancel_note = (
+                                f"cancelled leg 1 (pair={pair_id}) — leg 2 failed"
+                                if cancelled
+                                else f"leg 2 failed but no CLOB client to cancel leg 1 (pair={pair_id}) — UNHEDGED"
+                            )
                             _insert_order_event(
                                 conn, candidate, mode="live",
-                                status="arb_leg1_cancelled",
-                                notes=f"cancelled leg 1 (pair={pair_id}) — leg 2 failed",
+                                status=cancel_status,
+                                notes=cancel_note,
                                 notional=notional, token_id=token_id,
                             )
-                            _mark_candidate(conn, cid, "arb_leg1_cancelled")
+                            _mark_candidate(conn, cid, cancel_status)
                             stats["executed"] -= 1
                             stats["failed"] += 1
                         except Exception as cancel_exc:

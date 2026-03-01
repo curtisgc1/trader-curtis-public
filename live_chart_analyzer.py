@@ -10,7 +10,7 @@ import base64
 from datetime import datetime
 from pathlib import Path
 
-API_KEY = "2pcDgvYEjviBqIPB_EuCVBFDizbt45Ds"
+API_KEY = os.environ.get("CHART_IMG_API_KEY", "")
 BASE_URL = "https://api.chart-img.com/v1/tradingview"
 
 # Track API usage

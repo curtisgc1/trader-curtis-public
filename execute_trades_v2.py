@@ -7,8 +7,8 @@ import requests
 import os
 from datetime import datetime
 
-api_key = 'PKWOGX25ME3NKR2Y64QKJIMHOZ'
-secret = 'CVPEEydxE3nuxGJ99K5iL1mGaZ5ycqneFNJF149mQpgV'
+api_key = os.environ.get('ALPACA_API_KEY', '')
+secret = os.environ.get('ALPACA_SECRET_KEY', '')
 base_url = 'https://paper-api.alpaca.markets'
 
 def place_order(symbol, qty, side, order_type='market'):

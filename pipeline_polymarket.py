@@ -429,7 +429,7 @@ def _pipeline_signal_adjustment(conn: sqlite3.Connection, question: str) -> floa
         SELECT direction, score
         FROM pipeline_signals
         WHERE upper(asset)=?
-        ORDER BY datetime(COALESCE(created_at,'1970-01-01')) DESC
+        ORDER BY datetime(COALESCE(generated_at,'1970-01-01')) DESC
         LIMIT 1
         """,
         (matched_ticker,),

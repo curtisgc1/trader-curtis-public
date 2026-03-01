@@ -88,6 +88,18 @@ run_step "Event alert engine"      "event_alerts" /Users/Shared/curtis/trader-cu
 
 # ── POLYMARKET ────────────────────────────────────────
 echo "── POLYMARKET ───────────────────────────────────"
+
+# Start Binance WS feed for low-latency momentum data (runs in background thread)
+if [ -f "$ROOT/binance_ws_feed.py" ]; then
+  echo "  → Starting Binance WS price feed..."
+  $PY_BIN -c "
+import sys; sys.path.insert(0, '$ROOT')
+from binance_ws_feed import start_feed, is_feed_running
+ok = start_feed(timeout=8.0)
+print(f'  WS feed: {\"connected\" if ok else \"failed (will use CoinGecko fallback)\"}')
+" 2>/dev/null || echo "  WS feed: import failed (CoinGecko fallback)"
+fi
+
 run_step "Polymarket pipeline"     "polymarket"  /Users/Shared/curtis/trader-curtis/pipeline_polymarket.py
 run_step "Momentum scanner"        "pm_momentum" /Users/Shared/curtis/trader-curtis/polymarket_momentum_scanner.py
 run_step "Options bridge"          "pm_options"  /Users/Shared/curtis/trader-curtis/polymarket_options_bridge.py
