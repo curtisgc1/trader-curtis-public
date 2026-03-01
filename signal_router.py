@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Set
 
 from execution_guard import evaluate_candidate, init_controls, log_risk_event
 from execution_adapters import is_hl_eligible
+from market_regime_cloud import get_regime
 from quant_gate import evaluate_quant_candidate, ensure_tables as ensure_quant_tables
 from allocator_causal import (
     ensure_tables as ensure_allocator_tables,
@@ -394,6 +395,12 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
         ctl.execute("SELECT value FROM execution_controls WHERE key='high_beta_min_beta' LIMIT 1")
         row_minb = ctl.fetchone()
         min_beta = float((row_minb[0] if row_minb else 1.5) or 1.5)
+        ctl.execute("SELECT value FROM execution_controls WHERE key='regime_filter_enabled' LIMIT 1")
+        row_rf = ctl.fetchone()
+        regime_filter_enabled = False if (row_rf and str(row_rf[0]) == "0") else True
+        ctl.execute("SELECT value FROM execution_controls WHERE key='regime_filter_stale_hours' LIMIT 1")
+        row_rs = ctl.fetchone()
+        regime_stale_hours = float((row_rs[0] if row_rs else 26) or 26)
         candidates = fetch_candidates(conn, limit=limit)
         clear_old_queue(conn, mode=mode)
 
@@ -448,6 +455,44 @@ def route_signals(limit: int, mode: str, default_notional: float) -> int:
                 )
                 routed += 1
                 continue
+
+            # ── Regime filter: Ripster 34/50 EMA cloud gate ──
+            if regime_filter_enabled:
+                ac = "crypto" if is_hl_eligible(ticker) else "stocks"
+                regime = get_regime(conn, ac, stale_hours=regime_stale_hours)
+                if regime:
+                    blocked_by_regime = False
+                    if regime["trend"] == "bearish" and direction == "long":
+                        blocked_by_regime = True
+                    elif regime["trend"] == "bullish" and direction == "short":
+                        blocked_by_regime = True
+                    if blocked_by_regime:
+                        reason = (
+                            f"regime_filter:{ac}_{regime['trend']}_blocks_{direction} "
+                            f"(EMA34={regime['ema_fast']:.2f} "
+                            f"{'<' if regime['trend'] == 'bearish' else '>'} "
+                            f"EMA50={regime['ema_slow']:.2f})"
+                        )
+                        cur.execute(
+                            """
+                            INSERT INTO signal_routes
+                            (routed_at, ticker, direction, score, source_tag, proposed_notional, mode, validation_id, decision, reason, status,
+                             allocator_factor, allocator_regime, allocator_reason, allocator_blocked)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                now_iso(), ticker, direction, score, source, notional, mode,
+                                0, "rejected", reason[:260], "blocked",
+                                1.0, "regime", "pre-allocator regime gate", 1,
+                            ),
+                        )
+                        log_risk_event(
+                            conn=conn, ticker=ticker, direction=direction,
+                            candidate_score=score, proposed_notional=notional,
+                            approved=False, reason=reason,
+                        )
+                        routed += 1
+                        continue
 
             alloc = allocate_candidate(
                 conn=conn,

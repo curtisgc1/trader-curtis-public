@@ -82,6 +82,7 @@ run_step "Pipeline B (Innovation)" "pipeline_b"  /Users/Shared/curtis/trader-cur
 run_step "Pipeline E (Breakthroughs)" "pipeline_e" /Users/Shared/curtis/trader-curtis/pipeline_e_breakthroughs.py
 run_step "Pipeline C (Events)"     "pipeline_c"  /Users/Shared/curtis/trader-curtis/pipeline_c_event.py
 run_step "Pipeline K (VIX Regime)" "pipeline_k"  /Users/Shared/curtis/trader-curtis/pipeline_k_vix_regime.py
+run_step "EMA Cloud Regime"        "ema_regime"  /Users/Shared/curtis/trader-curtis/market_regime_cloud.py
 run_step "Pipeline L (DAPO Agent)" "pipeline_l"  /Users/Shared/curtis/trader-curtis/pipeline_l_dapo_agent.py
 run_step "Event alert engine"      "event_alerts" /Users/Shared/curtis/trader-curtis/event_alert_engine.py
 
@@ -92,11 +93,13 @@ run_step "Momentum scanner"        "pm_momentum" /Users/Shared/curtis/trader-cur
 run_step "Options bridge"          "pm_options"  /Users/Shared/curtis/trader-curtis/polymarket_options_bridge.py
 run_step "Wallet activity ingest"  "pm_wallets"  /Users/Shared/curtis/trader-curtis/ingest_polymarket_wallet_activity.py
 run_step "Wallet scorer"           "pm_scores"   /Users/Shared/curtis/trader-curtis/score_polymarket_wallets.py
+run_step "Fresh whale scanner"     "fw_scanner"  /Users/Shared/curtis/trader-curtis/scan_fresh_whales.py
 run_step "MM snapshots"            "pm_mm"       /Users/Shared/curtis/trader-curtis/polymarket_mm_engine.py
 
 # ── CANDIDATE GENERATION ──────────────────────────────
 echo "── CANDIDATE GENERATION ─────────────────────────"
 run_step "Reweight input sources"  "reweight"    /Users/Shared/curtis/trader-curtis/reweight_input_sources.py
+run_step "Auto-decay sources"      "auto_decay"  /Users/Shared/curtis/trader-curtis/auto_decay_sources.py
 run_step "Generate trade candidates" "candidates" /Users/Shared/curtis/trader-curtis/generate_trade_candidates.py
 run_step "Kelly signal"            "kelly"       /Users/Shared/curtis/trader-curtis/kelly_signal.py
 run_step "Align to Polymarket"     "pm_align"    /Users/Shared/curtis/trader-curtis/align_high_signal_polymarket.py

@@ -70,6 +70,7 @@ def seed_input_source_controls(conn: sqlite3.Connection) -> None:
         ("family:event_alpha", "Event Alpha (Macro/Geo)", "family"),
         ("family:vix_regime", "VIX Regime Switch (TQQQ/BTAL)", "family"),
         ("family:dapo_agent", "DAPO RL Agent", "family"),
+        ("family:x_consensus", "X Multi-Handle Consensus", "family"),
     ]
     for key, label, klass in seeds:
         conn.execute(
@@ -280,6 +281,7 @@ def main() -> int:
         liq_min_conf = float(controls.get("liquidity_min_confidence", "0.60") or 0.60)
         liq_min_rr = float(controls.get("liquidity_min_rr", "2.0") or 2.0)
         x_influence_enabled = str(controls.get("x_influence_enabled", "1")).strip() == "1"
+        x_consensus_min = int(float(controls.get("x_consensus_min_hits", "3") or 3))
 
         # Direction consensus config (Phase 7)
         direction_consensus_enabled = str(controls.get("direction_consensus_enabled", "1")).strip() == "1"
@@ -320,16 +322,21 @@ def main() -> int:
             )
 
         external = {}
+        external_sources: Dict[tuple, set] = {}  # keyed by (ticker, direction)
         if table_exists(conn, "external_signals"):
-            external = latest_map(
-                cur,
+            cur.execute(
                 """
                 SELECT ticker, source, direction, confidence, created_at
                 FROM external_signals
                 WHERE status IN ('new', 'active')
                 ORDER BY created_at DESC
-                """,
+                """
             )
+            for row in cur.fetchall():
+                t, src, dirn = row[0], row[1], row[2]
+                if t not in external:
+                    external[t] = row[1:]
+                external_sources.setdefault((t, dirn), set()).add(src)
 
         copy_signals = {}
         if table_exists(conn, "copy_trades"):
@@ -616,6 +623,20 @@ def main() -> int:
                     x_component = 0.05 * w_x
                     breakdown.append({"key": x_key, "base": 0.05, "weight": round(w_x, 6), "value": round(x_component, 6)})
 
+            # X multi-handle consensus — bonus when N+ handles agree on same ticker+direction
+            c_x_consensus = 0.0
+            x_consensus_dir = ext_direction if ext_direction != "unknown" else "long"
+            x_src_count = len(external_sources.get((ticker, x_consensus_dir), set()))
+            if x_src_count >= x_consensus_min:
+                consensus_boost = min(0.15, 0.05 * x_src_count)
+                c_x_consensus, w_xc = contribution(input_controls, "family:x_consensus", consensus_boost)
+                breakdown.append({
+                    "key": "family:x_consensus",
+                    "base": round(consensus_boost, 6),
+                    "weight": round(w_xc, 6),
+                    "value": round(c_x_consensus, 6),
+                })
+
             # Kyle Williams setup (first_red_day_short, ext_vs_vwap etc.) — own family
             c_kw = 0.0
             if kw_hit and kw_score > 0:
@@ -685,7 +706,7 @@ def main() -> int:
                     "value": round(c_dapo, 6),
                 })
 
-            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_kw + c_event_alpha + c_mom + c_vr + c_dapo
+            blended = c_social + c_pattern + c_external + c_pipeline + c_copy + c_liq + x_component + c_x_consensus + c_kw + c_event_alpha + c_mom + c_vr + c_dapo
             final_score = round(min(max(blended, 0.0), 1.0) * 100.0, 2)
 
             if direction_consensus_enabled:
@@ -759,6 +780,8 @@ def main() -> int:
                 evidence.append(f"liquidity_map:{liq_pattern}:rr={liq_rr}")
             if x_influence_enabled and ext_lower in tracked_sources:
                 evidence.append(f"x:{ext_lower}")
+            if x_src_count >= x_consensus_min:
+                evidence.append(f"x_consensus:{x_src_count}_sources")
             if kw_hit:
                 evidence.append("pipeline:KYLE_WILLIAMS")
             if ea_hit:
@@ -771,7 +794,7 @@ def main() -> int:
                 evidence.append(f"dapo_agent:{dapo_direction}:{dapo_score:.0f}")
 
             confirmations = len(set([e.split(":")[0] if ":" in e else e for e in evidence]))
-            sources_total = 11  # social, pattern, external, copy, pipeline, liquidity, kyle_williams, event_alpha, momentum, vix_regime, dapo_agent
+            sources_total = 12  # social, pattern, external, copy, pipeline, liquidity, x_consensus, kyle_williams, event_alpha, momentum, vix_regime, dapo_agent
             consensus_ratio = round(min(1.0, confirmations / max(1, sources_total)), 4)
             consensus_flag = 1 if (
                 confirmations >= min_confirmations

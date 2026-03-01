@@ -6,6 +6,7 @@
   --accent: #8ee6a5;
   --danger: #ff7b7b;
   --warn: #ffd166;
+  --link: #9dc3ff;
 }
 
 * { box-sizing: border-box; }
@@ -71,6 +72,7 @@ body {
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
 .grid .card { min-height: 180px; }
 .span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
 
 .card {
   background: linear-gradient(180deg, #1a2230, #121720 90%);
@@ -308,6 +310,160 @@ body {
   color: var(--muted);
   font-size: 10px;
   margin-top: 2px;
+}
+
+.pnl-pos { color: var(--accent); }
+.pnl-neg { color: var(--danger); }
+.row.pnl-pos { background: rgba(99, 240, 179, 0.06); }
+.row.pnl-neg { background: rgba(255, 123, 123, 0.06); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge.good { background: rgba(99, 240, 179, 0.15); color: var(--accent); }
+.badge.warn { background: rgba(255, 209, 102, 0.15); color: var(--warn); }
+.badge-error { display: inline; padding: 2px 6px; border-radius: 4px; background: rgba(255, 123, 123, 0.18); color: var(--danger); font-size: 12px; }
+.muted { color: var(--muted); }
+.kv { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #20293a; font-size: 13px; }
+.kv:last-child { border-bottom: none; }
+.mono { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.btn-buy { background: #1a4d3a !important; border-color: #2d7a5e !important; color: var(--accent) !important; }
+.btn-buy:hover { border-color: #4da882 !important; }
+.btn-sell { background: #4d1a2a !important; border-color: #7a2d42 !important; color: var(--danger) !important; }
+.btn-sell:hover { border-color: #a84d68 !important; }
+
+/* ── Hyperliquid Account Overview ── */
+.account-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.account-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.margin-bar {
+  height: 6px;
+  background: #1d2736;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.margin-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 400ms ease, background 400ms ease;
+}
+
+.margin-bar-label {
+  font-size: 11px;
+  text-align: right;
+}
+
+/* ── Position Cards ── */
+.position-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.position-card {
+  border: 1px solid #243047;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.position-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.position-coin {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.position-size {
+  margin-left: auto;
+}
+
+.position-prices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.position-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.position-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-close-pos {
+  background: #3d1525;
+  border: 1px solid #6b2940;
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 200ms;
+}
+
+.btn-close-pos:hover {
+  border-color: #a84d68;
+  background: #4d1a2a;
+}
+
+.btn-close-pos:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.badge.bad-bg {
+  background: rgba(255, 123, 123, 0.15);
+  color: var(--danger);
+}
+
+@media (max-width: 980px) {
+  .position-cards-grid { grid-template-columns: 1fr; }
+  .account-stats { grid-template-columns: repeat(2, 1fr); }
+  .position-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 980px) {
@@ -550,10 +706,217 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Health Pulse Indicator Grid ── */
+.pulse-grid-indicators {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.pulse-group-label {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border-bottom: 1px solid #243047;
+  padding-bottom: 4px;
+  margin-top: 6px;
+}
+
+.pulse-group-label:first-child { margin-top: 0; }
+
+.pulse-ind {
+  position: relative;
+  background: linear-gradient(180deg, #141d2a, #101722);
+  border: 1px solid #25334a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: default;
+}
+
+.pulse-ind-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pulse-ind-header .pulse-help {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #1f2d42;
+  color: #7b8fa8;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.pulse-ind-header .pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.pulse-dot.green { background: var(--accent); }
+.pulse-dot.yellow { background: var(--warn); }
+.pulse-dot.red { background: var(--danger); }
+.pulse-dot.info { background: var(--muted); }
+
+.pulse-ind-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.pulse-ind-value {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.pulse-ind-delta {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.pulse-ind-thresholds {
+  font-size: 9px;
+  color: #5a6a7e;
+  margin-top: 2px;
+}
+
+/* ── Pulse Tooltip ── */
+.pulse-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: 280px;
+  background: #1a2438;
+  border: 1px solid #35486a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  margin-top: 6px;
+  pointer-events: none;
+}
+
+.pulse-ind:hover .pulse-tooltip {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .pulse-grid-indicators { grid-template-columns: repeat(3, 1fr); }
+  .span-3 { grid-column: span 1; }
+}
+
+@media (max-width: 600px) {
+  .pulse-grid-indicators { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 980px) {
-  .dashboard-home .hero-grid { grid-template-columns: 1fr 1fr; }
   .dashboard-home .pulse-grid { grid-template-columns: 1fr; }
   .dashboard-home .split-flow { grid-template-columns: 1fr; }
   .toolbar-right { justify-items: start; }
   .toolbar-actions { flex-wrap: wrap; }
+}
+
+/* ── Polymarket Position Cards ── */
+.poly-outcome-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.poly-outcome-badge.yes { background: rgba(0, 209, 178, 0.15); color: var(--accent); }
+.poly-outcome-badge.no  { background: rgba(255, 123, 123, 0.15); color: var(--danger); }
+
+.poly-outcome-row {
+  display: grid;
+  grid-template-columns: 56px repeat(6, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.poly-outcome-row:last-of-type { border-bottom: none; }
+
+.poly-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+  font-size: 12px;
+}
+.poly-card-summary {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.position-link {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--link);
+  text-decoration: none;
+  opacity: 0.8;
+  transition: opacity 200ms;
+}
+.position-link:hover { opacity: 1; text-decoration: underline; }
+
+@media (max-width: 980px) {
+  .poly-outcome-row { grid-template-columns: 56px repeat(3, 1fr); }
+  .poly-card-summary { flex-wrap: wrap; gap: 8px; }
+}
+
+/* ── Collapsible Signal Drawers ── */
+.signal-drawer summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.signal-drawer summary::-webkit-details-marker { display: none; }
+.signal-drawer summary::before {
+  content: "\25B6";
+  display: inline-block;
+  font-size: 10px;
+  margin-right: 8px;
+  transition: transform 200ms ease;
+  color: var(--muted);
+}
+.signal-drawer[open] summary::before { transform: rotate(90deg); }
+.signal-drawer summary h2 { display: inline; }
+.signal-drawer summary .sub { margin-top: 2px; }
+.drawer-body {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+.drawer-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 4px;
 }

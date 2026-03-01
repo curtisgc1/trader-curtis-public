@@ -3,6 +3,8 @@ from data import (
     approve_polymarket_candidates,
     get_arb_opportunities,
     get_arb_overview,
+    get_brain_signals,
+    get_brain_status,
     get_bookmark_theses,
     get_bookmark_alpha_ideas,
     get_breakthrough_events,
@@ -81,6 +83,7 @@ from data import (
     get_hyperliquid_intents,
     submit_alpaca_quick_trade,
     submit_hyperliquid_quick_trade,
+    close_hyperliquid_position,
     get_system_intelligence,
     get_source_decay_status,
     apply_source_dampening,
@@ -88,6 +91,8 @@ from data import (
     approve_x_discovery,
     reject_x_discovery,
     get_fresh_whale_discoveries,
+    get_grok_alpha_bets,
+    get_grok_scores,
     get_health_pulse,
     get_market_regime_status,
 )
@@ -699,6 +704,13 @@ def api_hyperliquid_quick_trade():
     return jsonify(submit_hyperliquid_quick_trade(symbol, side, notional))
 
 
+@app.post("/api/hyperliquid-close-position")
+def api_hl_close_position():
+    payload = request.get_json(silent=True) or {}
+    symbol = str(payload.get("symbol", "")).strip()
+    return jsonify(close_hyperliquid_position(symbol))
+
+
 @app.get("/api/x-consensus")
 def api_x_consensus():
     return jsonify(get_x_consensus_status())
@@ -734,6 +746,29 @@ def api_x_consensus_settings():
     if min_hits is not None:
         return jsonify(set_execution_controls({"x_consensus_min_hits": str(int(float(min_hits)))}))
     return jsonify({"ok": False, "error": "no settings provided"})
+
+
+@app.get("/api/brain-status")
+def api_brain_status():
+    return jsonify(get_brain_status())
+
+
+@app.get("/api/brain-signals")
+def api_brain_signals():
+    limit = int(request.args.get("limit", 100))
+    return jsonify(get_brain_signals(limit=limit))
+
+
+@app.get("/api/grok-scores")
+def api_grok_scores():
+    limit = int(request.args.get("limit", 50))
+    return jsonify(get_grok_scores(limit=limit))
+
+
+@app.get("/api/grok-alpha")
+def api_grok_alpha():
+    limit = int(request.args.get("limit", 50))
+    return jsonify(get_grok_alpha_bets(limit=limit))
 
 
 @app.get("/api/arb-opportunities")

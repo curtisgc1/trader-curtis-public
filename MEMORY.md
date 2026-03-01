@@ -196,8 +196,25 @@ sqlite3 data/trades.db "SELECT id,symbol,side,qty,status,json_extract(details,'$
 
 **Current Learnings:**
 - 1 losing pattern identified (neutral consensus)
-- 0 winning patterns identified (need winning trades)
+- 3 winning patterns identified (B_LONGTERM, contrariancurse, seekingalpha)
 - 2 open trades tracking for validation (SNDK, META)
+
+### PL2 | 🟢 Pattern Learning Update (Feb 27, 2026)
+**Full Report:** `memory/2026-02-27-pattern-learning.md`
+
+**Top Winning Sources (7-day rolling):**
+| Source | Win Rate | Avg PnL | Confidence |
+|--------|----------|---------|------------|
+| B_LONGTERM | 70.0% | +$9.02 | HIGH |
+| contrariancurse | 81.8% | +$0.09 | MEDIUM (small sample) |
+| freefeed:seekingalpha | 80.0% | +$0.05 | MEDIUM |
+| off_the_tape | 44.3% | $0.00 | LOW (breakeven) |
+
+**Key Refinements:**
+- Elevate B_LONGTERM allocation in auto-route
+- Maintain neutral sentiment = NO TRADE rule
+- Block manual-* test trades (0% win rate)
+- Monitor Polymarket geoblock for live execution
 
 **Auto-Trade Criteria Refined:**
 1. Neutral sentiment (40-60) = HARD NO

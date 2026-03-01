@@ -659,7 +659,7 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
                     continue  # Skip per-outcome processing for arb markets
 
         # ── Per-outcome candidate generation ──────────────────────────
-        for i, outcome in enumerate(outcomes[:2]):
+        for i, outcome in enumerate(outcomes):
             implied = max(0.0, min(1.0, float(prices[i] if i < len(prices) else 0.0)))
             q = question.lower()
 
@@ -676,7 +676,7 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             base_prob = implied
 
             # 2. Event bias (existing)
-            event_adj = _event_bias(conn, question) * (1.1 if i == 0 else -1.1)
+            event_adj = _event_bias(conn, question) * (1.1 if i == 0 else (-1.1 if i == 1 else 0.0))
 
             # 3. Source reliability adjustment
             src_adj = (src_rel - 0.5) * 0.06
@@ -693,6 +693,8 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
                 pipeline_adj = _pipeline_signal_adjustment(conn, question)
                 if i == 1:
                     pipeline_adj = -pipeline_adj
+                elif i >= 2:
+                    pipeline_adj = 0.0
 
             # 6. Historical base rate
             hist_rate = _historical_base_rate(conn, question)
@@ -700,7 +702,7 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
             if hist_rate is not None:
                 if i == 0:
                     hist_adj = (hist_rate - implied) * 0.5
-                else:
+                elif i == 1:
                     hist_adj = ((1.0 - hist_rate) - implied) * 0.5
 
             # 7. Longshot bias correction
@@ -709,6 +711,8 @@ def build_candidates(conn: sqlite3.Connection, limit: int = 120) -> int:
                 longshot_adj = _longshot_bias_correction(implied)
                 if i == 1:
                     longshot_adj = -longshot_adj
+                elif i >= 2:
+                    longshot_adj = 0.0
 
             # Weighted aggregation (bounded)
             model = (

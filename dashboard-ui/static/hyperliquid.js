@@ -75,14 +75,48 @@ function renderOverview(snapshot) {
     network === "mainnet"
       ? '<span class="badge good">mainnet</span>'
       : '<span class="badge warn">testnet</span>';
-  el.innerHTML = [
-    `<div class="kv"><span>Network</span><span>${badge}</span></div>`,
-    `<div class="kv"><span>Wallet</span><span class="mono">${(hl.wallet || "").slice(0, 10)}...</span></div>`,
-    `<div class="kv"><span>Perp Account Value</span><span>${fmtUsd(hl.perp_account_value || hl.account_value)}</span></div>`,
-    `<div class="kv"><span>Withdrawable</span><span>${fmtUsd(hl.perp_withdrawable || hl.withdrawable)}</span></div>`,
-    `<div class="kv"><span>Spot USDC</span><span>${fmtUsd(hl.spot_total_usdc)}</span></div>`,
-    `<div class="kv"><span>Perp Positions</span><span>${(hl.positions || []).length}</span></div>`,
-  ].join("");
+  const wallet = (hl.wallet || "").slice(0, 10) + "...";
+  const accountValue = Number(hl.perp_account_value || hl.account_value || 0);
+  const marginUsed = Number(hl.total_margin_used || 0);
+  const available = accountValue - marginUsed;
+  const marginRatio = Number(hl.margin_ratio || 0);
+  const marginPct = Math.round(marginRatio * 100);
+  const positions = hl.positions || [];
+  const totalPnl = positions.reduce((s, p) => s + (Number(p.unrealized_pnl) || 0), 0);
+  const pnlCls = pnlClass(totalPnl);
+
+  let barColor = "var(--accent)";
+  if (marginPct >= 75) barColor = "var(--danger)";
+  else if (marginPct >= 50) barColor = "var(--warn)";
+
+  el.innerHTML = `
+    <div class="account-header">
+      <span>${badge} <span class="mono muted">${wallet}</span></span>
+      <span>${positions.length} position${positions.length !== 1 ? "s" : ""}</span>
+    </div>
+    <div class="account-stats">
+      <div class="stat-box">
+        <span class="stat-label">Account Value</span>
+        <span class="stat-value">${fmtUsd(accountValue)}</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Margin Used</span>
+        <span class="stat-value">${fmtUsd(marginUsed)} <span class="muted">(${marginPct}%)</span></span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Available</span>
+        <span class="stat-value">${fmtUsd(available)}</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Total uPnL</span>
+        <span class="stat-value ${pnlCls}">${fmtUsd(totalPnl)}</span>
+      </div>
+    </div>
+    <div class="margin-bar">
+      <div class="margin-bar-fill" style="width:${Math.min(marginPct, 100)}%;background:${barColor}"></div>
+    </div>
+    <div class="margin-bar-label muted">${marginPct}% margin utilization</div>
+  `;
 }
 
 function renderPerpPositions(snapshot) {
@@ -90,24 +124,100 @@ function renderPerpPositions(snapshot) {
   if (!el) return;
   const positions = (snapshot.hyperliquid || {}).positions || [];
   if (!positions.length) {
-    el.innerHTML = "<p class='muted'>No perp positions</p>";
+    el.innerHTML = "<div class='card span-3'><p class='muted'>No perp positions</p></div>";
     return;
   }
-  const grid = "60px 70px 50px 90px 90px 90px";
-  const head = `<div class="row header" style="grid-template-columns:${grid}">
-    <span>Coin</span><span>Size</span><span>Lev</span><span>Entry</span><span>Mark</span><span>uPnL</span>
-  </div>`;
-  const body = positions
+  el.innerHTML = positions
     .map((p) => {
-      const cls = pnlClass(p.unrealized_pnl_usd);
-      return `<div class="row" style="grid-template-columns:${grid}">
-        <span>${p.coin}</span><span>${fmtCoin(p.szi)}</span><span>${Number(p.leverage || 1).toFixed(1)}x</span>
-        <span>${fmtUsd(p.entry_price)}</span><span>${fmtUsd(p.mark_price)}</span>
-        <span class="${cls}">${fmtUsd(p.unrealized_pnl_usd)}</span>
+      const pnl = Number(p.unrealized_pnl) || 0;
+      const cls = pnlClass(pnl);
+      const szi = Number(p.szi) || 0;
+      const side = szi >= 0 ? "LONG" : "SHORT";
+      const sideBadge = szi >= 0
+        ? '<span class="badge good">LONG</span>'
+        : '<span class="badge bad-bg">SHORT</span>';
+      const pnlPct = Number(p.unrealized_pnl_pct) || 0;
+      const lev = Number(p.leverage || 1).toFixed(1);
+      const liqPrice = Number(p.liquidation_price) || 0;
+      const marginUsed = Number(p.margin_used) || 0;
+      const funding = Number(p.cum_funding) || 0;
+      const tint = pnl >= 0
+        ? "rgba(99, 240, 179, 0.04)"
+        : "rgba(255, 123, 123, 0.04)";
+
+      return `<div class="position-card" style="background:linear-gradient(180deg,${tint},#121720 90%)" data-symbol="${p.coin}">
+        <div class="position-header">
+          <span class="position-coin">${p.coin}</span>
+          ${sideBadge}
+          <span class="muted">${lev}x</span>
+          <span class="muted position-size">${fmtCoin(p.szi)} ${p.coin}</span>
+          <span class="muted">Margin ${fmtUsd(marginUsed)}</span>
+        </div>
+        <div class="position-prices">
+          <div class="stat-box">
+            <span class="stat-label">Entry</span>
+            <span class="stat-value">${fmtUsd(p.entry_price)}</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Mark</span>
+            <span class="stat-value">${fmtUsd(p.mark_price)}</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Liq Price</span>
+            <span class="stat-value ${liqPrice > 0 ? '' : 'muted'}">${liqPrice > 0 ? fmtUsd(liqPrice) : "—"}</span>
+          </div>
+        </div>
+        <div class="position-stats">
+          <div class="stat-box">
+            <span class="stat-label">Position Value</span>
+            <span class="stat-value">${fmtUsd(p.position_value)}</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">uPnL</span>
+            <span class="stat-value ${cls}">${fmtUsd(pnl)}</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">ROE%</span>
+            <span class="stat-value ${cls}">${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Funding</span>
+            <span class="stat-value ${pnlClass(-funding)}">${fmtUsd(-funding)}</span>
+          </div>
+        </div>
+        <div class="position-actions">
+          <button class="btn-close-pos" data-symbol="${p.coin}">Close Position</button>
+        </div>
       </div>`;
     })
     .join("");
-  el.innerHTML = head + body;
+}
+
+function wireCloseButtons() {
+  document.querySelectorAll(".btn-close-pos").forEach((btn) => {
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = "1";
+    btn.addEventListener("click", async (e) => {
+      const symbol = e.target.dataset.symbol;
+      if (!symbol) return;
+      if (!confirm(`Close entire ${symbol} position?`)) return;
+      e.target.disabled = true;
+      e.target.textContent = "Closing...";
+      try {
+        const result = await postJson("/api/hyperliquid-close-position", { symbol });
+        if (result.ok) {
+          e.target.textContent = "Closed";
+          setTimeout(() => boot(), 2000);
+        } else {
+          e.target.textContent = `Failed: ${result.error || "unknown"}`;
+          e.target.disabled = false;
+        }
+      } catch (err) {
+        e.target.textContent = "Error";
+        e.target.disabled = false;
+      }
+    });
+  });
 }
 
 function renderSpotBalances(snapshot) {
@@ -136,6 +246,37 @@ function renderSpotBalances(snapshot) {
   el.innerHTML = head + body;
 }
 
+function formatIntentDetails(raw) {
+  if (!raw) return "";
+  let obj;
+  try {
+    obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch (_) {
+    const truncated = String(raw).slice(0, 120);
+    return `<span title="${String(raw).replace(/"/g, "&quot;")}">${truncated}${raw.length > 120 ? "..." : ""}</span>`;
+  }
+
+  const parts = [];
+  if (obj.action) parts.push(`<b>${obj.action}</b>`);
+  if (obj.reason) parts.push(obj.reason);
+  if (obj.pnl_pct != null) {
+    const pct = Number(obj.pnl_pct) || 0;
+    parts.push(`<span class="${pnlClass(pct)}">PnL: ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%</span>`);
+  }
+  if (obj.unrealized_pnl_pct != null) {
+    const pct = Number(obj.unrealized_pnl_pct) || 0;
+    parts.push(`<span class="${pnlClass(pct)}">uPnL: ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%</span>`);
+  }
+  if (obj.error) parts.push(`<span class="badge-error">${obj.error}</span>`);
+  if (obj.stop_price) parts.push(`Stop: ${fmtUsd(obj.stop_price)}`);
+  if (obj.missing_dependencies) parts.push(`<span class="badge-error">Missing: ${obj.missing_dependencies}</span>`);
+
+  if (parts.length) return parts.join(" &middot; ");
+
+  const fallback = JSON.stringify(obj).slice(0, 120);
+  return `<span title="${JSON.stringify(obj).replace(/"/g, "&quot;")}">${fallback}${JSON.stringify(obj).length > 120 ? "..." : ""}</span>`;
+}
+
 function renderIntents(rows) {
   const el = document.getElementById("hl-intents");
   if (!el) return;
@@ -151,12 +292,11 @@ function renderIntents(rows) {
     .slice(0, 50)
     .map((r) => {
       const ts = (r.created_at || "").replace("T", " ").slice(0, 16);
-      let details = r.details || "";
-      if (details.length > 80) details = details.slice(0, 80) + "...";
+      const details = formatIntentDetails(r.details);
       return `<div class="row" style="grid-template-columns:${grid}">
         <span>${ts}</span><span>${r.symbol}</span><span>${r.side}</span>
         <span>${r.qty || "-"}</span><span>${fmtUsd(r.notional)}</span>
-        <span>${r.status}</span><span class="muted">${details}</span>
+        <span>${r.status}</span><span>${details}</span>
       </div>`;
     })
     .join("");
@@ -350,6 +490,7 @@ async function boot() {
 
   runUiStep("overview", () => renderOverview(snapshot));
   runUiStep("perpPositions", () => renderPerpPositions(snapshot));
+  runUiStep("wireClose", () => wireCloseButtons());
   runUiStep("spotBalances", () => renderSpotBalances(snapshot));
   runUiStep("intents", () => renderIntents(intents));
   runUiStep("posMgmt", () => renderPosMgmt(posMgmt));

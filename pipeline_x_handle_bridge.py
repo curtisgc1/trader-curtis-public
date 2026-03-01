@@ -107,6 +107,25 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     )
     if not column_exists(conn, "tracked_x_sources", "x_api_enabled"):
         conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN x_api_enabled INTEGER NOT NULL DEFAULT 1")
+    if not column_exists(conn, "tracked_x_sources", "kol_category"):
+        conn.execute("ALTER TABLE tracked_x_sources ADD COLUMN kol_category TEXT NOT NULL DEFAULT 'stocks'")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS x_consensus_signals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          ticker TEXT NOT NULL,
+          direction TEXT NOT NULL,
+          source_count INTEGER NOT NULL DEFAULT 1,
+          sources TEXT NOT NULL DEFAULT '[]',
+          avg_confidence REAL NOT NULL DEFAULT 0.5,
+          weighted_confidence REAL NOT NULL DEFAULT 0.5,
+          window_hours INTEGER NOT NULL DEFAULT 24,
+          status TEXT NOT NULL DEFAULT 'active',
+          UNIQUE(ticker, direction)
+        )
+        """
+    )
     conn.commit()
 
 
@@ -265,6 +284,107 @@ def load_tracked(conn: sqlite3.Connection, handle_limit: int) -> List[Dict[str, 
     return out
 
 
+def build_x_consensus(conn: sqlite3.Connection) -> int:
+    """Aggregate external_signals into x_consensus_signals for multi-handle agreement."""
+    min_hits = int(float(get_control(conn, "x_consensus_min_hits", "3") or 3))
+
+    # Expire old consensus
+    conn.execute(
+        "UPDATE x_consensus_signals SET status='expired' WHERE created_at < datetime('now', '-48 hours')"
+    )
+
+    cur = conn.cursor()
+
+    # Load handle win rates from route_outcomes for weighted confidence
+    win_rates: Dict[str, float] = {}
+    if table_exists(conn, "route_outcomes"):
+        cur.execute(
+            """
+            SELECT source_tag,
+                   SUM(CASE WHEN resolution='win' THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS wr
+            FROM route_outcomes
+            GROUP BY source_tag
+            HAVING COUNT(*) >= 3
+            """
+        )
+        for tag, wr in cur.fetchall():
+            win_rates[str(tag).lower()] = float(wr or 0.5)
+
+    # Get consensus groups meeting min_hits threshold
+    cur.execute(
+        """
+        SELECT ticker, direction,
+               GROUP_CONCAT(DISTINCT source) AS sources,
+               COUNT(DISTINCT source) AS src_count,
+               AVG(confidence) AS avg_conf
+        FROM external_signals
+        WHERE status IN ('new', 'active')
+          AND created_at >= datetime('now', '-24 hours')
+        GROUP BY ticker, direction
+        HAVING COUNT(DISTINCT source) >= ?
+        """,
+        (min_hits,),
+    )
+    rows = cur.fetchall()
+
+    # For each consensus group, compute per-source weighted confidence
+    inserted = 0
+    for ticker, direction, sources_csv, src_count, avg_conf in rows:
+        source_list = [s.strip() for s in str(sources_csv or "").split(",") if s.strip()]
+
+        # Query individual source confidences for this ticker+direction
+        placeholders = ",".join("?" for _ in source_list)
+        cur.execute(
+            f"""
+            SELECT source, MAX(confidence) AS conf
+            FROM external_signals
+            WHERE ticker=? AND direction=? AND source IN ({placeholders})
+              AND status IN ('new', 'active')
+              AND created_at >= datetime('now', '-24 hours')
+            GROUP BY source
+            """,
+            [ticker, direction] + source_list,
+        )
+        src_confs = {str(r[0]).lower(): float(r[1] or 0.5) for r in cur.fetchall()}
+
+        # Win-rate-weighted average of per-source confidences
+        total_w = 0.0
+        weighted_sum = 0.0
+        for s in source_list:
+            wr = win_rates.get(s.lower(), 0.5)
+            conf = src_confs.get(s.lower(), float(avg_conf or 0.5))
+            weighted_sum += wr * conf
+            total_w += wr
+        weighted_conf = (weighted_sum / total_w) if total_w > 0 else float(avg_conf or 0.5)
+
+        conn.execute(
+            """
+            INSERT INTO x_consensus_signals
+            (created_at, ticker, direction, source_count, sources, avg_confidence, weighted_confidence, window_hours, status)
+            VALUES (datetime('now'), ?, ?, ?, ?, ?, ?, 24, 'active')
+            ON CONFLICT(ticker, direction) DO UPDATE SET
+              created_at=excluded.created_at,
+              source_count=excluded.source_count,
+              sources=excluded.sources,
+              avg_confidence=excluded.avg_confidence,
+              weighted_confidence=excluded.weighted_confidence,
+              status='active'
+            """,
+            (
+                ticker,
+                direction,
+                int(src_count),
+                json.dumps(source_list),
+                round(float(avg_conf or 0.5), 4),
+                round(weighted_conf, 4),
+            ),
+        )
+        inserted += 1
+
+    conn.commit()
+    return inserted
+
+
 def main() -> int:
     if not shutil.which("bird"):
         print("PIPELINE_X_BRIDGE skipped: bird CLI not found")
@@ -362,11 +482,14 @@ def main() -> int:
                             inserted_copy += 1
 
         conn.commit()
+
+        consensus_count = build_x_consensus(conn)
+
         print(
             "PIPELINE_X_BRIDGE "
             f"handles={len(tracked)} scanned_posts={scanned_posts} "
             f"external_inserted={inserted_external} copy_inserted={inserted_copy} "
-            f"fetch_empty={fetch_errors}"
+            f"fetch_empty={fetch_errors} consensus_signals={consensus_count}"
         )
         return 0
     finally:

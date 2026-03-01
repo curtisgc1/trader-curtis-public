@@ -1826,10 +1826,14 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
             ms = perp_state.get("marginSummary", {}) if isinstance(perp_state, dict) else {}
             perp_account_value = float(ms.get("accountValue") or 0.0)
             perp_withdrawable = float(perp_state.get("withdrawable") or 0.0)
+            total_margin_used = float(ms.get("totalMarginUsed") or 0.0)
+            margin_ratio = (total_margin_used / perp_account_value) if perp_account_value > 0 else 0.0
             snapshot["hyperliquid"]["account_value"] = perp_account_value
             snapshot["hyperliquid"]["withdrawable"] = perp_withdrawable
             snapshot["hyperliquid"]["perp_account_value"] = perp_account_value
             snapshot["hyperliquid"]["perp_withdrawable"] = perp_withdrawable
+            snapshot["hyperliquid"]["total_margin_used"] = total_margin_used
+            snapshot["hyperliquid"]["margin_ratio"] = round(margin_ratio, 4)
             positions = []
             for item in (perp_state.get("assetPositions") or []):
                 if not isinstance(item, dict):
@@ -1851,6 +1855,9 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                         "unrealized_pnl": float(pos.get("unrealizedPnl") or 0.0),
                         "unrealized_pnl_pct": float(pos.get("returnOnEquity") or 0.0) * 100.0,
                         "leverage": lev,
+                        "liquidation_price": float(pos.get("liquidationPx") or 0.0),
+                        "margin_used": float(pos.get("marginUsed") or 0.0),
+                        "cum_funding": float((pos.get("cumFunding") or {}).get("sinceOpen") or 0.0) if isinstance(pos.get("cumFunding"), dict) else float(pos.get("cumFunding") or 0.0),
                     }
                 )
             snapshot["hyperliquid"]["positions"] = positions
@@ -1907,6 +1914,7 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
             snapshot["polymarket"]["wallet"] = str(env.get("POLY_FUNDER", "") or "")
             if _table_exists(conn, "polymarket_orders"):
                 cur = conn.cursor()
+                # Per-outcome aggregation: net shares, cost basis, avg entry, trades
                 cur.execute(
                     """
                     SELECT market_id,
@@ -1916,6 +1924,10 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                                  WHEN lower(COALESCE(side,''))='sell' THEN -1.0*COALESCE(notional,0)
                                  ELSE COALESCE(notional,0)
                                END) AS net_notional,
+                           SUM(CASE
+                                 WHEN lower(COALESCE(side,''))='sell' THEN -1.0*COALESCE(size,0)
+                                 ELSE COALESCE(size,0)
+                               END) AS net_shares,
                            COUNT(*) AS trades
                     FROM polymarket_orders
                     WHERE lower(COALESCE(mode,''))='live'
@@ -1926,20 +1938,95 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                     LIMIT 100
                     """
                 )
-                rows = []
+                outcome_rows = []
                 total_abs = 0.0
-                for market_id, outcome, last_at, net_notional, trades in cur.fetchall():
+                for market_id, outcome, last_at, net_notional, net_shares, trades in cur.fetchall():
                     net_v = float(net_notional or 0.0)
+                    ns = float(net_shares or 0.0)
                     total_abs += abs(net_v)
-                    rows.append(
+                    avg_entry = round(abs(net_v / ns), 4) if abs(ns) > 0.000001 else 0.0
+                    outcome_rows.append(
                         {
                             "market_id": str(market_id or ""),
                             "outcome": str(outcome or ""),
                             "net_notional": round(net_v, 6),
+                            "net_shares": round(ns, 6),
+                            "avg_entry": avg_entry,
                             "trades": int(trades or 0),
                             "last_at": str(last_at or ""),
                         }
                     )
+                # Enrich with question, URL, and current prices from polymarket_markets
+                mkt_map: Dict[str, Dict[str, Any]] = {}
+                if outcome_rows and _table_exists(conn, "polymarket_markets"):
+                    mids = list({r["market_id"] for r in outcome_rows})
+                    placeholders = ",".join("?" * len(mids))
+                    cur.execute(
+                        f"SELECT market_id, question, market_url, outcomes_json, outcome_prices_json"
+                        f" FROM polymarket_markets WHERE market_id IN ({placeholders})",
+                        mids,
+                    )
+                    for mid, question, market_url, outcomes_j, prices_j in cur.fetchall():
+                        outcomes_list = []
+                        prices_list = []
+                        try:
+                            outcomes_list = json.loads(outcomes_j or "[]")
+                            prices_list = [float(x) for x in json.loads(prices_j or "[]")]
+                        except Exception:
+                            pass
+                        price_by_outcome = {}
+                        if isinstance(outcomes_list, list) and isinstance(prices_list, list):
+                            for i, label in enumerate(outcomes_list):
+                                if i < len(prices_list):
+                                    price_by_outcome[str(label).strip().lower()] = prices_list[i]
+                        mkt_map[mid] = {
+                            "question": str(question or ""),
+                            "market_url": str(market_url or ""),
+                            "prices": price_by_outcome,
+                        }
+                # Build per-outcome rows with current price + P&L
+                for r in outcome_rows:
+                    info = mkt_map.get(r["market_id"], {})
+                    r["question"] = info.get("question", "")
+                    r["market_url"] = info.get("market_url", "")
+                    cur_price = info.get("prices", {}).get(r["outcome"].strip().lower(), 0.0)
+                    r["current_price"] = round(cur_price, 4)
+                    current_value = r["net_shares"] * cur_price
+                    r["current_value"] = round(current_value, 6)
+                    r["unrealized_pnl"] = round(current_value - r["net_notional"], 6)
+                # Group outcomes by market_id for card display
+                markets_grouped: Dict[str, Dict[str, Any]] = {}
+                for r in outcome_rows:
+                    mid = r["market_id"]
+                    if mid not in markets_grouped:
+                        markets_grouped[mid] = {
+                            "market_id": mid,
+                            "question": r["question"],
+                            "market_url": r["market_url"],
+                            "outcomes": [],
+                            "total_pnl": 0.0,
+                            "total_exposure": 0.0,
+                            "last_at": r["last_at"],
+                        }
+                    markets_grouped[mid]["outcomes"].append({
+                        "outcome": r["outcome"],
+                        "net_shares": r["net_shares"],
+                        "net_notional": r["net_notional"],
+                        "avg_entry": r["avg_entry"],
+                        "current_price": r["current_price"],
+                        "current_value": r["current_value"],
+                        "unrealized_pnl": r["unrealized_pnl"],
+                        "trades": r["trades"],
+                    })
+                    markets_grouped[mid]["total_pnl"] = round(
+                        markets_grouped[mid]["total_pnl"] + r["unrealized_pnl"], 6
+                    )
+                    markets_grouped[mid]["total_exposure"] = round(
+                        markets_grouped[mid]["total_exposure"] + abs(r["net_notional"]), 6
+                    )
+                    if r["last_at"] > markets_grouped[mid]["last_at"]:
+                        markets_grouped[mid]["last_at"] = r["last_at"]
+                rows = list(markets_grouped.values())
                 cur.execute(
                     """
                     SELECT COUNT(*)
@@ -3143,6 +3230,36 @@ def set_execution_controls(updates: Dict[str, Any]) -> Dict[str, Any]:
         "promote_min_win_rate",
         "promote_min_sharpe",
         "promote_max_drawdown",
+        # Trader Brain controls
+        "tb_enabled",
+        "tb_min_trade_usdc",
+        "tb_min_wallet_win_rate",
+        "tb_min_wallet_trades",
+        "tb_min_wallet_pnl",
+        "tb_convergence_min",
+        "tb_convergence_window_hours",
+        "tb_kelly_fraction",
+        "tb_max_notional_per_trade",
+        "tb_max_daily_exposure",
+        "tb_max_open_positions",
+        "tb_notify_on_signal",
+        "tb_notify_on_execute",
+        "tb_arb_enabled",
+        "tb_arb_min_spread_pct",
+        "tb_arb_max_per_leg",
+        # Grok scoring controls
+        "tb_grok_enabled",
+        "tb_grok_scan_interval_sec",
+        "tb_grok_market_sample",
+        "tb_grok_min_score",
+        "tb_grok_block_below",
+        "tb_grok_conviction_boost",
+        # Grok alpha controls
+        "tb_grok_alpha_enabled",
+        "tb_grok_alpha_scan_interval_sec",
+        "tb_grok_alpha_bet_usd",
+        "tb_grok_alpha_min_edge_pct",
+        "tb_grok_alpha_market_sample",
     }
     if not DB_PATH.exists():
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -6647,6 +6764,58 @@ def submit_hyperliquid_quick_trade(
         return {"ok": False, "error": str(exc)}
 
 
+def close_hyperliquid_position(symbol: str) -> Dict[str, Any]:
+    """Close an open Hyperliquid perp position by submitting a counter-trade for the full notional."""
+    symbol = str(symbol).strip().upper()
+    if not symbol:
+        return {"ok": False, "error": "symbol required"}
+
+    env = _load_env()
+    hl_api = str(env.get("HL_API_URL", "") or "").strip() or "https://api.hyperliquid.xyz"
+    hl_wallet = str(env.get("HL_WALLET", "") or "").strip()
+    hl_info = str(env.get("HL_INFO_URL", "") or "").strip() or f"{hl_api}/info"
+    if not hl_wallet:
+        return {"ok": False, "error": "HL_WALLET not configured"}
+
+    try:
+        payload = {"type": "clearinghouseState", "user": hl_wallet}
+        req = urllib.request.Request(
+            hl_info,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            state = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": f"failed to fetch position state: {exc}"}
+
+    target_pos = None
+    for item in (state.get("assetPositions") or []):
+        if not isinstance(item, dict):
+            continue
+        pos = item.get("position", {}) if isinstance(item.get("position"), dict) else {}
+        if str(pos.get("coin", "")).upper() == symbol:
+            target_pos = pos
+            break
+
+    if target_pos is None:
+        return {"ok": False, "error": f"no open position for {symbol}"}
+
+    szi = float(target_pos.get("szi") or 0.0)
+    if szi == 0.0:
+        return {"ok": False, "error": f"position size is zero for {symbol}"}
+
+    close_side = "sell" if szi > 0 else "buy"
+    notional = float(target_pos.get("positionValue") or 0.0)
+    if notional <= 0:
+        notional = abs(szi) * float(target_pos.get("markPx") or target_pos.get("entryPx") or 0.0)
+    if notional <= 0:
+        return {"ok": False, "error": f"cannot determine notional for {symbol}"}
+
+    return submit_hyperliquid_quick_trade(symbol, close_side, notional)
+
+
 def get_system_intelligence() -> Dict[str, Any]:
     """Rolling Sharpe + win rate, quant gate effectiveness, and source P&L contribution."""
     from statistics import pstdev
@@ -7685,5 +7854,121 @@ def get_arb_overview() -> Dict[str, Any]:
         }
     except Exception:
         return {}
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Trader Brain helpers
+# ---------------------------------------------------------------------------
+
+
+def get_brain_status() -> Dict[str, Any]:
+    """Return high-level brain trader status."""
+    conn = _connect()
+    try:
+        result: Dict[str, Any] = {
+            "signals_seen": 0,
+            "trades_executed": 0,
+            "last_signal_at": None,
+            "controls": {},
+        }
+
+        if _table_exists(conn, "brain_signals"):
+            cur = conn.execute(
+                "SELECT COUNT(*) AS total, "
+                "SUM(CASE WHEN action IN ('executed','filled') THEN 1 ELSE 0 END) AS executed, "
+                "MAX(detected_at) AS last_at "
+                "FROM brain_signals"
+            )
+            row = cur.fetchone()
+            if row:
+                result["signals_seen"] = int(row[0] or 0)
+                result["trades_executed"] = int(row[1] or 0)
+                result["last_signal_at"] = row[2]
+
+        if _table_exists(conn, "execution_controls"):
+            cur = conn.execute(
+                "SELECT key, value FROM execution_controls WHERE key LIKE 'tb_%'"
+            )
+            result["controls"] = {r[0]: r[1] for r in cur.fetchall()}
+
+        if _table_exists(conn, "brain_config"):
+            cur = conn.execute("SELECT key, value FROM brain_config")
+            for r in cur.fetchall():
+                result["controls"][r[0]] = r[1]
+
+        # Check heartbeat — brain is "alive" if heartbeat within last 2 min
+        hb = result["controls"].get("heartbeat", "")
+        if hb:
+            try:
+                from datetime import datetime, timezone
+                hb_dt = datetime.fromisoformat(hb)
+                age_sec = (datetime.now(timezone.utc) - hb_dt).total_seconds()
+                result["brain_alive"] = age_sec < 120
+                result["heartbeat_age_sec"] = round(age_sec)
+            except Exception:
+                result["brain_alive"] = False
+                result["heartbeat_age_sec"] = -1
+        else:
+            result["brain_alive"] = False
+            result["heartbeat_age_sec"] = -1
+
+        return result
+    except Exception:
+        return {}
+    finally:
+        conn.close()
+
+
+def get_brain_signals(limit: int = 100) -> List[Dict[str, Any]]:
+    """Return recent brain copy-trade signals."""
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "brain_signals"):
+            return []
+        cur = conn.execute(
+            "SELECT * FROM brain_signals ORDER BY id DESC LIMIT ?", (limit,)
+        )
+        rows = cur.fetchall()
+        return _rows_to_dicts(cur, rows)
+    except Exception:
+        return []
+    finally:
+        conn.close()
+
+
+def get_grok_scores(limit: int = 50) -> List[Dict[str, Any]]:
+    """Return recent Grok market scores."""
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "brain_grok_scores"):
+            return []
+        cur = conn.execute(
+            "SELECT * FROM brain_grok_scores ORDER BY id DESC LIMIT ?",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        return _rows_to_dicts(cur, rows)
+    except Exception:
+        return []
+    finally:
+        conn.close()
+
+
+def get_grok_alpha_bets(limit: int = 50) -> List[Dict[str, Any]]:
+    """Return recent Grok alpha (news-driven) bets."""
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "brain_grok_alpha"):
+            return []
+        cur = conn.execute(
+            "SELECT * FROM brain_grok_alpha ORDER BY id DESC LIMIT ?",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        return _rows_to_dicts(cur, rows)
+    except Exception:
+        return []
     finally:
         conn.close()

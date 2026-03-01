@@ -10,86 +10,30 @@
     <div class="page">
       <header class="top">
         <div>
-          <h1>Polymarket</h1>
-          <p class="sub">Integrated prediction-market setups from the same signal pipeline</p>
+          <h1>Polymarket Brain</h1>
+          <p class="sub">WSS smart-money copy trading + cross-platform arb scanner</p>
           <p class="sub"><a href="/">Main</a> &bull; <a href="/consensus">Consensus</a> &bull; <a href="/signals">Signals</a> &bull; <a href="/alpaca">Alpaca</a> &bull; <a href="/hyperliquid">Hyperliquid</a> &bull; <a href="/learning">Learning</a></p>
         </div>
         <div class="status" id="status-pill">loading</div>
       </header>
 
       <section class="grid">
-        <div class="card span-2">
-          <h2>Polymarket Scorecard</h2>
-          <p class="sub">Per-strategy performance, active arb opportunities, wallet copy stats</p>
-          <div id="polymarket-scorecard"></div>
-        </div>
-        <div class="card">
-          <h2>Execution Snapshot</h2>
-          <div id="polymarket-overview"></div>
-        </div>
-        <div class="card">
-          <h2>MM v1 State</h2>
-          <div id="polymarket-mm-overview"></div>
-        </div>
-        <div class="card">
-          <h2>Pre-Trade Controls</h2>
-          <div class="controls">
-            <div class="control-row"><label><input type="checkbox" id="ctl-master" /> Agent Master ON</label></div>
-            <div class="control-row"><label><input type="checkbox" id="ctl-poly-live" /> Live Mode</label></div>
-            <div class="control-row"><label><input type="checkbox" id="ctl-poly-auto" /> Auto Execute</label></div>
-            <div class="control-row"><label><input type="checkbox" id="ctl-poly-manual" /> Manual Approval</label></div>
-            <div class="control-row"><label><input type="checkbox" id="ctl-consensus" checked /> Enforce N-of-M Consensus</label></div>
-            <div class="control-row">Max per trade ($) <input id="ctl-poly-max" type="number" min="1" step="1" /></div>
-            <div class="control-row">Max daily ($) <input id="ctl-poly-daily" type="number" min="1" step="1" /></div>
-            <div class="control-row">Min edge (%) <input id="ctl-poly-edge" type="number" min="0" step="0.1" /></div>
-            <div class="control-row"><label><input type="checkbox" id="ctl-poly-fee-gate" /> Fee-Aware Gate</label></div>
-            <div class="control-row">Taker fee (%) <input id="ctl-poly-fee" type="number" min="0" step="0.01" /></div>
-            <div class="control-row">Fee buffer (%) <input id="ctl-poly-fee-buf" type="number" min="0" step="0.01" /></div>
-            <div class="control-row">Min confirmations <input id="ctl-c-min" type="number" min="1" max="10" step="1" /></div>
-            <div class="control-row">Min ratio (0-1) <input id="ctl-c-ratio" type="number" min="0" max="1" step="0.05" /></div>
-            <div class="control-row">Min candidate score <input id="ctl-c-score" type="number" min="0" max="100" step="1" /></div>
-            <div class="control-row"><label><input type="checkbox" id="ctl-mm-enabled" /> MM v1 Enabled</label></div>
-            <div class="control-row">MM risk aversion <input id="ctl-mm-risk" type="number" min="0.01" max="1.5" step="0.01" /></div>
-            <div class="control-row">MM base spread (bps) <input id="ctl-mm-spread" type="number" min="5" step="1" /></div>
-            <div class="control-row">MM inventory limit <input id="ctl-mm-inv" type="number" min="10" step="1" /></div>
-            <div class="control-row">MM toxicity threshold <input id="ctl-mm-tox" type="number" min="0.1" max="1" step="0.01" /></div>
-            <div class="control-row">MM min edge (bps) <input id="ctl-mm-edge" type="number" min="1" step="1" /></div>
-            <div class="control-actions">
-              <button id="btn-poly-save">Save Pre-Trade</button>
-              <button id="btn-poly-exec">Run Poly Exec</button>
-              <button id="btn-poly-mm">Run MM Refresh</button>
-            </div>
-            <div id="poly-control-status" class="control-warning"></div>
-          </div>
-        </div>
-        <div class="card span-2">
-          <h2>Polymarket Candidates</h2>
-          <p class="sub">Candidates are ideas. Trades are only real when orders show `REAL` + live status.</p>
-          <div id="polymarket-candidates" class="table"></div>
+        <div class="card span-3">
+          <h2>Account Overview</h2>
+          <div id="poly-overview"></div>
         </div>
       </section>
 
-      <section class="grid">
-        <div class="card">
-          <h2>Polymarket Markets</h2>
-          <div id="polymarket-markets" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Weather Markets (Exact Temp)</h2>
-          <p class="sub">Ensemble probability view for exact daily max outcomes</p>
-          <div id="weather-market-probs" class="table"></div>
-        </div>
-        <div class="card span-2">
-          <h2>MM Opportunities (Flagged + Matched)</h2>
-          <p class="sub">History-aware quotes: fair value, reservation, toxicity, and execution-ready state</p>
-          <div id="polymarket-mm-snapshots" class="table"></div>
-        </div>
-      </section>
+      <section id="poly-positions" class="position-cards-grid"></section>
 
       <section class="grid">
+        <div class="card">
+          <h2>Trader Brain Status</h2>
+          <div id="brain-status"></div>
+        </div>
         <div class="card">
           <h2>Cross-Platform Arb Scanner</h2>
-          <p class="sub">Polymarket x Kalshi — automated spread detection &amp; execution</p>
+          <p class="sub">Polymarket x Kalshi &mdash; automated spread detection &amp; execution</p>
           <div id="arb-overview"></div>
           <div class="controls" style="margin-top:8px">
             <div class="control-row"><label><input type="checkbox" id="ctl-arb-enabled" /> Arb Scanner ON</label></div>
@@ -101,102 +45,96 @@
             <div id="arb-control-status" class="control-warning"></div>
           </div>
         </div>
+      </section>
+
+      <section class="grid">
         <div class="card span-2">
-          <h2>Arb Opportunities</h2>
-          <p class="sub">Detected and executed cross-platform arb pairs (last 7 days)</p>
-          <div id="arb-opportunities" class="table"></div>
+          <details class="signal-drawer" id="drawer-signals">
+            <summary>
+              <h2>Brain Copy Trades <span class="drawer-count" id="cnt-signals"></span></h2>
+              <p class="sub">Recent smart-money signals from WSS feed</p>
+            </summary>
+            <div id="brain-signals" class="table drawer-body"></div>
+          </details>
+        </div>
+        <div class="card span-2">
+          <details class="signal-drawer" id="drawer-arb">
+            <summary>
+              <h2>Arb Opportunities <span class="drawer-count" id="cnt-arb"></span></h2>
+              <p class="sub">Detected and executed cross-platform arb pairs (last 7 days)</p>
+            </summary>
+            <div id="arb-opportunities" class="table drawer-body"></div>
+          </details>
         </div>
       </section>
 
       <section class="grid">
         <div class="card span-2">
-          <h2>Polymarket Order Events</h2>
-          <div id="polymarket-orders" class="table"></div>
+          <details class="signal-drawer" id="drawer-grok-alpha">
+            <summary>
+              <h2>Grok Alpha Bets <span class="drawer-count" id="cnt-grok-alpha"></span></h2>
+              <p class="sub">News-driven bets from breaking X/Twitter events &mdash; auto-executes on edge</p>
+            </summary>
+            <div id="grok-alpha" class="table drawer-body"></div>
+          </details>
+        </div>
+        <div class="card span-2">
+          <details class="signal-drawer" id="drawer-grok-scores">
+            <summary>
+              <h2>Grok Market Scores <span class="drawer-count" id="cnt-grok-scores"></span></h2>
+              <p class="sub">AI sentiment from X/Twitter via Grok &mdash; updates every 5 min</p>
+            </summary>
+            <div id="grok-scores" class="table drawer-body"></div>
+          </details>
         </div>
       </section>
 
       <section class="grid">
-        <div class="card">
-          <h2>Trust Panel</h2>
-          <div id="trust-panel"></div>
+        <div class="card span-2">
+          <details class="signal-drawer" id="drawer-filtered">
+            <summary>
+              <h2>Filtered Signals <span class="drawer-count" id="cnt-filtered"></span></h2>
+              <p class="sub">Signals that didn't pass your current filters &mdash; review to tune thresholds</p>
+            </summary>
+            <div id="brain-filtered" class="table drawer-body"></div>
+          </details>
         </div>
-        <div class="card">
-          <h2>Tracked X Sources</h2>
-          <div class="controls">
-            <div class="control-row">@handle <input id="src-handle" type="text" placeholder="NoLimitGains" /></div>
-            <div class="control-row"><label><input type="checkbox" id="src-copy" checked /> Copy Trade Source</label></div>
-            <div class="control-row"><label><input type="checkbox" id="src-alpha" checked /> Alpha Source</label></div>
-            <div class="control-row"><label><input type="checkbox" id="src-x-api" checked /> X API Access ON</label></div>
-            <div class="control-row">Source weight (0-3) <input id="src-weight" type="number" min="0" max="3" step="0.05" value="1.0" /></div>
-            <div class="control-row"><label><input type="checkbox" id="src-active" checked /> Active</label></div>
-            <div class="control-row">Notes <input id="src-notes" type="text" placeholder="why this source is useful" /></div>
+      </section>
+
+      <section class="grid">
+        <div class="card span-2">
+          <h2>Brain Controls</h2>
+          <p class="sub">Trader brain execution parameters (tb_* keys)</p>
+          <div class="controls" id="brain-controls">
+            <div class="control-row"><label><input type="checkbox" id="ctl-tb-enabled" /> Brain Enabled</label></div>
+            <div class="control-row">Min trade ($) <input id="ctl-tb-min-trade" type="number" min="0" step="100" /></div>
+            <div class="control-row">Min win rate <input id="ctl-tb-win-rate" type="number" min="0" max="1" step="0.01" /></div>
+            <div class="control-row">Min wallet trades <input id="ctl-tb-min-trades" type="number" min="0" step="5" /></div>
+            <div class="control-row">Min wallet PnL ($) <input id="ctl-tb-min-pnl" type="number" min="0" step="500" /></div>
+            <div class="control-row">Convergence min <input id="ctl-tb-convergence" type="number" min="1" step="1" /></div>
+            <div class="control-row">Convergence window (hrs) <input id="ctl-tb-conv-window" type="number" min="1" step="1" /></div>
+            <div class="control-row">Kelly fraction <input id="ctl-tb-kelly" type="number" min="0" max="1" step="0.05" /></div>
+            <div class="control-row">Max notional per trade ($) <input id="ctl-tb-max-notional" type="number" min="1" step="5" /></div>
+            <div class="control-row">Max daily exposure ($) <input id="ctl-tb-daily" type="number" min="1" step="10" /></div>
+            <div class="control-row">Max open positions <input id="ctl-tb-max-open" type="number" min="1" step="1" /></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-tb-notify-signal" /> Notify on signal</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-tb-notify-exec" /> Notify on execute</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-tb-grok" /> Grok Scoring ON</label></div>
+            <div class="control-row">Min boost score <input id="ctl-tb-grok-min" type="number" min="0" max="100" step="5" /></div>
+            <div class="control-row">Block below <input id="ctl-tb-grok-block" type="number" min="0" max="100" step="5" /></div>
+            <div class="control-row">Conviction boost <input id="ctl-tb-grok-boost" type="number" min="1" max="3" step="0.1" /></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-tb-grok-alpha" /> Grok Alpha ON</label></div>
+            <div class="control-row">Alpha bet size ($) <input id="ctl-tb-grok-alpha-bet" type="number" min="1" max="100" step="5" /></div>
+            <div class="control-row">Min edge (%) <input id="ctl-tb-grok-alpha-edge" type="number" min="5" max="50" step="5" /></div>
             <div class="control-actions">
-              <button id="btn-source-save">Add / Update Source</button>
+              <button id="btn-brain-save">Save Brain Controls</button>
             </div>
-            <div id="source-status" class="control-warning"></div>
+            <div id="brain-control-status" class="control-warning"></div>
           </div>
-          <div id="tracked-sources" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Tracked Poly Wallets</h2>
-          <div class="controls">
-            <div class="control-row">@handle <input id="polyw-handle" type="text" placeholder="vague-sourdough" /></div>
-            <div class="control-row">Profile URL <input id="polyw-url" type="text" placeholder="https://polymarket.com/@..." /></div>
-            <div class="control-row"><label><input type="checkbox" id="polyw-copy" checked /> Copy Source</label></div>
-            <div class="control-row"><label><input type="checkbox" id="polyw-alpha" checked /> Alpha Source</label></div>
-            <div class="control-row">Notes <input id="polyw-notes" type="text" placeholder="strategy notes" /></div>
-            <div class="control-actions">
-              <button id="btn-polyw-save">Add / Update Wallet</button>
-            </div>
-            <div id="polyw-status" class="control-warning"></div>
-          </div>
-          <div id="tracked-poly-wallets" class="table"></div>
-        </div>
-        <div class="card span-2">
-          <h2>Wallet Performance Scores</h2>
-          <div id="poly-wallet-scores" class="table"></div>
-        </div>
-        <div class="card span-2">
-          <h2>Fresh Whale Discoveries</h2>
-          <p class="sub">New accounts (&#8804;7 days old) placing &#8805;$50k trades &mdash; auto-tracked for copy trading</p>
-          <div id="fresh-whale-list" class="table"></div>
-        </div>
-        <div class="card span-2">
-          <h2>Input Weight Engine (All Inputs)</h2>
-          <div class="controls">
-            <div class="control-row"><label><input type="checkbox" id="ctl-x-influence" checked /> Use X Inputs in Scoring</label></div>
-            <div class="control-row"><label><input type="checkbox" id="ctl-input-reweight" checked /> Auto Reweight Enabled</label></div>
-            <div class="control-row">Min samples <input id="ctl-input-min-samples" type="number" min="1" max="100" step="1" value="5" /></div>
-            <div class="control-row">Weight floor <input id="ctl-input-floor" type="number" min="0.1" max="2" step="0.05" value="0.6" /></div>
-            <div class="control-row">Weight ceiling <input id="ctl-input-ceil" type="number" min="1" max="5" step="0.05" value="1.6" /></div>
-            <div class="control-row">Auto-disable below (0=off) <input id="ctl-input-disable-threshold" type="number" min="0" max="2" step="0.05" value="0.0" /></div>
-            <div class="control-actions">
-              <button id="btn-input-settings-save">Save Input Settings</button>
-            </div>
-            <div id="input-settings-status" class="control-warning"></div>
-            <div class="control-row">Source key <input id="input-source-key" type="text" placeholder="source:finviz:rss or family:social" /></div>
-            <div class="control-row">Label <input id="input-source-label" type="text" placeholder="optional label" /></div>
-            <div class="control-row">Class <input id="input-source-class" type="text" placeholder="family/source_tag/pipeline/x_account" /></div>
-            <div class="control-row">Manual weight <input id="input-source-weight" type="number" min="0" max="5" step="0.05" value="1.0" /></div>
-            <div class="control-row"><label><input type="checkbox" id="input-source-enabled" checked /> Enabled</label></div>
-            <div class="control-actions">
-              <button id="btn-input-source-save">Add / Update Input Source</button>
-            </div>
-            <div id="input-source-status" class="control-warning"></div>
-          </div>
-          <div id="input-sources" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>External Signals</h2>
-          <div id="external-signals" class="table"></div>
-        </div>
-        <div class="card span-2">
-          <h2>Bookmark Alpha Ideas</h2>
-          <div id="bookmark-alpha-ideas" class="table"></div>
         </div>
       </section>
     </div>
 
-    <script src="/static/polymarket.js?v=20260228a"></script>
+    <script src="/static/polymarket.js?v=20260301a"></script>
   </body>
 </html>

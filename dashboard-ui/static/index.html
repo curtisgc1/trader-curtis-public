@@ -26,24 +26,12 @@
         </div>
       </header>
 
-      <section class="grid hero-grid">
-        <div class="card hero-card" id="metric-pnl-card">
-          <label>Total PnL</label>
-          <button id="metric-pnl-toggle" class="hero-link" title="Open closed-trade winners/losers and recent outcomes.">
-            <span id="metric-pnl" class="hero-value">--</span>
-          </button>
-        </div>
-        <div class="card hero-card">
-          <label>Win Rate</label>
-          <div id="metric-win" class="hero-value">--</div>
-        </div>
-        <div class="card hero-card">
-          <label>Open Trades</label>
-          <div id="metric-open" class="hero-value">--</div>
-        </div>
-        <div class="card hero-card">
-          <label>Mode</label>
-          <div id="metric-mode" class="hero-value">--</div>
+      <section class="grid">
+        <div class="card span-3" id="health-pulse-card">
+          <h2>Pipeline Health Pulse</h2>
+          <div class="sub">Hover any indicator for a plain-English explanation.
+            Green = healthy &middot; Yellow = watch &middot; Red = act now.</div>
+          <div id="health-pulse" class="pulse-grid-indicators"></div>
         </div>
       </section>
 
@@ -352,6 +340,7 @@
             <div class="control-row"><label for="x-copy" title="If On, this account can feed copy-style trade ideas into the pipeline.">Copy Role</label><select id="x-copy"><option value="1">On</option><option value="0">Off</option></select></div>
             <div class="control-row"><label for="x-alpha" title="If On, this account can feed alpha/sentiment ideas (not just copy calls).">Alpha Role</label><select id="x-alpha"><option value="1">On</option><option value="0">Off</option></select></div>
             <div class="control-row"><label for="x-active" title="Master switch for this account. Off means ignore this source entirely.">Active</label><select id="x-active"><option value="1">On</option><option value="0">Off</option></select></div>
+            <div class="control-row"><label for="x-category" title="Asset class this KOL primarily covers. Used for filtering and discovery.">Category</label><select id="x-category"><option value="stocks">Stocks</option><option value="crypto">Crypto</option><option value="polymarket">Polymarket</option><option value="mixed">Mixed</option></select></div>
             <div class="control-row"><label for="x-api-enabled" title="Turns X fetching for this handle on or off. Useful when testing without deleting it.">X API Read</label><select id="x-api-enabled"><option value="1">On</option><option value="0">Off</option></select></div>
             <div class="control-row"><label for="x-notes" title="Personal notes about this source (style, reliability, caveats).">Notes</label><input id="x-notes" type="text" placeholder="optional notes" /></div>
             <div class="control-actions"><button id="btn-x-save">Add / Update</button></div>
@@ -471,6 +460,20 @@
           </details>
 
           <details style="margin-top:8px;">
+            <summary>X Consensus &amp; Discovery</summary>
+            <div class="sub" style="margin-top:6px;">Multi-handle agreement signals and Grok-discovered accounts pending review.</div>
+            <div class="control-row" style="margin-top:8px;">
+              <label for="x-consensus-min-hits" title="Minimum number of X handles that must agree on a ticker+direction to fire the x_consensus bonus.">Min Hits</label>
+              <input id="x-consensus-min-hits" type="number" min="1" max="10" value="3" style="width:60px;" />
+              <button id="btn-x-consensus-save" style="margin-left:8px;">Save</button>
+            </div>
+            <div id="x-consensus-status" class="control-warning" style="margin-top:4px;"></div>
+            <div id="x-consensus-signals" style="margin-top:8px;"></div>
+            <h4 style="margin-top:12px;margin-bottom:4px;font-size:0.9em;">Discovery Candidates</h4>
+            <div id="x-discovery-candidates" style="margin-top:4px;"></div>
+          </details>
+
+          <details style="margin-top:8px;">
             <summary>Ticker Trade Profiles</summary>
             <div class="sub">Example: BTC -> crypto only + required <code>family:liquidity,family:pipeline</code>.</div>
             <div class="control-row" style="margin-top:8px;"><label for="ticker-profile-ticker" title="Symbol to apply special routing rules to, for example BTC, ETH, NVDA.">Ticker</label><input id="ticker-profile-ticker" type="text" placeholder="BTC" /></div>
@@ -526,8 +529,18 @@
           <div id="intel-source-bars"></div>
         </div>
       </section>
+
+      <!-- ═══ SOURCE HEALTH MONITOR ═══ -->
+      <section class="grid">
+        <div class="card" style="grid-column: 1 / -1;">
+          <h2>Source Health Monitor</h2>
+          <div class="sub">Lifetime vs recent 14d win rate. Decay = &gt;1&sigma; below lifetime.</div>
+          <div id="source-health-summary" class="health" style="margin-bottom:12px;"></div>
+          <div id="source-health-list"></div>
+        </div>
+      </section>
     </div>
 
-    <script src="/static/app.js?v=20260227a"></script>
+    <script src="/static/app.js?v=20260227b"></script>
   </body>
 </html>

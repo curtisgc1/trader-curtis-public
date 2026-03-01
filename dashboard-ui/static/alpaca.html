@@ -36,6 +36,17 @@
             <div class="control-row">Mode <select id="ctl-stocks-mode"><option value="paper">Paper</option><option value="live">Live</option></select></div>
             <div class="control-row">Min score <input id="ctl-stocks-min-score" type="number" min="0" max="100" step="1" /></div>
             <div class="control-row">Max notional ($) <input id="ctl-stocks-max-notional" type="number" min="1" step="1" /></div>
+            <hr style="border:none;border-top:1px solid var(--border,#333);margin:8px 0" />
+            <div class="control-row"><label><input type="checkbox" id="ctl-allow-shorts" /> Allow Equity Shorts</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-high-beta" /> High Beta Only</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-consensus-enforce" /> Consensus Enforce</label></div>
+            <div class="control-row">Min Route Score <input id="ctl-alp-min-route" type="number" min="0" max="100" step="1" value="60" /></div>
+            <hr style="border:none;border-top:1px solid var(--border,#333);margin:8px 0" />
+            <div class="control-row" style="font-weight:600;font-size:0.85em">Premium Gate (Stocks)</div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-pg-kw" /> Kyle Williams Signal</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-pg-liq" /> Liquidity Map Signal</label></div>
+            <div class="control-row"><label><input type="checkbox" id="ctl-pg-mom" /> Momentum Signal</label></div>
+            <div class="control-row">Min Gates Required <input id="ctl-pg-min" type="number" min="0" max="3" step="1" value="0" /></div>
             <div class="control-actions">
               <button id="btn-stocks-save">Save</button>
             </div>
@@ -47,9 +58,11 @@
           <div class="controls">
             <div class="control-row">Symbol <input id="qt-alp-symbol" type="text" placeholder="AAPL" /></div>
             <div class="control-row">Notional ($) <input id="qt-alp-notional" type="number" min="1" step="1" value="100" /></div>
+            <div id="qt-alp-margin" class="muted" style="font-size:0.85em;margin:4px 0"></div>
             <div class="control-actions">
               <button id="btn-alp-buy" class="btn-buy">Buy</button>
-              <button id="btn-alp-sell" class="btn-sell">Sell</button>
+              <button id="btn-alp-short" class="btn-sell">Short</button>
+              <button id="btn-alp-close" style="background:#666;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer">Close</button>
             </div>
             <div id="qt-alp-status" class="control-warning"></div>
           </div>
@@ -72,6 +85,6 @@
       </section>
     </div>
 
-    <script src="/static/alpaca.js?v=20260227a"></script>
+    <script src="/static/alpaca.js?v=20260227b"></script>
   </body>
 </html>

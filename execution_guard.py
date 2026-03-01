@@ -152,6 +152,7 @@ DEFAULT_CONTROLS = {
     "tb_arb_max_per_leg": "25",
     "tb_arb_poly_fee_pct": "3.15",
     "tb_arb_kalshi_fee_pct": "7.0",
+    "tb_arb_kalshi_retries": "6",
 }
 
 

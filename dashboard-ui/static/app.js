@@ -4,7 +4,11 @@ async function fetchJson(url) {
   return res.json();
 }
 
-const UI_BUILD = "20260226a";
+const UI_BUILD = "20260227b";
+
+function escHtml(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
 async function fetchJsonSafe(url, fallback) {
   try {
@@ -1488,7 +1492,10 @@ function renderTrackedSources(rows) {
     const xapi = String(r.x_api_enabled || "0") === "1" ? "xapi:on" : "xapi:off";
     const weight = Number(r.source_weight || 1).toFixed(2);
     const notes = String(r.notes || "").trim();
-    return `<div class="flow-item"><div><strong>${h}</strong> ${active}</div><div>${copy} | ${alpha} | ${xapi} | w=${weight}</div>${notes ? `<div>${notes}</div>` : ""}</div>`;
+    const cat = String(r.kol_category || "stocks");
+    const catColors = { stocks: "#60a5fa", crypto: "#fbbf24", polymarket: "#a78bfa", mixed: "#94a3b8" };
+    const catBadge = `<span style="font-size:0.75em;padding:1px 6px;border-radius:4px;background:${catColors[cat] || "#94a3b8"}22;color:${catColors[cat] || "#94a3b8"};">${cat}</span>`;
+    return `<div class="flow-item"><div><strong>${h}</strong> ${catBadge} ${active}</div><div>${copy} | ${alpha} | ${xapi} | w=${weight}</div>${notes ? `<div>${notes}</div>` : ""}</div>`;
   }).join("");
 }
 
@@ -1833,6 +1840,7 @@ function bindTrackedSources(rows) {
     try {
       const rawHandle = resolveHandleInput(["x-handle", "src-handle", "polyw-handle"], "btn-x-save");
       const normalizedHandle = normalizeXHandle(rawHandle);
+      const catEl = document.getElementById("x-category");
       const payload = {
         handle: normalizedHandle || rawHandle,
         x_handle: rawHandle,
@@ -1842,6 +1850,7 @@ function bindTrackedSources(rows) {
         active: String(active?.value || "1") === "1",
         x_api_enabled: String(xapi?.value || "1") === "1",
         notes: (notes?.value || "").trim(),
+        kol_category: (catEl?.value || "stocks"),
       };
       if (!rawHandle) {
         if (status) status.textContent = `Handle is required (example: @NoLimitGains or x.com/NoLimitGains) [build ${UI_BUILD}]`;
@@ -2057,10 +2066,13 @@ async function boot() {
     runUiStep("renderMainInputSources", () => renderMainInputSources(inputSources || []));
     runUiStep("renderTickerProfiles", () => renderTickerProfiles(tickerProfiles || []));
 
-    // Signal Scorecard (non-blocking)
+    // Health Pulse + Signal Scorecard (non-blocking)
+    fetchJsonSafe("/api/health-pulse", {}).then(d => renderHealthPulse(d || {}));
     fetchJsonSafe("/api/signal-scorecard", {}).then(d => renderSignalScorecard(d || {}));
     fetchJsonSafe("/api/weight-history?limit=30", {}).then(d => renderWeightHistory(d || {}));
     fetchJsonSafe("/api/system-intelligence", {}).then(d => renderSystemIntelligence(d || {}));
+    fetchJsonSafe("/api/source-decay", {}).then(d => renderSourceDecay(d || {}));
+    fetchJsonSafe("/api/x-consensus", {}).then(d => { renderXConsensus(d || {}); bindXConsensus(); });
 
     const topState = (systemHealth && systemHealth.overall) || "warn";
     const awareState = (awareness && awareness.overall) || "warn";
@@ -2146,6 +2158,265 @@ function renderWeightHistory(data) {
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+// ── Health Pulse ──
+function renderHealthPulse(data) {
+  const el = document.getElementById("health-pulse");
+  if (!el) return;
+  const indicators = (data && data.indicators) || [];
+  if (!indicators.length) {
+    el.innerHTML = '<div class="empty">No health pulse data available.</div>';
+    return;
+  }
+
+  const categoryLabels = {
+    performance: "Performance",
+    signal_quality: "Signal Quality",
+    pipeline: "Pipeline Health",
+    execution: "Execution",
+  };
+  const categoryOrder = ["performance", "signal_quality", "pipeline", "execution"];
+  const statusColors = {
+    green: "var(--accent)",
+    yellow: "var(--warn)",
+    red: "var(--danger)",
+    info: "var(--muted)",
+  };
+
+  let html = "";
+  let currentCat = "";
+  const grouped = [];
+  for (const cat of categoryOrder) {
+    grouped.push(...indicators.filter(i => i.category === cat));
+  }
+
+  for (const ind of grouped) {
+    if (ind.category !== currentCat) {
+      currentCat = ind.category;
+      html += '<div class="pulse-group-label">' + escHtml(categoryLabels[currentCat] || currentCat) + '</div>';
+    }
+
+    const valColor = statusColors[ind.status] || "var(--text)";
+    const deltaHtml = ind.delta
+      ? '<div class="pulse-ind-delta" style="color:' + (ind.delta.startsWith("+") || ind.delta.startsWith("\u25B2") ? "var(--accent)" : (ind.delta.startsWith("-") || ind.delta.startsWith("\u25BC") ? "var(--danger)" : "var(--muted)")) + ';">' + escHtml(ind.delta) + '</div>'
+      : "";
+    const sparkHtml = buildMiniSparkline(ind.sparkline || [], 60, 20);
+
+    html += '<div class="pulse-ind">'
+      + '<div class="pulse-ind-header">'
+      +   '<span>' + escHtml(ind.label) + '</span>'
+      +   '<span class="pulse-help">?</span>'
+      +   '<span class="pulse-dot ' + escHtml(ind.status) + '"></span>'
+      + '</div>'
+      + '<div class="pulse-ind-body">'
+      +   '<div>'
+      +     '<div class="pulse-ind-value" style="color:' + valColor + ';">' + escHtml(ind.display) + '</div>'
+      +     deltaHtml
+      +   '</div>'
+      +   (sparkHtml ? '<div>' + sparkHtml + '</div>' : '')
+      + '</div>'
+      + '<div class="pulse-ind-thresholds">' + escHtml(ind.thresholds) + '</div>'
+      + '<div class="pulse-tooltip">' + escHtml(ind.tooltip) + '</div>'
+      + '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function buildMiniSparkline(series, w, h) {
+  if (!series || series.length < 2) return "";
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const range = max === min ? 1 : max - min;
+  const stepX = w / (series.length - 1);
+  const pts = series.map((v, i) => {
+    const x = (i * stepX).toFixed(1);
+    const y = (h - ((v - min) / range) * h).toFixed(1);
+    return `${i === 0 ? "M" : "L"} ${x} ${y}`;
+  }).join(" ");
+  const color = series[series.length - 1] >= series[0] ? "#4ade80" : "#f87171";
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="vertical-align:middle;"><path d="${pts}" fill="none" stroke="${color}" stroke-width="1.5" /></svg>`;
+}
+
+function renderSourceDecay(data) {
+  const summaryEl = document.getElementById("source-health-summary");
+  const listEl = document.getElementById("source-health-list");
+  if (!summaryEl || !listEl) return;
+
+  const sources = (data && data.sources) || [];
+  const summary = (data && data.summary) || {};
+
+  if (!sources.length) {
+    summaryEl.innerHTML = '<div class="item" style="opacity:0.5;">No source decay data yet.</div>';
+    listEl.innerHTML = "";
+    return;
+  }
+
+  // Summary line
+  const parts = [];
+  if (summary.healthy) parts.push(`<span style="color:#4ade80;">${summary.healthy} healthy</span>`);
+  if (summary.decaying) parts.push(`<span style="color:#f87171;">${summary.decaying} decaying</span>`);
+  if (summary.improving) parts.push(`<span style="color:#38bdf8;">${summary.improving} improving</span>`);
+  summaryEl.innerHTML = `<div class="item"><span class="label">Sources</span><span>${parts.join(" &bull; ")}</span></div>`;
+
+  // Per-source cards
+  const cards = sources.map(s => {
+    const badgeColors = { decaying: "#f87171", improving: "#38bdf8", stable: "#fbbf24" };
+    const badgeClasses = { decaying: "bad", improving: "good", stable: "warn" };
+    const bc = badgeColors[s.decay_signal] || "#64748b";
+    const bcls = badgeClasses[s.decay_signal] || "";
+
+    const ltWrColor = s.lifetime_win_rate >= 50 ? "#4ade80" : "#f87171";
+    const rcWrColor = s.recent_win_rate >= s.lifetime_win_rate ? "#4ade80" : "#f87171";
+
+    const sparkline = buildMiniSparkline(s.ema_series, 80, 24);
+    const weightWarn = s.current_auto_weight < 0.95 ? ' style="color:#fbbf24;font-weight:600;"' : "";
+
+    const btns = [];
+    if (s.decay_signal === "decaying" || s.suggested_action === "dampen") {
+      btns.push(`<button data-decay-tag="${s.source_tag}" data-decay-action="dampen" style="font-size:0.75em;padding:2px 8px;cursor:pointer;">Dampen</button>`);
+    }
+    btns.push(`<button data-decay-tag="${s.source_tag}" data-decay-action="restore" style="font-size:0.75em;padding:2px 8px;cursor:pointer;">Restore</button>`);
+    btns.push(`<button data-decay-tag="${s.source_tag}" data-decay-action="disable" style="font-size:0.75em;padding:2px 8px;cursor:pointer;color:#f87171;">Disable</button>`);
+
+    return `<div style="border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <strong>${s.source_tag}</strong>
+        <span class="${bcls}" style="font-size:0.75em;font-weight:700;color:${bc};text-transform:uppercase;border:1px solid ${bc};border-radius:3px;padding:1px 6px;">${s.decay_signal}</span>${s.current_auto_weight <= 0.001 ? '<span style="font-size:0.7em;font-weight:700;color:#f87171;background:#450a0a;border:1px solid #f87171;border-radius:3px;padding:1px 6px;margin-left:4px;">AUTO-ZEROED</span>' : ''}
+        <span style="margin-left:auto;">${sparkline}</span>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:0.85em;">
+        <span>Lifetime: <span style="color:${ltWrColor};font-weight:600;">${s.lifetime_win_rate.toFixed(1)}%</span> (${s.lifetime_n})</span>
+        <span>14d: <span style="color:${rcWrColor};font-weight:600;">${s.recent_win_rate.toFixed(1)}%</span> (${s.recent_n})</span>
+        <span>Avg P&L: <span style="${s.recent_avg_pnl_pct >= 0 ? 'color:#4ade80' : 'color:#f87171'}">${s.recent_avg_pnl_pct.toFixed(2)}%</span></span>
+        <span${weightWarn}>Weight: ${s.current_auto_weight.toFixed(2)}</span>
+      </div>
+      <div style="margin-top:6px;display:flex;gap:6px;">${btns.join("")}</div>
+    </div>`;
+  }).join("");
+
+  listEl.innerHTML = cards;
+
+  // Event delegation for buttons
+  listEl.onclick = async (e) => {
+    const btn = e.target.closest("[data-decay-tag]");
+    if (!btn) return;
+    const tag = btn.getAttribute("data-decay-tag");
+    const action = btn.getAttribute("data-decay-action");
+    if (!tag || !action) return;
+    btn.disabled = true;
+    btn.textContent = "...";
+    try {
+      await postJson("/api/source-decay", { source_tag: tag, action: action });
+      const fresh = await fetchJsonSafe("/api/source-decay", {});
+      renderSourceDecay(fresh || {});
+    } catch (err) {
+      btn.textContent = "error";
+    }
+  };
+}
+
+function renderXConsensus(data) {
+  const signalsEl = document.getElementById("x-consensus-signals");
+  const discEl = document.getElementById("x-discovery-candidates");
+  const minInput = document.getElementById("x-consensus-min-hits");
+  if (!signalsEl || !discEl) return;
+
+  const settings = (data && data.settings) || {};
+  if (minInput && settings.x_consensus_min_hits != null) {
+    minInput.value = settings.x_consensus_min_hits;
+  }
+
+  // Consensus signals table
+  const signals = (data && data.consensus_signals) || [];
+  if (!signals.length) {
+    signalsEl.innerHTML = '<div class="empty">No active consensus signals. Need 3+ handles agreeing on same ticker.</div>';
+  } else {
+    const grid = "80px 60px 50px 1fr 80px";
+    const head = `<div class="row header" style="grid-template-columns:${grid}"><div>Ticker</div><div>Dir</div><div>#</div><div>Sources</div><div>W.Conf</div></div>`;
+    const body = signals.slice(0, 30).map((s) => {
+      const sources = (() => { try { return JSON.parse(s.sources || "[]").map(escHtml).join(", "); } catch(e) { return escHtml(s.sources || ""); } })();
+      const dirColor = s.direction === "long" ? "color:#4ade80" : (s.direction === "short" ? "color:#f87171" : "");
+      return `<div class="row" style="grid-template-columns:${grid}"><div style="font-weight:600;">${escHtml(s.ticker)}</div><div style="${dirColor}">${escHtml(s.direction)}</div><div>${s.source_count}</div><div style="font-size:0.8em;opacity:0.7;">${sources}</div><div>${Number(s.weighted_confidence || 0).toFixed(2)}</div></div>`;
+    }).join("");
+    signalsEl.innerHTML = head + body;
+  }
+
+  // Discovery candidates
+  const candidates = (data && data.discovery_candidates) || [];
+  if (!candidates.length) {
+    discEl.innerHTML = '<div class="empty">No discovery candidates. Run discover_x_accounts.py to find new accounts.</div>';
+  } else {
+    const cards = candidates.slice(0, 50).map((c) => {
+      const statusColor = c.status === "new" ? "#fbbf24" : (c.status === "approved" ? "#4ade80" : "#64748b");
+      const btns = c.status === "new"
+        ? `<button data-disc-handle="${c.handle}" data-disc-action="approve" style="font-size:0.75em;padding:2px 8px;cursor:pointer;color:#4ade80;">Approve</button> <button data-disc-handle="${c.handle}" data-disc-action="reject" style="font-size:0.75em;padding:2px 8px;cursor:pointer;color:#f87171;">Reject</button>`
+        : `<span style="font-size:0.75em;color:${statusColor};text-transform:uppercase;">${c.status}</span>`;
+      const followers = c.followers ? `${(c.followers / 1000).toFixed(1)}k` : "?";
+      const dCat = String(c.kol_category || "stocks");
+      const dCatColors = { stocks: "#60a5fa", crypto: "#fbbf24", polymarket: "#a78bfa", mixed: "#94a3b8" };
+      const dCatBadge = `<span style="font-size:0.7em;padding:1px 6px;border-radius:4px;background:${dCatColors[dCat] || "#94a3b8"}22;color:${dCatColors[dCat] || "#94a3b8"};font-weight:600;">${dCat}</span>`;
+      return `<div style="border:1px solid #1e293b;border-radius:6px;padding:8px 12px;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <strong>@${escHtml(c.handle)}</strong>
+          ${dCatBadge}
+          <span style="font-size:0.8em;opacity:0.6;">${followers} followers</span>
+          <span style="margin-left:auto;">${btns}</span>
+        </div>
+        ${c.display_name ? `<div style="font-size:0.85em;opacity:0.7;">${escHtml(c.display_name)}</div>` : ""}
+        ${c.description ? `<div style="font-size:0.8em;opacity:0.5;margin-top:2px;">${escHtml(c.description.slice(0, 120))}</div>` : ""}
+        ${c.sample_call ? `<div style="font-size:0.8em;opacity:0.4;margin-top:2px;font-style:italic;">${escHtml(c.sample_call.slice(0, 140))}</div>` : ""}
+      </div>`;
+    }).join("");
+    discEl.innerHTML = cards;
+  }
+
+  // Event delegation for approve/reject
+  discEl.onclick = async (e) => {
+    const btn = e.target.closest("[data-disc-handle]");
+    if (!btn) return;
+    const handle = btn.getAttribute("data-disc-handle");
+    const action = btn.getAttribute("data-disc-action");
+    if (!handle || !action) return;
+    btn.disabled = true;
+    btn.textContent = "...";
+    try {
+      await postJson("/api/x-discovery", { handle, action });
+      const fresh = await fetchJsonSafe("/api/x-consensus", {});
+      renderXConsensus(fresh || {});
+    } catch (err) {
+      btn.textContent = "error";
+    }
+  };
+}
+
+function bindXConsensus() {
+  const btnSave = document.getElementById("btn-x-consensus-save");
+  const minInput = document.getElementById("x-consensus-min-hits");
+  const statusEl = document.getElementById("x-consensus-status");
+  if (!btnSave || !minInput) return;
+
+  btnSave.onclick = async () => {
+    const val = parseInt(minInput.value, 10);
+    if (isNaN(val) || val < 1 || val > 10) {
+      if (statusEl) statusEl.textContent = "Min hits must be 1-10";
+      return;
+    }
+    btnSave.disabled = true;
+    btnSave.textContent = "...";
+    try {
+      await postJson("/api/x-consensus-settings", { x_consensus_min_hits: val });
+      if (statusEl) statusEl.textContent = `Saved: min_hits = ${val}`;
+      const fresh = await fetchJsonSafe("/api/x-consensus", {});
+      renderXConsensus(fresh || {});
+    } catch (err) {
+      if (statusEl) statusEl.textContent = "Save failed";
+    } finally {
+      btnSave.disabled = false;
+      btnSave.textContent = "Save";
+    }
+  };
 }
 
 boot();

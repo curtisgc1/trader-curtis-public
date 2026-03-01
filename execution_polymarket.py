@@ -393,7 +393,28 @@ def _candidate_token_and_price(conn: sqlite3.Connection, candidate: Dict[str, An
         prices = []
 
     outcome = str(candidate.get("outcome") or "").strip().lower()
-    idx = 0 if outcome in {"yes", "y", "true", "1"} else 1
+
+    # Match outcome label against outcomes_json (handles multi-outcome markets)
+    outcomes_json: List[str] = []
+    try:
+        cur2 = conn.cursor()
+        cur2.execute(
+            "SELECT outcomes_json FROM polymarket_markets WHERE market_id=? LIMIT 1",
+            (str(candidate.get("market_id") or ""),),
+        )
+        orow = cur2.fetchone()
+        if orow:
+            outcomes_json = json.loads(orow[0] or "[]")
+    except Exception:
+        pass
+
+    idx: Optional[int] = None
+    for j, label in enumerate(outcomes_json):
+        if str(label).strip().lower() == outcome:
+            idx = j
+            break
+    if idx is None:
+        idx = 0 if outcome in {"yes", "y", "true", "1"} else 1
 
     token_id = token_ids[idx] if len(token_ids) > idx else ""
     base_price = prices[idx] if len(prices) > idx else float(candidate.get("implied_prob") or 0.5)

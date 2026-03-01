@@ -182,7 +182,6 @@ function renderClosed(pnlData) {
 // ── Controls ──────────────────────────────────────────────────────────────
 
 function wireStocksControls(venueMatrix, riskControls) {
-  // Populate from venue_matrix
   const stocks = (venueMatrix || []).find(
     (v) => (v.venue || "").toLowerCase() === "stocks"
   );
@@ -196,6 +195,29 @@ function wireStocksControls(venueMatrix, riskControls) {
     const maxNot = document.getElementById("ctl-stocks-max-notional");
     if (maxNot) maxNot.value = stocks.max_notional || 0;
   }
+
+  const controls = {};
+  (riskControls || []).forEach((c) => {
+    controls[c.key] = c.value;
+  });
+
+  const setCheck = (id, key, def) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = String(controls[key] ?? def) === "1";
+  };
+  const setNum = (id, key, def) => {
+    const el = document.getElementById(id);
+    if (el) el.value = controls[key] ?? def;
+  };
+
+  setCheck("ctl-allow-shorts", "allow_equity_shorts", "1");
+  setCheck("ctl-high-beta", "high_beta_only", "1");
+  setCheck("ctl-consensus-enforce", "consensus_enforce", "1");
+  setNum("ctl-alp-min-route", "alpaca_min_route_score", "60");
+  setCheck("ctl-pg-kw", "premium_gate_kw_stocks", "0");
+  setCheck("ctl-pg-liq", "premium_gate_liq_stocks", "0");
+  setCheck("ctl-pg-mom", "premium_gate_mom_stocks", "0");
+  setNum("ctl-pg-min", "premium_gate_stocks_min", "0");
 
   const saveBtn = document.getElementById("btn-stocks-save");
   if (saveBtn && !saveBtn.dataset.wired) {
@@ -220,6 +242,18 @@ function wireStocksControls(venueMatrix, riskControls) {
             },
           ],
         });
+        await postJson("/api/risk-controls", {
+          updates: {
+            allow_equity_shorts: document.getElementById("ctl-allow-shorts").checked ? "1" : "0",
+            high_beta_only: document.getElementById("ctl-high-beta").checked ? "1" : "0",
+            consensus_enforce: document.getElementById("ctl-consensus-enforce").checked ? "1" : "0",
+            alpaca_min_route_score: document.getElementById("ctl-alp-min-route").value,
+            premium_gate_kw_stocks: document.getElementById("ctl-pg-kw").checked ? "1" : "0",
+            premium_gate_liq_stocks: document.getElementById("ctl-pg-liq").checked ? "1" : "0",
+            premium_gate_mom_stocks: document.getElementById("ctl-pg-mom").checked ? "1" : "0",
+            premium_gate_stocks_min: document.getElementById("ctl-pg-min").value,
+          },
+        });
         if (status) {
           status.textContent = "Saved";
           status.className = "control-warning good";
@@ -234,9 +268,24 @@ function wireStocksControls(venueMatrix, riskControls) {
   }
 }
 
+function renderMarginInfo(snapshot) {
+  const el = document.getElementById("qt-alp-margin");
+  if (!el) return;
+  const a = snapshot.alpaca || {};
+  if (!a.ok || !a.equity) {
+    el.textContent = "";
+    return;
+  }
+  const equity = Number(a.equity) || 0;
+  const bp = Number(a.buying_power) || 0;
+  const margin = equity > 0 ? (bp / equity).toFixed(1) : "?";
+  el.textContent = `Account: ${margin}x margin · Buying power: ${fmtUsd(bp)}`;
+}
+
 function wireAlpacaQuickTrade() {
   const buyBtn = document.getElementById("btn-alp-buy");
-  const sellBtn = document.getElementById("btn-alp-sell");
+  const shortBtn = document.getElementById("btn-alp-short");
+  const closeBtn = document.getElementById("btn-alp-close");
   const status = document.getElementById("qt-alp-status");
 
   async function submitTrade(side) {
@@ -253,23 +302,23 @@ function wireAlpacaQuickTrade() {
       }
       return;
     }
-    if (notional <= 0) {
+    if (side !== "close" && notional <= 0) {
       if (status) {
         status.textContent = "Enter a positive notional";
         status.className = "control-warning bad";
       }
       return;
     }
+    const label = side === "close" ? "close" : side === "sell" ? "short" : "buy";
     if (status) {
-      status.textContent = `Submitting ${side} ${symbol}...`;
+      status.textContent = `Submitting ${label} ${symbol}...`;
       status.className = "control-warning";
     }
     try {
-      const result = await postJson("/api/alpaca-quick-trade", {
-        symbol,
-        side,
-        notional,
-      });
+      const body = side === "close"
+        ? { symbol, side: "close", notional: 0 }
+        : { symbol, side, notional };
+      const result = await postJson("/api/alpaca-quick-trade", body);
       if (result.ok) {
         if (status) {
           status.textContent = `Order submitted: ${result.order_id || "ok"}`;
@@ -294,9 +343,13 @@ function wireAlpacaQuickTrade() {
     buyBtn.dataset.wired = "1";
     buyBtn.addEventListener("click", () => submitTrade("buy"));
   }
-  if (sellBtn && !sellBtn.dataset.wired) {
-    sellBtn.dataset.wired = "1";
-    sellBtn.addEventListener("click", () => submitTrade("sell"));
+  if (shortBtn && !shortBtn.dataset.wired) {
+    shortBtn.dataset.wired = "1";
+    shortBtn.addEventListener("click", () => submitTrade("sell"));
+  }
+  if (closeBtn && !closeBtn.dataset.wired) {
+    closeBtn.dataset.wired = "1";
+    closeBtn.addEventListener("click", () => submitTrade("close"));
   }
 }
 
@@ -316,6 +369,7 @@ async function boot() {
 
   runUiStep("overview", () => renderOverview(snapshot));
   runUiStep("positions", () => renderPositions(snapshot));
+  runUiStep("marginInfo", () => renderMarginInfo(snapshot));
   runUiStep("orders", () => renderOrders(orders));
   runUiStep("routes", () => renderRoutes(routes));
   runUiStep("closed", () => renderClosed(pnlData));
