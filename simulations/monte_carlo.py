@@ -1,8 +1,13 @@
 """Monte Carlo simulation engine for Polymarket binary contract pricing.
 
-Layer 1 of the quant simulation stack. Uses Geometric Brownian Motion to
-model the evolution of an implied probability process, then prices binary
-YES/NO contracts via the fraction of paths that finish above a strike.
+Layer 1 of the quant simulation stack. Uses logit-diffusion (NOT GBM) to
+model bounded probability processes that resolve to 0 or 1.
+
+Key corrections (per "Monte Carlo to Mirages" critique):
+  - Logit-diffusion keeps paths in [0,1] by construction
+  - Brownian bridge conditioning for near-expiry contracts
+  - Brier Skill Score (BSS) alongside raw Brier
+  - Execution cost model (spread + slippage)
 
 Usage::
 
@@ -37,7 +42,9 @@ class SimulationResult:
 
     fair_price: float
     edge_pct: float
+    edge_after_costs: float
     brier: float
+    brier_skill_score: float
     ci_95: Tuple[float, float]
     paths_won: int
     n_paths: int
@@ -45,13 +52,16 @@ class SimulationResult:
     vol: float
     prob_estimate: float
     market_price: float
+    execution_cost_pct: float
     elapsed_ms: float
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "fair_price": round(self.fair_price, 6),
             "edge_pct": round(self.edge_pct, 4),
+            "edge_after_costs": round(self.edge_after_costs, 4),
             "brier": round(self.brier, 6),
+            "brier_skill_score": round(self.brier_skill_score, 6),
             "ci_95": [round(self.ci_95[0], 6), round(self.ci_95[1], 6)],
             "paths_won": self.paths_won,
             "n_paths": self.n_paths,
@@ -59,6 +69,7 @@ class SimulationResult:
             "vol": self.vol,
             "prob_estimate": self.prob_estimate,
             "market_price": self.market_price,
+            "execution_cost_pct": round(self.execution_cost_pct, 4),
             "elapsed_ms": round(self.elapsed_ms, 2),
         }
 
@@ -82,32 +93,47 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
     )
 
 
-def _gbm_logit_paths(
+def _logit_diffusion_paths(
     p0: float,
-    drift: float,
     vol: float,
     T: float,
     n_paths: int,
     n_steps: int,
     rng: np.random.Generator,
+    resolution: Optional[float] = None,
 ) -> np.ndarray:
-    """Generate GBM paths in logit-space and return terminal probabilities.
+    """Generate logit-diffusion paths and return terminal probabilities.
 
-    Models probability evolution as GBM on logit(p), keeping values in (0,1).
-    Uses Ito-corrected drift and vectorised Brownian increments.
+    Correct model for prediction market contracts (NOT GBM):
+      logit(p_{t+1}) = logit(p_t) + sigma * dW_t
+
+    When resolution is provided (0 or 1), uses Brownian bridge conditioning
+    to model near-expiry convergence toward the known outcome.
+
+    All paths stay bounded in (0, 1) by construction.
     """
     dt = T / n_steps
     sqrt_dt = math.sqrt(dt)
     x0 = _logit(np.array([p0]))[0]
 
-    # Ito-corrected drift per step
-    drift_step = (drift - 0.5 * vol * vol) * dt
+    if resolution is not None:
+        # Brownian bridge: condition on resolving to 0 or 1
+        logit_target = _logit(np.array([np.clip(resolution, 0.01, 0.99)]))[0]
 
-    # Brownian increments: (n_paths, n_steps)
+        # Step-by-step bridge (drift toward target)
+        x = np.full(n_paths, x0)
+        for t in range(n_steps):
+            remaining_steps = n_steps - t
+            remaining_time = remaining_steps * dt
+            bridge_drift = (logit_target - x) / max(remaining_time, dt) * dt
+            noise = rng.standard_normal(n_paths) * vol * sqrt_dt
+            x = x + bridge_drift + noise
+        return _sigmoid(x)
+
+    # Standard logit-diffusion (zero drift — no measure mixing)
     dW = rng.standard_normal((n_paths, n_steps)) * sqrt_dt
-    increments = drift_step + vol * dW
+    increments = vol * dW
     x_T = x0 + np.sum(increments, axis=1)
-
     return _sigmoid(x_T)
 
 
@@ -118,6 +144,43 @@ def _brier_score(forecasts: np.ndarray, outcomes: np.ndarray) -> float:
     if f.size == 0:
         return 1.0
     return float(np.mean((f - o) ** 2))
+
+
+def _brier_skill_score(
+    model_brier: float,
+    base_rate: float,
+) -> float:
+    """Brier Skill Score: BSS = 1 - BS_model / BS_baseline.
+
+    Baseline is the naive climatological forecast (always predict base_rate).
+    BSS = 0 means no better than naive. BSS = 1 is perfect.
+    BSS < 0 means actively worse than doing nothing.
+    """
+    # Naive baseline Brier: base_rate * (1-base_rate)^2 + (1-base_rate) * base_rate^2
+    # Simplifies to: base_rate * (1 - base_rate)
+    baseline_brier = base_rate * (1.0 - base_rate)
+    if baseline_brier < 1e-10:
+        return 0.0
+    return 1.0 - model_brier / baseline_brier
+
+
+def _execution_cost(
+    market_price: float,
+    spread_cents: float = 0.04,
+    slippage_cents: float = 0.02,
+    taker_fee_pct: float = 0.0315,
+) -> float:
+    """Estimate round-trip execution cost as percentage of edge.
+
+    Based on typical Polymarket CLOB:
+      - Spread: 3-8 cents (default 4c)
+      - Slippage: 1-3 cents for typical sizes (default 2c)
+      - Taker fee: 3.15% of notional
+    """
+    half_spread = spread_cents / 2.0
+    effective_entry = market_price + half_spread + slippage_cents
+    fee_cost = effective_entry * taker_fee_pct
+    return (half_spread + slippage_cents + fee_cost) / max(market_price, 0.01) * 100.0
 
 
 def _wilson_ci(p_hat: float, n: int, z: float = 1.96) -> Tuple[float, float]:
@@ -159,23 +222,32 @@ class MonteCarloEngine:
         n_paths: int = 10_000,
         horizon_days: int = 7,
         vol: float = 0.3,
-        drift: float = 0.0,
         n_steps: int = 100,
+        resolution: Optional[float] = None,
+        spread_cents: float = 0.04,
+        slippage_cents: float = 0.02,
         contract: str = "",
         ticker: str = "",
         persist: bool = True,
     ) -> Dict[str, Any]:
         """Run a full MC simulation and return a result dictionary.
 
-        Returns dict with: fair_price, edge_pct, brier, ci_95, paths_won,
-        plus all input parameters and timing.
+        Uses logit-diffusion (bounded [0,1]) instead of GBM.
+        Supports Brownian bridge conditioning for near-expiry contracts.
+        Computes Brier Skill Score (BSS) and execution costs.
+
+        Args:
+            resolution: If known (0.0 or 1.0), condition paths on this
+                        outcome using Brownian bridge (near-expiry mode).
+            spread_cents: Typical bid-ask spread on Polymarket.
+            slippage_cents: Expected slippage from walking the book.
         """
         t_start = time.perf_counter()
 
         T = horizon_days / 365.0
         fair_price = self.price_binary(
             prob=prob_estimate, vol=vol, T=T, n_paths=n_paths,
-            drift=drift, n_steps=n_steps,
+            n_steps=n_steps, resolution=resolution,
         )
 
         paths_won = int(round(fair_price * n_paths))
@@ -183,11 +255,18 @@ class MonteCarloEngine:
             (fair_price - market_price) / max(market_price, 1e-9) * 100.0
         )
 
+        # Execution cost model
+        exec_cost = _execution_cost(market_price, spread_cents, slippage_cents)
+        edge_after_costs = edge_pct - exec_cost
+
         # Brier: treat market_price as forecast, model conviction as outcome
         outcome_indicator = 1.0 if prob_estimate >= 0.5 else 0.0
         brier = _brier_score(
             np.array([market_price]), np.array([outcome_indicator]),
         )
+
+        # Brier Skill Score: compare against naive base-rate forecast
+        bss = _brier_skill_score(brier, base_rate=market_price)
 
         ci_95 = _wilson_ci(fair_price, n_paths)
         elapsed_ms = (time.perf_counter() - t_start) * 1000.0
@@ -195,7 +274,9 @@ class MonteCarloEngine:
         result = SimulationResult(
             fair_price=fair_price,
             edge_pct=edge_pct,
+            edge_after_costs=edge_after_costs,
             brier=brier,
+            brier_skill_score=bss,
             ci_95=ci_95,
             paths_won=paths_won,
             n_paths=n_paths,
@@ -203,6 +284,7 @@ class MonteCarloEngine:
             vol=vol,
             prob_estimate=prob_estimate,
             market_price=market_price,
+            execution_cost_pct=exec_cost,
             elapsed_ms=elapsed_ms,
         )
 
@@ -253,8 +335,14 @@ class MonteCarloEngine:
                     ),
                 }
 
+        # Brier Skill Score against naive base-rate
+        base_rate = float(outcomes.mean())
+        bss = _brier_skill_score(overall_brier, base_rate)
+
         return {
             "brier": round(overall_brier, 6),
+            "brier_skill_score": round(bss, 6),
+            "base_rate": round(base_rate, 4),
             "n": len(settlements),
             "buckets": buckets,
         }
@@ -266,18 +354,22 @@ class MonteCarloEngine:
         T: float,
         n_paths: int,
         *,
-        drift: float = 0.0,
         n_steps: int = 100,
         strike: float = 0.5,
+        resolution: Optional[float] = None,
     ) -> float:
         """Raw MC pricing of P(contract settles YES).
 
-        Simulates *n_paths* GBM trajectories in logit-space starting from
+        Simulates *n_paths* logit-diffusion trajectories starting from
         *prob*, returns fraction of terminal values above *strike*.
+
+        Uses Brownian bridge when resolution is known (near-expiry).
+        Zero drift by default (no P vs Q measure mixing).
         """
-        terminal = _gbm_logit_paths(
-            p0=prob, drift=drift, vol=vol, T=T,
+        terminal = _logit_diffusion_paths(
+            p0=prob, vol=vol, T=T,
             n_paths=n_paths, n_steps=n_steps, rng=self._rng,
+            resolution=resolution,
         )
         return float(np.mean(terminal >= strike))
 
@@ -326,13 +418,16 @@ class MonteCarloEngine:
 
 def _print_result(r: Dict[str, Any]) -> None:
     """Pretty-print a simulation result dict."""
-    print(f"  Fair price  : {r['fair_price']:.4f}")
-    print(f"  Market price: {r['market_price']:.4f}")
-    print(f"  Edge        : {r['edge_pct']:+.2f}%")
-    print(f"  Brier       : {r['brier']:.6f}")
-    print(f"  95% CI      : [{r['ci_95'][0]:.4f}, {r['ci_95'][1]:.4f}]")
-    print(f"  Paths won   : {r['paths_won']:,} / {r['n_paths']:,}")
-    print(f"  Elapsed     : {r['elapsed_ms']:.1f} ms")
+    print(f"  Fair price     : {r['fair_price']:.4f}")
+    print(f"  Market price   : {r['market_price']:.4f}")
+    print(f"  Edge (raw)     : {r['edge_pct']:+.2f}%")
+    print(f"  Exec cost      : {r['execution_cost_pct']:.2f}%")
+    print(f"  Edge (net)     : {r['edge_after_costs']:+.2f}%")
+    print(f"  Brier          : {r['brier']:.6f}")
+    print(f"  Brier Skill    : {r['brier_skill_score']:+.6f}")
+    print(f"  95% CI         : [{r['ci_95'][0]:.4f}, {r['ci_95'][1]:.4f}]")
+    print(f"  Paths won      : {r['paths_won']:,} / {r['n_paths']:,}")
+    print(f"  Elapsed        : {r['elapsed_ms']:.1f} ms")
 
 
 def _demo() -> None:
@@ -344,16 +439,19 @@ def _demo() -> None:
     print("=" * 60)
 
     scenarios = [
-        ("Edge exists: model=62%, market=55%", 0.62, 0.55, 7, 0.3),
-        ("Fair market: model=50%, market=50%", 0.50, 0.50, 14, 0.5),
-        ("Contrarian:  model=30%, market=65%", 0.30, 0.65, 3, 0.25),
+        ("Edge exists: model=62%, market=55%", 0.62, 0.55, 7, 0.3, None),
+        ("Fair market: model=50%, market=50%", 0.50, 0.50, 14, 0.5, None),
+        ("Contrarian:  model=30%, market=65%", 0.30, 0.65, 3, 0.25, None),
+        ("Near-expiry bridge (resolve=1)", 0.85, 0.80, 0.1, 0.3, 1.0),
+        ("Low base-rate (Brier trap)", 0.03, 0.02, 30, 0.2, None),
     ]
 
-    for title, prob, mkt, days, vol in scenarios:
+    for title, prob, mkt, days, vol, resolution in scenarios:
         print(f"\n--- {title} ---")
         result = engine.simulate(
             prob_estimate=prob, market_price=mkt,
-            n_paths=50_000, horizon_days=days, vol=vol, persist=False,
+            n_paths=50_000, horizon_days=days, vol=vol,
+            resolution=resolution, persist=False,
         )
         _print_result(result)
 
@@ -369,6 +467,8 @@ def _demo() -> None:
 
     cal = engine.calibrate(settlements)
     print(f"  Overall Brier : {cal['brier']:.6f}")
+    print(f"  Brier Skill   : {cal['brier_skill_score']:+.6f}")
+    print(f"  Base rate     : {cal['base_rate']:.4f}")
     print(f"  Settlements   : {cal['n']}")
     print("  Bucket breakdown:")
     for label, stats in cal["buckets"].items():

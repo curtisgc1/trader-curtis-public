@@ -53,6 +53,41 @@ Accessed via `security find-generic-password -a "$KEYCHAIN_ACCOUNT" -s "<service
   - `GET /v2/binance/candles` (Dev)
   - `GET /v2/matching/pairs` (Dev)
 
+## Training Pipelines
+
+### GRPO (existing)
+- **Location**: `training/grpo/`
+- **Model**: `mlx-community/Qwen2.5-7B-Instruct-4bit` (MLX LoRA)
+- **Dataset**: 325 train / 81 eval from route_outcomes
+- **Run**: `scripts/run_mlx_grpo_train.sh`
+- **Control**: `grpo_mlx_train_enabled=1`
+
+### EMPO² (arXiv:2602.23008, ICLR 2026)
+- **Location**: `training/empo/`
+- **Paper**: Exploratory Memory-Augmented On/Off-Policy Optimization (128.6% over GRPO on exploration)
+- **What it adds**: Memory buffer (trade reflections), dual rollout, exploration bonus, on/off-policy hybrid
+- **Dataset**: 392 samples, 393 tips in memory buffer
+- **Run**: `scripts/run_empo_train.sh` or `python3 -m training.empo.build_dataset --mlx && python3 -m training.empo.trainer`
+- **Control**: `empo_mlx_train_enabled=1`
+- **DB tables**: `empo_memory_tips`, `empo_state_visits`
+- **Integration**: EMPO² is a **separate** training track from GRPO, not built into it. Both produce MLX LoRA adapters. EMPO² adds memory + exploration on top.
+
+### DAPO (arXiv:2505.06408)
+- **Location**: `dapo_model.py`, `train_dapo.py`, `pipeline_l_dapo_agent.py`
+- **Status**: Offline training on historical NASDAQ-100 data. NOT in live pipeline.
+- **Note**: Separate RL agent for stock trading, not prediction markets.
+
+### Simulation Engine Corrections (2026-03-01)
+- **Critique**: "From Monte Carlo to Mirages" identified 6 errors in Layer 1
+- **Fixed**: `simulations/monte_carlo.py` — GBM replaced with logit-diffusion, Brownian bridge for near-expiry, Brier Skill Score added, execution cost model, zero drift (no P/Q mixing)
+- **Still TODO**: copula.py needs DCC (Dynamic Conditional Correlation), particle_filter.py needs Empirical Bayes hyperparameter calibration
+
+### Microsoft Agent Lightning (arXiv:2508.03680)
+- **Paper**: "Train ANY AI Agents with Reinforcement Learning" (Microsoft Research)
+- **Status**: Evaluated 2026-02-17, not yet integrated
+- **Relevance**: Could replace manual RL training with zero-code-change agent optimization
+- **Action**: Evaluate for GRPO/EMPO² replacement after both pipelines have 200+ outcomes
+
 ## Execution Controls (DB)
 
 Key settings in `execution_controls` table that affect trading:
@@ -70,6 +105,7 @@ Key settings in `execution_controls` table that affect trading:
 | `daily_target_usd` | `100` | Daily PnL auto-pause target |
 | `grpo_apply_weight_updates` | `1` | HGRM live weight updates |
 | `grpo_kaggle_max_pct` | `0` | No Kaggle data in training |
+| `empo_mlx_train_enabled` | `0` | EMPO² training (enable when ready) |
 
 ## Verification Script
 
